@@ -5,6 +5,10 @@ Global configuration for Transcript Suite.
 from dataclasses import dataclass
 from pathlib import Path
 import os
+
+# Prevent CUDA memory fragmentation on 8GB GPUs
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
 import torch
 
 @dataclass

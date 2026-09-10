@@ -149,7 +149,7 @@ class TranscriptionPipeline:
             if enable_diarization:
                 report("Performing Speaker Diarization...", 0.24)
                 try:
-                    speaker_turns = self.diarizer.diarize(file_path)
+                    speaker_turns = self.diarizer.diarize(waveform, sr)
                 except Exception as e:
                     print(f"[Diarization Warning] Diarization failed ({e}), falling back to single speaker.")
                     speaker_turns = [SpeakerTurn(start=0.0, end=duration, speaker="Speaker 0")]

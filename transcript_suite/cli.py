@@ -2,8 +2,13 @@
 Command Line Interface for Transcript Suite.
 """
 
+import os
 from pathlib import Path
 from typing import Optional
+
+# Prevent CUDA memory fragmentation on 8GB GPUs
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
 import typer
 from rich.console import Console
 from rich.panel import Panel
