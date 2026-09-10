@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transcript Suite | Canary-Qwen-2.5B</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <!-- WaveSurfer.js for audio waveform visualization -->
+  <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
+</head>
+<body data-theme="foggy-woodland">
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🌲</div>
+      <div class="brand-title">Transcript Suite</div>
+      <div class="brand-badge">Canary-Qwen-2.5B</div>
+    </div>
+    <div class="nav-controls">
+      <div class="vram-meter" id="vramMeter" title="GPU VRAM Usage">
+        <span>VRAM:</span>
+        <div class="vram-bar">
+          <div class="vram-bar-fill" id="vramBarFill"></div>
+        </div>
+        <span id="vramText">-- / 8.0 GB</span>
+      </div>
+      <select class="theme-select" id="themeSelect">
+        <option value="foggy-woodland">🌲 Foggy Woodland</option>
+        <option value="forest-sage">🌿 Forest Sage</option>
+        <option value="nordic-slate">⛰️ Nordic Slate</option>
+        <option value="warm-umber">☕ Warm Umber</option>
+      </select>
+    </div>
+  </header>
+
+  <main>
+    <!-- Upload Section -->
+    <div class="upload-card">
+      <div class="dropzone" id="dropzone">
+        <div class="dropzone-icon">🎙️</div>
+        <div class="dropzone-text" id="dropzoneText">Drop your AAC or audio file here, or click to browse</div>
+        <div class="dropzone-hint">Optimized for AAC & 16kHz audio with NVIDIA Canary-Qwen</div>
+        <input type="file" id="fileInput" accept="audio/*,.aac,.wav,.mp3,.m4a" style="display: none;">
+      </div>
+
+      <div class="options-row">
+        <label class="checkbox-label">
+          <input type="checkbox" id="speakerLabelsCheckbox" checked>
+          <span>Enable Speaker Diarization</span>
+        </label>
+
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 13px; color: var(--text-secondary);">Diarizer:</span>
+          <select class="select-input" id="diarizerSelect">
+            <option value="nemo">NeMo TitaNet (Open & Local)</option>
+            <option value="pyannote">PyAnnote 3.x (Optional)</option>
+          </select>
+        </div>
+
+        <button class="btn-primary" id="btnStart" disabled>Transcribe Audio</button>
+      </div>
+    </div>
+
+    <!-- Progress Notification Card -->
+    <div class="progress-card" id="progressCard">
+      <div class="progress-header">
+        <span id="progressStatus">Initializing pipeline...</span>
+        <span id="progressPercentage">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <!-- Waveform & Player Card -->
+    <div class="player-card" id="playerCard">
+      <div id="waveform"></div>
+      <div class="player-controls">
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-player" id="btnPlayPause">▶ Play</button>
+          <button class="btn-player" id="btnBack5">↺ -5s</button>
+          <button class="btn-player" id="btnFwd5">↻ +5s</button>
+          <select class="select-input" id="playbackSpeed">
+            <option value="1.0">1.0x</option>
+            <option value="1.25">1.25x</option>
+            <option value="1.5">1.5x</option>
+            <option value="0.75">0.75x</option>
+          </select>
+        </div>
+        <div class="player-time" id="playerTime">00:00 / 00:00</div>
+      </div>
+    </div>
+
+    <!-- Transcript Workspace -->
+    <div class="transcript-card" id="transcriptCard">
+      <div class="toolbar">
+        <div class="speaker-filters" id="speakerFilters">
+          <div class="filter-pill active" data-speaker="ALL">All Speakers</div>
+        </div>
+        <div class="actions">
+          <input type="text" class="text-input" id="searchInput" placeholder="Search transcript...">
+          <button class="btn-secondary" id="btnRenameModal">Rename Speakers</button>
+          <button class="btn-primary" id="btnExportTxt">Export .TXT</button>
+        </div>
+      </div>
+
+      <div class="transcript-feed" id="transcriptFeed">
+        <!-- Segments dynamically rendered here -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Rename Speakers Modal -->
+  <div class="modal-overlay" id="renameModal">
+    <div class="modal-content">
+      <div class="modal-title">Rename Speaker Aliases</div>
+      <div class="modal-inputs" id="aliasInputsContainer">
+        <!-- Dynamic speaker alias rows -->
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button class="btn-secondary" id="btnCancelRename">Cancel</button>
+        <button class="btn-primary" id="btnSaveAliases">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
