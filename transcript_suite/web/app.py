@@ -23,8 +23,11 @@ static_dir = Path(__file__).parent / "static"
 static_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-# In-memory task registry
+# In-memory task registry and control events
+import threading
+
 TASKS: Dict[str, Dict[str, Any]] = {}
+TASK_CONTROLS: Dict[str, Dict[str, Any]] = {}
 vram_manager = VRAMManager()
 
 
@@ -46,7 +49,7 @@ async def index():
 
 @app.get("/api/vram")
 async def get_vram():
-    """Returns real-time GPU VRAM telemetry."""
+    """Returns real-time GPU VRAM and System RAM telemetry."""
     return vram_manager.get_stats()
 
 
@@ -59,7 +62,7 @@ async def create_transcription_task(
     hf_token: Optional[str] = Form(None)
 ):
     """
-    Uploads an AAC/audio file and starts background transcription.
+    Uploads an AAC/audio file and starts background transcription with pause/stop support.
     """
     task_id = str(uuid.uuid4())
     file_ext = Path(audio.filename).suffix or ".aac"
@@ -68,6 +71,16 @@ async def create_transcription_task(
     # Save uploaded file
     with open(saved_path, "wb") as f:
         f.write(await audio.read())
+
+    pause_event = threading.Event()
+    pause_event.set()  # Not paused by default
+    stop_event = threading.Event()
+
+    TASK_CONTROLS[task_id] = {
+        "pause_event": pause_event,
+        "stop_event": stop_event,
+        "pipeline": None
+    }
 
     TASKS[task_id] = {
         "id": task_id,
@@ -93,6 +106,50 @@ async def create_transcription_task(
     return {"task_id": task_id, "status": "queued"}
 
 
+@app.post("/api/tasks/{task_id}/pause")
+async def pause_task(task_id: str):
+    """Pauses an in-progress transcription task."""
+    ctrl = TASK_CONTROLS.get(task_id)
+    if not ctrl:
+        raise HTTPException(status_code=404, detail="Task control not found")
+    ctrl["pause_event"].clear()
+    if task_id in TASKS:
+        TASKS[task_id]["status"] = "paused"
+        TASKS[task_id]["message"] = "Paused"
+    return {"status": "paused"}
+
+
+@app.post("/api/tasks/{task_id}/resume")
+async def resume_task(task_id: str):
+    """Resumes a paused transcription task."""
+    ctrl = TASK_CONTROLS.get(task_id)
+    if not ctrl:
+        raise HTTPException(status_code=404, detail="Task control not found")
+    ctrl["pause_event"].set()
+    if task_id in TASKS:
+        TASKS[task_id]["status"] = "processing"
+        TASKS[task_id]["message"] = "Resuming..."
+    return {"status": "resumed"}
+
+
+@app.post("/api/tasks/{task_id}/stop")
+async def stop_task(task_id: str):
+    """Stops and cancels an in-progress transcription task, freeing memory."""
+    ctrl = TASK_CONTROLS.get(task_id)
+    if ctrl:
+        ctrl["stop_event"].set()
+        ctrl["pause_event"].set()  # Unblock if currently paused
+        if ctrl.get("pipeline") and hasattr(ctrl["pipeline"].transcriber, "unload_model"):
+            ctrl["pipeline"].transcriber.unload_model()
+
+    vram_manager.clear_cache()
+
+    if task_id in TASKS:
+        TASKS[task_id]["status"] = "stopped"
+        TASKS[task_id]["message"] = "Stopped by user"
+    return {"status": "stopped"}
+
+
 def run_transcription_worker(
     task_id: str,
     file_path: Path,
@@ -100,11 +157,18 @@ def run_transcription_worker(
     speaker_labels: bool,
     hf_token: Optional[str]
 ):
+    ctrl = TASK_CONTROLS.get(task_id)
+    pause_evt = ctrl["pause_event"] if ctrl else None
+    stop_evt = ctrl["stop_event"] if ctrl else None
+
     pipeline = TranscriptionPipeline(diarizer_type=diarizer, hf_token=hf_token)
+    if ctrl:
+        ctrl["pipeline"] = pipeline
 
     def on_progress(stage: str, frac: float, current_seg: Optional[Dict[str, Any]]):
         if task_id in TASKS:
-            TASKS[task_id]["status"] = "processing"
+            if TASKS[task_id]["status"] != "paused":
+                TASKS[task_id]["status"] = "processing"
             TASKS[task_id]["progress"] = round(frac * 100, 1)
             TASKS[task_id]["message"] = stage
             if current_seg:
@@ -115,7 +179,9 @@ def run_transcription_worker(
         result = pipeline.process_file(
             file_path=file_path,
             enable_diarization=speaker_labels,
-            progress_callback=on_progress
+            progress_callback=on_progress,
+            pause_event=pause_evt,
+            stop_event=stop_evt
         )
         TASKS[task_id]["status"] = "completed"
         TASKS[task_id]["progress"] = 100.0
@@ -125,10 +191,19 @@ def run_transcription_worker(
         TASKS[task_id]["duration"] = result["duration"]
         TASKS[task_id]["elapsed"] = result["elapsed_seconds"]
         TASKS[task_id]["vram"] = vram_manager.get_stats()
+    except InterruptedError:
+        print(f"[Task {task_id}] Stopped by user request.")
+        if task_id in TASKS:
+            TASKS[task_id]["status"] = "stopped"
+            TASKS[task_id]["message"] = "Stopped by user"
     except Exception as e:
         print(f"[Error in Task {task_id}] {e}")
         TASKS[task_id]["status"] = "failed"
         TASKS[task_id]["message"] = str(e)
+    finally:
+        # Aggressive memory cleanup when worker finishes or stops
+        vram_manager.clear_cache()
+
 
 
 @app.get("/api/tasks/{task_id}")

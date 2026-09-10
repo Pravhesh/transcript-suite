@@ -16,12 +16,19 @@
       <div class="brand-badge">Canary-Qwen-2.5B</div>
     </div>
     <div class="nav-controls">
+      <div class="vram-meter" id="sysRamMeter" title="System RAM Usage">
+        <span>RAM:</span>
+        <div class="vram-bar">
+          <div class="vram-bar-fill" id="ramBarFill" style="background-color: var(--accent-bark);"></div>
+        </div>
+        <span id="ramText">-- / -- GB</span>
+      </div>
       <div class="vram-meter" id="vramMeter" title="GPU VRAM Usage">
         <span>VRAM:</span>
         <div class="vram-bar">
           <div class="vram-bar-fill" id="vramBarFill"></div>
         </div>
-        <span id="vramText">-- / 8.0 GB</span>
+        <span id="vramText">-- / 7.6 GB</span>
       </div>
       <select class="theme-select" id="themeSelect">
         <option value="foggy-woodland">🌲 Foggy Woodland</option>
@@ -60,11 +67,18 @@
       </div>
     </div>
 
-    <!-- Progress Notification Card -->
+    <!-- Progress Notification Card with Pause / Resume / Stop -->
     <div class="progress-card" id="progressCard">
       <div class="progress-header">
         <span id="progressStatus">Initializing pipeline...</span>
-        <span id="progressPercentage">0%</span>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span id="progressPercentage">0%</span>
+          <div class="progress-actions">
+            <button class="btn-control btn-pause" id="btnPause" title="Pause transcription">⏸ Pause</button>
+            <button class="btn-control btn-resume" id="btnResume" style="display: none;" title="Resume transcription">▶ Resume</button>
+            <button class="btn-control btn-stop" id="btnStop" title="Cancel & stop transcription">⏹ Stop</button>
+          </div>
+        </div>
       </div>
       <div class="progress-track">
         <div class="progress-fill" id="progressFill"></div>

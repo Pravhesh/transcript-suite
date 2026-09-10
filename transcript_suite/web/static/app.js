@@ -14,6 +14,8 @@ const themeSelect = document.getElementById("themeSelect");
 const vramMeter = document.getElementById("vramMeter");
 const vramBarFill = document.getElementById("vramBarFill");
 const vramText = document.getElementById("vramText");
+const ramBarFill = document.getElementById("ramBarFill");
+const ramText = document.getElementById("ramText");
 
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
@@ -26,6 +28,11 @@ const progressCard = document.getElementById("progressCard");
 const progressStatus = document.getElementById("progressStatus");
 const progressPercentage = document.getElementById("progressPercentage");
 const progressFill = document.getElementById("progressFill");
+const btnPause = document.getElementById("btnPause");
+const btnResume = document.getElementById("btnResume");
+const btnStop = document.getElementById("btnStop");
+
+let pollTimer = null;
 
 const playerCard = document.getElementById("playerCard");
 const btnPlayPause = document.getElementById("btnPlayPause");
@@ -60,12 +67,20 @@ themeSelect.addEventListener("change", (e) => {
   updateWaveformTheme();
 });
 
-// --- 2. VRAM Monitoring ---
-async function fetchVRAM() {
+// --- 2. VRAM & System RAM Monitoring ---
+async function fetchMemoryStats() {
   try {
     const res = await fetch("/api/vram");
     if (!res.ok) return;
     const data = await res.json();
+    
+    // System RAM
+    if (data.sys_ram_total_gb > 0) {
+      ramBarFill.style.width = `${data.sys_ram_percent}%`;
+      ramText.innerText = `${data.sys_ram_used_gb} / ${data.sys_ram_total_gb} GB (${data.sys_ram_percent}%)`;
+    }
+
+    // GPU VRAM
     if (data.available) {
       vramBarFill.style.width = `${data.percent_used}%`;
       vramText.innerText = `${data.reserved_gb} / ${data.total_gb} GB (${data.percent_used}%)`;
@@ -76,8 +91,9 @@ async function fetchVRAM() {
     // Silent fail on polling error
   }
 }
-setInterval(fetchVRAM, 3000);
-fetchVRAM();
+setInterval(fetchMemoryStats, 2500);
+fetchMemoryStats();
+
 
 // --- 3. Drag & Drop File Handling ---
 dropzone.addEventListener("click", () => fileInput.click());
@@ -119,6 +135,10 @@ btnStart.addEventListener("click", async () => {
   progressFill.style.width = "5%";
   progressPercentage.innerText = "5%";
 
+  btnPause.style.display = "inline-block";
+  btnResume.style.display = "none";
+  btnStop.style.display = "inline-block";
+
   const formData = new FormData();
   formData.append("audio", selectedFile);
   formData.append("diarizer", diarizerSelect.value);
@@ -137,23 +157,76 @@ btnStart.addEventListener("click", async () => {
   }
 });
 
+btnPause.addEventListener("click", async () => {
+  if (!currentTaskId) return;
+  try {
+    await fetch(`/api/tasks/${currentTaskId}/pause`, { method: "POST" });
+    btnPause.style.display = "none";
+    btnResume.style.display = "inline-block";
+    progressStatus.innerText = "Paused by user";
+  } catch (err) {
+    console.error("Failed to pause:", err);
+  }
+});
+
+btnResume.addEventListener("click", async () => {
+  if (!currentTaskId) return;
+  try {
+    await fetch(`/api/tasks/${currentTaskId}/resume`, { method: "POST" });
+    btnResume.style.display = "none";
+    btnPause.style.display = "inline-block";
+    progressStatus.innerText = "Resuming...";
+  } catch (err) {
+    console.error("Failed to resume:", err);
+  }
+});
+
+btnStop.addEventListener("click", async () => {
+  if (!currentTaskId) return;
+  if (!confirm("Are you sure you want to cancel and stop this transcription?")) return;
+  try {
+    await fetch(`/api/tasks/${currentTaskId}/stop`, { method: "POST" });
+    if (pollTimer) clearInterval(pollTimer);
+    progressStatus.innerText = "Stopped";
+    progressCard.style.display = "none";
+    btnStart.disabled = false;
+    currentTaskId = null;
+  } catch (err) {
+    console.error("Failed to stop:", err);
+  }
+});
+
 async function pollTaskStatus(taskId) {
-  const timer = setInterval(async () => {
+  if (pollTimer) clearInterval(pollTimer);
+
+  pollTimer = setInterval(async () => {
     try {
       const res = await fetch(`/api/tasks/${taskId}`);
       if (!res.ok) return;
       const data = await res.json();
 
-      progressStatus.innerText = data.message || "Processing...";
+      if (data.status === "paused") {
+        progressStatus.innerText = "Paused";
+        btnPause.style.display = "none";
+        btnResume.style.display = "inline-block";
+      } else {
+        progressStatus.innerText = data.message || "Processing...";
+      }
+
       progressFill.style.width = `${data.progress}%`;
       progressPercentage.innerText = `${Math.round(data.progress)}%`;
 
       if (data.status === "completed") {
-        clearInterval(timer);
+        clearInterval(pollTimer);
         progressCard.style.display = "none";
+        btnStart.disabled = false;
         onTranscriptionSuccess(data);
+      } else if (data.status === "stopped") {
+        clearInterval(pollTimer);
+        progressCard.style.display = "none";
+        btnStart.disabled = false;
       } else if (data.status === "failed") {
-        clearInterval(timer);
+        clearInterval(pollTimer);
         alert("Transcription failed: " + data.message);
         btnStart.disabled = false;
         progressCard.style.display = "none";
@@ -163,6 +236,7 @@ async function pollTaskStatus(taskId) {
     }
   }, 1000);
 }
+
 
 // --- 5. Rendering Transcript & Audio Player ---
 function onTranscriptionSuccess(data) {

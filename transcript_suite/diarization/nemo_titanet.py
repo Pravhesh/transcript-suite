@@ -40,6 +40,25 @@ class NeMoTitaNetDiarizer(BaseDiarizer):
             print(f"[NeMo Diarizer Warning] Could not load NeMo TitaNet: {e}.")
             self._is_loaded = False
 
+    def unload_model(self):
+        """
+        Unloads TitaNet model and trims memory.
+        """
+        if self.model is not None:
+            del self.model
+            self.model = None
+        self._is_loaded = False
+        import gc
+        import ctypes
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        try:
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:
+            pass
+        print("[NeMo Diarizer] TitaNet model unloaded and RAM trimmed.")
+
     def diarize(self, waveform: torch.Tensor, sample_rate: int = 16000) -> List[SpeakerTurn]:
         """
         Extracts speaker embeddings on VAD speech slices and clusters them into speaker IDs.

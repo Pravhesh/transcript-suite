@@ -90,24 +90,50 @@ class CanaryQwenTranscriber:
 
         raise RuntimeError("Loaded model does not support transcription generation.")
 
+    def unload_model(self):
+        """
+        Unloads Canary-Qwen model and releases all VRAM and system RAM.
+        """
+        if self.model is not None:
+            del self.model
+            self.model = None
+        self._is_loaded = False
+        self.vram_manager.clear_cache()
+        print("[Canary-Qwen] Model unloaded and memory trimmed.")
+
     def transcribe_waveform_segments(
         self,
         waveform: torch.Tensor,
         segments: List[any],
         sr: int = 16000,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[callable] = None,
+        pause_event: Optional[any] = None,
+        stop_event: Optional[any] = None
     ) -> List[dict]:
         """
-        Transcribes audio segments sequentially with VRAM cache flushing.
+        Transcribes audio segments sequentially with VRAM cache flushing and pause/stop support.
         """
         if not self._is_loaded:
             self.load_model()
 
         results = []
+        import time
+
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
 
             for idx, seg in enumerate(segments):
+                # 1. Check for Stop / Cancel
+                if stop_event and stop_event.is_set():
+                    raise InterruptedError("Transcription stopped by user.")
+
+                # 2. Check for Pause
+                if pause_event:
+                    while not pause_event.is_set():
+                        if stop_event and stop_event.is_set():
+                            raise InterruptedError("Transcription stopped by user.")
+                        time.sleep(0.2)
+
                 # Save slice to temporary wav
                 start_sample = max(0, int(seg.start * sr))
                 end_sample = min(waveform.shape[1], int(seg.end * sr))
@@ -118,15 +144,19 @@ class CanaryQwenTranscriber:
 
                 # Transcribe
                 self.vram_manager.assert_safe_headroom()
-                text = self.transcribe_chunk(chunk_file)
+                try:
+                    text = self.transcribe_chunk(chunk_file)
+                except Exception as e:
+                    print(f"[Canary-Qwen Warning] Chunk {idx} transcription error: {e}")
+                    text = ""
+
                 seg.text = text
 
                 # Clean temporary file
                 chunk_file.unlink(missing_ok=True)
 
-                # Memory cleanup interval
-                if idx % config.auto_empty_cache_interval == 0:
-                    self.vram_manager.clear_cache()
+                # Memory cleanup interval (aggressive)
+                self.vram_manager.clear_cache()
 
                 seg_dict = seg.to_dict() if hasattr(seg, "to_dict") else {
                     "start": seg.start,
@@ -142,3 +172,4 @@ class CanaryQwenTranscriber:
 
         self.vram_manager.clear_cache()
         return results
+

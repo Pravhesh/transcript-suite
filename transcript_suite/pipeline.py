@@ -69,26 +69,35 @@ class TranscriptionPipeline:
         file_path: str | Path,
         enable_diarization: bool = True,
         speaker_aliases: Optional[Dict[str, str]] = None,
-        progress_callback: Optional[Callable[[str, float, Optional[Dict[str, Any]]], None]] = None
+        progress_callback: Optional[Callable[[str, float, Optional[Dict[str, Any]]], None]] = None,
+        pause_event: Optional[any] = None,
+        stop_event: Optional[any] = None
     ) -> Dict[str, Any]:
         """
-        Processes an audio file end-to-end.
-        progress_callback signature: callback(stage_message: str, progress_fraction: float, current_segment: dict | None)
+        Processes an audio file end-to-end with pause/stop support and memory optimization.
         """
         start_time = time.time()
         file_path = Path(file_path).resolve()
 
+        def check_stop():
+            if stop_event and stop_event.is_set():
+                raise InterruptedError("Transcription stopped by user.")
+
         def report(stage: str, frac: float, current_seg: Optional[Dict[str, Any]] = None):
+            check_stop()
             if progress_callback:
                 progress_callback(stage, frac, current_seg)
 
         # 1. Load and normalize audio
         report("Loading audio & converting to 16kHz mono...", 0.05)
         waveform, sr, duration = self.audio_loader.load_audio(file_path)
+        check_stop()
 
         # 2. VAD speech segmentation
         report("Performing Voice Activity Detection (VAD)...", 0.15)
         speech_segments = self.vad.segment(waveform, duration)
+        check_stop()
+
         if not speech_segments:
             return {
                 "file_path": str(file_path),
@@ -107,8 +116,15 @@ class TranscriptionPipeline:
             except Exception as e:
                 print(f"[Diarization Warning] Diarization failed ({e}), falling back to single speaker.")
                 speaker_turns = [SpeakerTurn(start=0.0, end=duration, speaker="Speaker 0")]
+            finally:
+                # Crucial RAM optimization: unload diarizer model immediately
+                if hasattr(self.diarizer, "unload_model"):
+                    self.diarizer.unload_model()
+                self.vram_manager.clear_cache()
         else:
             speaker_turns = [SpeakerTurn(start=0.0, end=duration, speaker="Speaker 0")]
+
+        check_stop()
 
         # Assign speakers to VAD speech segments
         for seg in speech_segments:
@@ -119,6 +135,7 @@ class TranscriptionPipeline:
         total_chunks = len(speech_segments)
 
         def asr_progress(current_idx: int, total_idx: int, seg_dict: Dict[str, Any]):
+            check_stop()
             frac = 0.40 + (current_idx / total_idx) * 0.55
             report(f"Transcribed chunk {current_idx}/{total_idx}", frac, seg_dict)
 
@@ -126,8 +143,12 @@ class TranscriptionPipeline:
             waveform=waveform,
             segments=speech_segments,
             sr=sr,
-            progress_callback=asr_progress
+            progress_callback=asr_progress,
+            pause_event=pause_event,
+            stop_event=stop_event
         )
+
+        check_stop()
 
         # 5. Format & Finalize
         report("Finalizing transcript...", 0.98)
@@ -141,6 +162,7 @@ class TranscriptionPipeline:
         elapsed = round(time.time() - start_time, 2)
         vram_stats = self.vram_manager.get_stats()
         report("Complete", 1.0, None)
+
 
         return {
             "file_path": str(file_path),
