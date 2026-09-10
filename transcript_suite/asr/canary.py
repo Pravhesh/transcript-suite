@@ -38,27 +38,40 @@ class CanaryQwenTranscriber:
 
         try:
             from nemo.collections.speechlm2.models import SALM
-            self.model = SALM.from_pretrained(self.model_name)
+
+            kwargs = {}
+            if self.device.startswith("cuda") and torch.cuda.is_available():
+                kwargs["map_location"] = self.device
+                kwargs["torch_dtype"] = self.dtype
+
+            # Load directly to GPU VRAM in BF16, bypassing the ~10GB CPU-RAM float32 spike
+            self.model = SALM.from_pretrained(self.model_name, **kwargs)
             if self.device.startswith("cuda") and torch.cuda.is_available():
                 self.model = self.model.to(device=self.device, dtype=self.dtype)
                 torch.backends.cuda.matmul.allow_tf32 = True
                 torch.backends.cudnn.allow_tf32 = True
             self.model.eval()
             self._is_loaded = True
-            print(f"[Canary-Qwen] Model successfully loaded on {self.device} ({self.dtype}).")
+            self.vram_manager.clear_cache()
+            print(f"[Canary-Qwen] Model successfully loaded directly on {self.device} ({self.dtype}).")
         except Exception as e:
             print(f"[Canary-Qwen Warning] Failed to load NeMo SALM model directly: {e}")
             print("[Canary-Qwen Warning] Attempting alternative NeMo ASR loading or fallback...")
             try:
                 import nemo.collections.asr as nemo_asr
-                self.model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=self.model_name)
+                fallback_kwargs = {}
+                if self.device.startswith("cuda") and torch.cuda.is_available():
+                    fallback_kwargs["map_location"] = torch.device(self.device)
+                self.model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=self.model_name, **fallback_kwargs)
                 if self.device.startswith("cuda") and torch.cuda.is_available():
                     self.model = self.model.to(device=self.device)
                 self.model.eval()
                 self._is_loaded = True
+                self.vram_manager.clear_cache()
             except Exception as e2:
                 print(f"[Canary-Qwen Error] Model initialization failed: {e2}")
                 raise e
+
 
     def transcribe_chunk(self, wav_path: str | Path) -> str:
         """

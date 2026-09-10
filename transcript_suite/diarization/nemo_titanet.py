@@ -30,12 +30,16 @@ class NeMoTitaNetDiarizer(BaseDiarizer):
         print(f"[NeMo Diarizer] Loading TitaNet ({self.model_name}) on {self.device}...")
         try:
             import nemo.collections.asr as nemo_asr
-            self.model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name=self.model_name)
+            loc = torch.device(self.device) if self.device.startswith("cuda") and torch.cuda.is_available() else None
+            self.model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(
+                model_name=self.model_name,
+                map_location=loc
+            )
             if self.device.startswith("cuda") and torch.cuda.is_available():
                 self.model = self.model.to(self.device)
             self.model.eval()
             self._is_loaded = True
-            print("[NeMo Diarizer] TitaNet model successfully loaded on GPU.")
+            print("[NeMo Diarizer] TitaNet model successfully loaded directly on GPU.")
         except Exception as e:
             print(f"[NeMo Diarizer Warning] Could not load NeMo TitaNet: {e}.")
             self._is_loaded = False
