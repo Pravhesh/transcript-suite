@@ -95,16 +95,68 @@
       </div>
     </div>
 
-    <!-- Waveform & Player Card -->
+    <!-- Dual-Track Audio Studio Card -->
     <div class="player-card" id="playerCard">
-      <div id="waveform"></div>
+      <!-- Studio Header & Mix Controls -->
+      <div class="studio-header">
+        <div class="studio-title-group">
+          <span class="studio-badge">🎙️ DUAL-TRACK AUDIO STUDIO</span>
+          <span class="sync-status-badge">⚡ Synchronized Lockstep</span>
+        </div>
+        <div class="mix-match-bar">
+          <div class="ab-toggle-group">
+            <button class="btn-ab active" id="btnABOriginal" title="Audition Original Audio Only">🎙️ Original</button>
+            <button class="btn-ab" id="btnABMix" title="Mix both tracks 50/50">🎛️ Mix 50/50</button>
+            <button class="btn-ab" id="btnABModel" title="Audition Model Classification Ingest Only">🤖 Model Ingested</button>
+          </div>
+          <div class="crossfader-container" title="Crossfader: blend between Original (left) and Model Ingested (right)">
+            <span class="crossfader-label">Orig</span>
+            <input type="range" class="crossfader" id="audioCrossfader" min="0" max="100" value="0">
+            <span class="crossfader-label">Model</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Track 1: Original Audio -->
+      <div class="track-row" id="trackOriginal">
+        <div class="track-channel-strip">
+          <div class="track-name">
+            <span class="track-dot dot-orig"></span>
+            <span class="track-title-text">Original Audio (Raw)</span>
+          </div>
+          <div class="track-channel-controls">
+            <button class="btn-strip btn-solo" id="soloOrig" title="Solo Original Track">S</button>
+            <button class="btn-strip btn-mute" id="muteOrig" title="Mute Original Track">M</button>
+            <input type="range" class="vol-slider" id="volOrig" min="0" max="1" step="0.05" value="1" title="Original Volume">
+          </div>
+        </div>
+        <div id="waveformOrig" class="waveform-box"></div>
+      </div>
+
+      <!-- Track 2: Model Classification Audio -->
+      <div class="track-row" id="trackModel">
+        <div class="track-channel-strip">
+          <div class="track-name">
+            <span class="track-dot dot-model"></span>
+            <span class="track-title-text">Model Classification Ingest (16kHz Enhanced)</span>
+          </div>
+          <div class="track-channel-controls">
+            <button class="btn-strip btn-solo" id="soloModel" title="Solo Model Ingest Track">S</button>
+            <button class="btn-strip btn-mute" id="muteModel" title="Mute Model Ingest Track">M</button>
+            <input type="range" class="vol-slider" id="volModel" min="0" max="1" step="0.05" value="0" title="Model Ingest Volume">
+          </div>
+        </div>
+        <div id="waveformModel" class="waveform-box"></div>
+      </div>
+
+      <!-- Synchronized Master Transport Bar -->
       <div class="player-controls">
-        <div style="display: flex; gap: 8px;">
-          <button class="btn-player" id="btnPlayPause">▶ Play</button>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="btn-player" id="btnPlayPause">▶ Play Both</button>
           <button class="btn-player" id="btnBack5">↺ -5s</button>
           <button class="btn-player" id="btnFwd5">↻ +5s</button>
           <select class="select-input" id="playbackSpeed">
-            <option value="1.0">1.0x</option>
+            <option value="1.0">1.0x Speed</option>
             <option value="1.25">1.25x</option>
             <option value="1.5">1.5x</option>
             <option value="0.75">0.75x</option>

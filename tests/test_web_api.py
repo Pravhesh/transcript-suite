@@ -68,8 +68,57 @@ def test_task_control_endpoints():
     assert TASKS[task_id]["status"] == "stopped"
     print("✓ Task stop endpoint verified.")
 
+def test_audio_stream_endpoints():
+    import tempfile
+    import numpy as np
+    import soundfile as sf
+    from pathlib import Path
+    from transcript_suite.web.app import TASKS
+
+    client = TestClient(app)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+        orig_audio = tmp_path / "orig.wav"
+        processed_audio = tmp_path / "processed.wav"
+        chunks_dir = tmp_path / "chunks"
+        chunks_dir.mkdir(parents=True, exist_ok=True)
+        slow_chunk = chunks_dir / "chunk_0_slow.wav"
+
+        sr = 16000
+        data = np.zeros(sr, dtype=np.float32)
+        sf.write(str(orig_audio), data, sr, subtype="PCM_16")
+        sf.write(str(processed_audio), data, sr, subtype="PCM_16")
+        sf.write(str(slow_chunk), data[:8000], sr, subtype="PCM_16")
+
+        task_id = "test-audio-task"
+        TASKS[task_id] = {
+            "file_path": str(orig_audio),
+            "processed_file_path": str(processed_audio),
+            "chunks_dir": str(chunks_dir),
+            "segments": [
+                {"start": 0.0, "end": 0.5, "speaker": "Speaker 0", "text": "Test chunk"}
+            ]
+        }
+
+        # 1. Test original audio endpoint
+        res_orig = client.get(f"/api/audio/{task_id}")
+        assert res_orig.status_code == 200
+
+        # 2. Test processed model audio endpoint
+        res_proc = client.get(f"/api/audio/{task_id}/processed")
+        assert res_proc.status_code == 200
+
+        # 3. Test chunk audio endpoint
+        res_chunk = client.get(f"/api/audio/{task_id}/chunk/0")
+        assert res_chunk.status_code == 200
+
+        print("✓ Original, processed, and chunk audio stream endpoints verified.")
+
 if __name__ == "__main__":
     test_web_endpoints()
     test_task_control_endpoints()
+    test_audio_stream_endpoints()
     print("\nAll Web API and task control tests passed!")
+
 

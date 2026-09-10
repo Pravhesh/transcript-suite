@@ -182,6 +182,10 @@ def run_transcription_worker(
                 TASKS[task_id]["segments"].append(current_seg)
             TASKS[task_id]["vram"] = vram_manager.get_stats()
 
+    processed_wav_path = config.upload_dir / f"{task_id}_processed.wav"
+    chunks_dir = config.upload_dir / f"{task_id}_chunks"
+    chunks_dir.mkdir(parents=True, exist_ok=True)
+
     try:
         result = pipeline.process_file(
             file_path=file_path,
@@ -190,7 +194,9 @@ def run_transcription_worker(
             enable_ambiguity_resolver=enable_ambiguity,
             progress_callback=on_progress,
             pause_event=pause_evt,
-            stop_event=stop_evt
+            stop_event=stop_evt,
+            output_processed_path=processed_wav_path,
+            chunks_dir=chunks_dir
         )
         TASKS[task_id]["status"] = "completed"
         TASKS[task_id]["progress"] = 100.0
@@ -199,6 +205,9 @@ def run_transcription_worker(
         TASKS[task_id]["full_text"] = result["full_text"]
         TASKS[task_id]["duration"] = result["duration"]
         TASKS[task_id]["elapsed"] = result["elapsed_seconds"]
+        TASKS[task_id]["processed_file_path"] = str(processed_wav_path)
+        TASKS[task_id]["has_processed_audio"] = processed_wav_path.exists()
+        TASKS[task_id]["chunks_dir"] = str(chunks_dir)
         TASKS[task_id]["vram"] = vram_manager.get_stats()
     except InterruptedError:
         print(f"[Task {task_id}] Stopped by user request.")
@@ -225,13 +234,75 @@ async def get_task_status(task_id: str):
 
 @app.get("/api/audio/{task_id}")
 async def get_audio_stream(task_id: str):
-    """Streams the uploaded audio for playback."""
+    """Streams the uploaded original audio for playback."""
     if task_id not in TASKS:
         raise HTTPException(status_code=404, detail="Task not found")
     audio_path = Path(TASKS[task_id]["file_path"])
     if not audio_path.exists():
         raise HTTPException(status_code=404, detail="Audio file on disk missing")
     return FileResponse(audio_path)
+
+
+@app.get("/api/audio/{task_id}/processed")
+async def get_processed_audio_stream(task_id: str):
+    """Streams the model-ingested 16kHz enhanced audio for synchronized comparison."""
+    if task_id not in TASKS:
+        raise HTTPException(status_code=404, detail="Task not found")
+    processed_path = TASKS[task_id].get("processed_file_path")
+    if not processed_path or not Path(processed_path).exists():
+        # Fallback to original audio if processed file does not exist
+        orig_path = Path(TASKS[task_id]["file_path"])
+        if orig_path.exists():
+            return FileResponse(orig_path)
+        raise HTTPException(status_code=404, detail="Processed audio not available")
+    return FileResponse(Path(processed_path), media_type="audio/wav")
+
+
+@app.get("/api/audio/{task_id}/chunk/{seg_index}")
+async def get_chunk_audio_stream(task_id: str, seg_index: int):
+    """
+    Streams the exact audio chunk evaluated by the model.
+    If the chunk was auto-slowed by ambiguity resolver, serves the 0.75x sample.
+    Otherwise slices on-the-fly from the processed audio.
+    """
+    if task_id not in TASKS:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    task = TASKS[task_id]
+    chunks_dir = task.get("chunks_dir")
+    if chunks_dir:
+        slow_file = Path(chunks_dir) / f"chunk_{seg_index}_slow.wav"
+        if slow_file.exists():
+            return FileResponse(slow_file, media_type="audio/wav")
+
+    # Fallback: slice from processed or original audio
+    segments = task.get("segments", [])
+    if seg_index < 0 or seg_index >= len(segments):
+        raise HTTPException(status_code=404, detail="Segment index out of range")
+
+    seg = segments[seg_index]
+    source_audio = task.get("processed_file_path") or task.get("file_path")
+    if not source_audio or not Path(source_audio).exists():
+        raise HTTPException(status_code=404, detail="Audio source not found")
+
+    cache_dir = Path(chunks_dir) if chunks_dir else config.upload_dir
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    chunk_cache_file = cache_dir / f"chunk_{seg_index}_slice.wav"
+
+    if not chunk_cache_file.exists():
+        import soundfile as sf
+        try:
+            with sf.SoundFile(source_audio) as f:
+                sr = f.samplerate
+                start_frame = int(seg["start"] * sr)
+                num_frames = int((seg["end"] - seg["start"]) * sr)
+                f.seek(max(0, start_frame))
+                data = f.read(num_frames)
+                sf.write(str(chunk_cache_file), data, sr, subtype="PCM_16")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to slice audio chunk: {e}")
+
+    return FileResponse(chunk_cache_file, media_type="audio/wav")
 
 
 @app.post("/api/export")

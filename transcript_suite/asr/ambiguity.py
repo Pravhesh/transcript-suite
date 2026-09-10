@@ -99,11 +99,14 @@ class AmbiguityResolver:
         waveform: torch.Tensor,
         seg: Dict[str, Any],
         transcribe_fn: callable,
-        sr: int = 16000
+        sr: int = 16000,
+        output_chunks_dir: Optional[Path | str] = None,
+        seg_idx: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Evaluates a segment for ambiguity.
         If ambiguous, slows audio down to 0.75x, re-transcribes, and resolves or flags for review.
+        Saves slowed sample if output_chunks_dir is provided.
         """
         orig_text = seg.get("text", "")
         duration = seg.get("duration", 0.0)
@@ -154,5 +157,14 @@ class AmbiguityResolver:
                 seg["needs_review"] = True
                 seg["slowed_text_candidate"] = slowed_text
                 seg["slowed_audio_used"] = True
+
+            # Save slowed audio chunk for UI audition if requested
+            if output_chunks_dir is not None and seg_idx is not None and seg["slowed_audio_used"]:
+                out_dir = Path(output_chunks_dir)
+                out_dir.mkdir(parents=True, exist_ok=True)
+                chunk_dest = out_dir / f"chunk_{seg_idx}_slow.wav"
+                import shutil
+                shutil.copyfile(str(slow_wav), str(chunk_dest))
+                seg["slowed_audio_file"] = chunk_dest.name
 
         return seg

@@ -60,8 +60,35 @@ def test_vram_manager():
     assert "reserved_gb" in stats
     print(f"✓ VRAMManager test passed (Device: {stats.get('device_name')}, Total: {stats.get('total_gb')} GB).")
 
+def test_processed_audio_export():
+    from transcript_suite.audio.loader import AudioLoader
+    from transcript_suite.audio.enhancer import GPUSpeechEnhancer
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+        wav_file = tmp_path / "test.wav"
+        processed_file = tmp_path / "processed.wav"
+
+        sr = 16000
+        t = np.linspace(0, 1.0, sr, endpoint=False)
+        data = 0.5 * np.sin(2 * np.pi * 440 * t)
+        sf.write(str(wav_file), data, sr, subtype="PCM_16")
+
+        loader = AudioLoader(target_sr=sr)
+        tensor, loaded_sr, duration = loader.load_audio(wav_file)
+        enhancer = GPUSpeechEnhancer(sample_rate=sr)
+        enhanced = enhancer.enhance(tensor)
+
+        sf.write(str(processed_file), enhanced.squeeze(0).cpu().numpy(), sr, subtype="PCM_16")
+        assert processed_file.exists()
+        info = sf.info(str(processed_file))
+        assert info.samplerate == 16000
+        assert info.channels == 1
+        print("✓ Processed model-ingested audio export test passed.")
+
 if __name__ == "__main__":
     test_audio_loader_and_ffmpeg()
     test_export_formatting()
     test_vram_manager()
+    test_processed_audio_export()
     print("\nAll component smoke tests passed successfully!")

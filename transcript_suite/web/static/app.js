@@ -6,8 +6,14 @@ let selectedFile = null;
 let currentTaskId = null;
 let currentSegments = [];
 let speakerAliases = {};
-let wavesurfer = null;
+let wavesurferOrig = null;
+let wavesurferModel = null;
+let isSeekingSync = false;
 let activeSpeakerFilter = "ALL";
+let soloState = { orig: false, model: false };
+let muteState = { orig: false, model: false };
+let volumeState = { orig: 1.0, model: 1.0 };
+let chunkAuditionAudio = null;
 
 // DOM Elements
 const themeSelect = document.getElementById("themeSelect");
@@ -37,6 +43,19 @@ const btnStop = document.getElementById("btnStop");
 let pollTimer = null;
 
 const playerCard = document.getElementById("playerCard");
+const btnABOriginal = document.getElementById("btnABOriginal");
+const btnABMix = document.getElementById("btnABMix");
+const btnABModel = document.getElementById("btnABModel");
+const audioCrossfader = document.getElementById("audioCrossfader");
+
+const soloOrig = document.getElementById("soloOrig");
+const muteOrig = document.getElementById("muteOrig");
+const volOrig = document.getElementById("volOrig");
+
+const soloModel = document.getElementById("soloModel");
+const muteModel = document.getElementById("muteModel");
+const volModel = document.getElementById("volModel");
+
 const btnPlayPause = document.getElementById("btnPlayPause");
 const btnBack5 = document.getElementById("btnBack5");
 const btnFwd5 = document.getElementById("btnFwd5");
@@ -243,7 +262,7 @@ async function pollTaskStatus(taskId) {
 }
 
 
-// --- 5. Rendering Transcript & Audio Player ---
+// --- 5. Dual-Track Audio Studio & Ingest Comparison ---
 function onTranscriptionSuccess(data) {
   currentSegments = data.segments;
   initAudioPlayer(data.id);
@@ -253,51 +272,258 @@ function onTranscriptionSuccess(data) {
   transcriptCard.style.display = "block";
 }
 
-function initAudioPlayer(taskId) {
-  if (wavesurfer) {
-    wavesurfer.destroy();
+function getWaveThemeColors() {
+  const currentTheme = document.body.dataset.theme;
+  if (currentTheme === "forest-sage") {
+    return {
+      origWave: '#1e2825', origProgress: '#527568',
+      modelWave: '#162b1e', modelProgress: '#4a825b'
+    };
+  } else if (currentTheme === "nordic-slate") {
+    return {
+      origWave: '#1d232e', origProgress: '#4d6980',
+      modelWave: '#1b2a26', modelProgress: '#4a7566'
+    };
+  } else if (currentTheme === "warm-umber") {
+    return {
+      origWave: '#2a221e', origProgress: '#70584b',
+      modelWave: '#26241b', modelProgress: '#636647'
+    };
+  } else {
+    // foggy-woodland
+    return {
+      origWave: '#1a232b', origProgress: '#46677d',
+      modelWave: '#162219', modelProgress: '#4f7556'
+    };
   }
+}
 
-  wavesurfer = WaveSurfer.create({
-    container: '#waveform',
-    waveColor: '#1c2420',
-    progressColor: '#4d6655',
-    cursorColor: '#748078',
-    height: 70,
+function initAudioPlayer(taskId) {
+  if (wavesurferOrig) wavesurferOrig.destroy();
+  if (wavesurferModel) wavesurferModel.destroy();
+
+  const colors = getWaveThemeColors();
+
+  // Track 1: Original Audio
+  wavesurferOrig = WaveSurfer.create({
+    container: '#waveformOrig',
+    waveColor: colors.origWave,
+    progressColor: colors.origProgress,
+    cursorColor: '#7a8c99',
+    height: 52,
     barWidth: 2,
     barGap: 1,
     barRadius: 2,
     url: `/api/audio/${taskId}`
   });
 
-  wavesurfer.on('timeupdate', (currentTime) => {
-    updatePlaybackTime(currentTime, wavesurfer.getDuration());
-    syncActiveSegment(currentTime);
+  // Track 2: Model Classification Audio
+  wavesurferModel = WaveSurfer.create({
+    container: '#waveformModel',
+    waveColor: colors.modelWave,
+    progressColor: colors.modelProgress,
+    cursorColor: '#748c7c',
+    height: 52,
+    barWidth: 2,
+    barGap: 1,
+    barRadius: 2,
+    url: `/api/audio/${taskId}/processed`
   });
 
-  wavesurfer.on('play', () => btnPlayPause.innerText = "⏸ Pause");
-  wavesurfer.on('pause', () => btnPlayPause.innerText = "▶ Play");
+  // Lockstep seeking synchronization
+  wavesurferOrig.on('seeking', (time) => {
+    if (!isSeekingSync && wavesurferModel) {
+      isSeekingSync = true;
+      wavesurferModel.setTime(time);
+      isSeekingSync = false;
+    }
+  });
+
+  wavesurferModel.on('seeking', (time) => {
+    if (!isSeekingSync && wavesurferOrig) {
+      isSeekingSync = true;
+      wavesurferOrig.setTime(time);
+      isSeekingSync = false;
+    }
+  });
+
+  // Timeupdate, playhead sync, and drift correction
+  wavesurferOrig.on('timeupdate', (currentTime) => {
+    updatePlaybackTime(currentTime, wavesurferOrig.getDuration());
+    syncActiveSegment(currentTime);
+
+    if (wavesurferModel && wavesurferOrig.isPlaying()) {
+      const diff = Math.abs(currentTime - wavesurferModel.getCurrentTime());
+      if (diff > 0.06) {
+        wavesurferModel.setTime(currentTime);
+      }
+    }
+  });
+
+  // Play / Pause event handlers
+  wavesurferOrig.on('play', () => {
+    btnPlayPause.innerText = "⏸ Pause";
+    if (wavesurferModel && !wavesurferModel.isPlaying()) {
+      wavesurferModel.play();
+    }
+  });
+
+  wavesurferOrig.on('pause', () => {
+    btnPlayPause.innerText = "▶ Play Both";
+    if (wavesurferModel && wavesurferModel.isPlaying()) {
+      wavesurferModel.pause();
+    }
+  });
+
+  wavesurferModel.on('play', () => {
+    if (wavesurferOrig && !wavesurferOrig.isPlaying()) {
+      wavesurferOrig.play();
+    }
+  });
+
+  wavesurferModel.on('pause', () => {
+    if (wavesurferOrig && wavesurferOrig.isPlaying()) {
+      wavesurferOrig.pause();
+    }
+  });
+
+  // Setup initial mix levels
+  wavesurferOrig.on('ready', () => updateMixLevels());
+  wavesurferModel.on('ready', () => updateMixLevels());
 }
 
 function updateWaveformTheme() {
-  if (!wavesurfer) return;
-  const currentTheme = document.body.dataset.theme;
-  if (currentTheme === "forest-sage") {
-    wavesurfer.setOptions({ waveColor: '#202a24', progressColor: '#607a68' });
-  } else if (currentTheme === "nordic-slate") {
-    wavesurfer.setOptions({ waveColor: '#1d232e', progressColor: '#587187' });
-  } else if (currentTheme === "warm-umber") {
-    wavesurfer.setOptions({ waveColor: '#2a221e', progressColor: '#786357' });
-  } else {
-    // foggy-woodland (even darker)
-    wavesurfer.setOptions({ waveColor: '#1c2420', progressColor: '#4d6655' });
+  const colors = getWaveThemeColors();
+  if (wavesurferOrig) {
+    wavesurferOrig.setOptions({ waveColor: colors.origWave, progressColor: colors.origProgress });
+  }
+  if (wavesurferModel) {
+    wavesurferModel.setOptions({ waveColor: colors.modelWave, progressColor: colors.modelProgress });
   }
 }
 
-btnPlayPause.addEventListener("click", () => wavesurfer && wavesurfer.playPause());
-btnBack5.addEventListener("click", () => wavesurfer && wavesurfer.setTime(Math.max(0, wavesurfer.getCurrentTime() - 5)));
-btnFwd5.addEventListener("click", () => wavesurfer && wavesurfer.setTime(Math.min(wavesurfer.getDuration(), wavesurfer.getCurrentTime() + 5)));
-playbackSpeed.addEventListener("change", (e) => wavesurfer && wavesurfer.setPlaybackRate(parseFloat(e.target.value)));
+// Master Transport Controls
+btnPlayPause.addEventListener("click", () => {
+  if (!wavesurferOrig) return;
+  if (wavesurferOrig.isPlaying()) {
+    wavesurferOrig.pause();
+    if (wavesurferModel) wavesurferModel.pause();
+  } else {
+    wavesurferOrig.play();
+    if (wavesurferModel) wavesurferModel.play();
+  }
+});
+
+btnBack5.addEventListener("click", () => {
+  if (!wavesurferOrig) return;
+  const newTime = Math.max(0, wavesurferOrig.getCurrentTime() - 5);
+  wavesurferOrig.setTime(newTime);
+  if (wavesurferModel) wavesurferModel.setTime(newTime);
+});
+
+btnFwd5.addEventListener("click", () => {
+  if (!wavesurferOrig) return;
+  const newTime = Math.min(wavesurferOrig.getDuration(), wavesurferOrig.getCurrentTime() + 5);
+  wavesurferOrig.setTime(newTime);
+  if (wavesurferModel) wavesurferModel.setTime(newTime);
+});
+
+playbackSpeed.addEventListener("change", (e) => {
+  const rate = parseFloat(e.target.value);
+  if (wavesurferOrig) wavesurferOrig.setPlaybackRate(rate);
+  if (wavesurferModel) wavesurferModel.setPlaybackRate(rate);
+});
+
+// Mix & Match Audio Engine
+function updateMixLevels() {
+  if (!wavesurferOrig || !wavesurferModel) return;
+
+  const cross = parseFloat(audioCrossfader.value); // 0 (100% orig) to 100 (100% model)
+  const origFactor = Math.cos((cross / 100) * (Math.PI / 2));
+  const modelFactor = Math.sin((cross / 100) * (Math.PI / 2));
+
+  let finalOrigVol = volumeState.orig * origFactor;
+  let finalModelVol = volumeState.model * modelFactor;
+
+  // Solo handling
+  if (soloState.orig && !soloState.model) {
+    finalOrigVol = volumeState.orig;
+    finalModelVol = 0;
+  } else if (soloState.model && !soloState.orig) {
+    finalModelVol = volumeState.model;
+    finalOrigVol = 0;
+  }
+
+  // Mute handling
+  if (muteState.orig) finalOrigVol = 0;
+  if (muteState.model) finalModelVol = 0;
+
+  wavesurferOrig.setVolume(finalOrigVol);
+  wavesurferModel.setVolume(finalModelVol);
+}
+
+function setCrossfade(val) {
+  audioCrossfader.value = val;
+  btnABOriginal.classList.toggle("active", val === 0);
+  btnABMix.classList.toggle("active", val === 50);
+  btnABModel.classList.toggle("active", val === 100);
+  soloState.orig = false;
+  soloState.model = false;
+  soloOrig.classList.remove("active");
+  soloModel.classList.remove("active");
+  updateMixLevels();
+}
+
+btnABOriginal.addEventListener("click", () => setCrossfade(0));
+btnABMix.addEventListener("click", () => setCrossfade(50));
+btnABModel.addEventListener("click", () => setCrossfade(100));
+
+audioCrossfader.addEventListener("input", () => {
+  const val = parseInt(audioCrossfader.value, 10);
+  btnABOriginal.classList.toggle("active", val <= 10);
+  btnABMix.classList.toggle("active", val > 40 && val < 60);
+  btnABModel.classList.toggle("active", val >= 90);
+  updateMixLevels();
+});
+
+// Channel Strip Controls
+soloOrig.addEventListener("click", () => {
+  soloState.orig = !soloState.orig;
+  if (soloState.orig) soloState.model = false;
+  soloOrig.classList.toggle("active", soloState.orig);
+  soloModel.classList.toggle("active", soloState.model);
+  updateMixLevels();
+});
+
+muteOrig.addEventListener("click", () => {
+  muteState.orig = !muteState.orig;
+  muteOrig.classList.toggle("active", muteState.orig);
+  updateMixLevels();
+});
+
+volOrig.addEventListener("input", (e) => {
+  volumeState.orig = parseFloat(e.target.value);
+  updateMixLevels();
+});
+
+soloModel.addEventListener("click", () => {
+  soloState.model = !soloState.model;
+  if (soloState.model) soloState.orig = false;
+  soloModel.classList.toggle("active", soloState.model);
+  soloOrig.classList.toggle("active", soloState.orig);
+  updateMixLevels();
+});
+
+muteModel.addEventListener("click", () => {
+  muteState.model = !muteState.model;
+  muteModel.classList.toggle("active", muteState.model);
+  updateMixLevels();
+});
+
+volModel.addEventListener("input", (e) => {
+  volumeState.model = parseFloat(e.target.value);
+  updateMixLevels();
+});
 
 function formatSeconds(sec) {
   const m = Math.floor(sec / 60);
@@ -350,21 +576,59 @@ function renderTranscriptFeed() {
       badgeExtras += `<span class="badge-review" title="High ambiguity persisted after slowdown. Review recommended.">⚠️ Needs Review</span>`;
     }
 
+    // Audition button for chunk classification sample
+    let auditionBtn = "";
+    if (seg.slowed_audio_used) {
+      auditionBtn = `<button class="btn-audition" data-slow="true" title="Audition exact 0.75x time-stretched audio sample evaluated by model">🐢 0.75x Sample</button>`;
+    } else {
+      auditionBtn = `<button class="btn-audition" data-slow="false" title="Audition this segment in Model Classification Ingest">🎧 Model Ingest</button>`;
+    }
+
     block.innerHTML = `
       <div class="segment-header">
         <span class="speaker-badge ${spkClass}">${displayName}</span>
         <span class="timestamp-pill">[${formatSeconds(seg.start)} - ${formatSeconds(seg.end)}]</span>
         ${badgeExtras}
+        ${auditionBtn}
       </div>
       <div class="segment-text" contenteditable="true" spellcheck="false">${seg.text}</div>
     `;
 
-    // Click block or timestamp to jump audio
+    // Audition chunk button logic
+    const audBtn = block.querySelector(".btn-audition");
+    if (audBtn) {
+      audBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isSlow = audBtn.dataset.slow === "true";
+        if (isSlow) {
+          if (chunkAuditionAudio) chunkAuditionAudio.pause();
+          chunkAuditionAudio = new Audio(`/api/audio/${currentTaskId}/chunk/${index}`);
+          audBtn.innerText = "🔊 Playing 0.75x...";
+          chunkAuditionAudio.play().catch(err => console.warn(err));
+          chunkAuditionAudio.onended = () => {
+            audBtn.innerText = "🐢 0.75x Sample";
+          };
+        } else {
+          // Switch to Model Ingested audio and play segment
+          setCrossfade(100);
+          if (wavesurferOrig) {
+            wavesurferOrig.setTime(seg.start);
+            if (wavesurferModel) wavesurferModel.setTime(seg.start);
+            wavesurferOrig.play();
+            if (wavesurferModel) wavesurferModel.play();
+          }
+        }
+      });
+    }
+
+    // Click block or timestamp to jump both players
     block.addEventListener("click", (e) => {
-      if (e.target.classList.contains("segment-text")) return; // Don't interrupt typing
-      if (wavesurfer) {
-        wavesurfer.setTime(seg.start);
-        wavesurfer.play();
+      if (e.target.classList.contains("segment-text") || e.target.classList.contains("btn-audition")) return;
+      if (wavesurferOrig) {
+        wavesurferOrig.setTime(seg.start);
+        if (wavesurferModel) wavesurferModel.setTime(seg.start);
+        wavesurferOrig.play();
+        if (wavesurferModel) wavesurferModel.play();
       }
     });
 

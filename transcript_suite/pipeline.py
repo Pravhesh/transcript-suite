@@ -84,10 +84,13 @@ class TranscriptionPipeline:
         speaker_aliases: Optional[Dict[str, str]] = None,
         progress_callback: Optional[Callable[[str, float, Optional[Dict[str, Any]]], None]] = None,
         pause_event: Optional[any] = None,
-        stop_event: Optional[any] = None
+        stop_event: Optional[any] = None,
+        output_processed_path: Optional[str | Path] = None,
+        chunks_dir: Optional[str | Path] = None
     ) -> Dict[str, Any]:
         """
         Processes an audio file end-to-end with GPU enhancement, ambiguity slowdown, and pause/stop support.
+        Exports model-ingested processed waveform and chunk samples for synchronized audio comparison.
         """
         start_time = time.time()
         file_path = Path(file_path).resolve()
@@ -112,6 +115,15 @@ class TranscriptionPipeline:
             waveform = self.enhancer.enhance(waveform)
             check_stop()
 
+        # Save processed waveform for UI playback and synchronization
+        saved_processed_path = None
+        if output_processed_path:
+            out_p = Path(output_processed_path).resolve()
+            out_p.parent.mkdir(parents=True, exist_ok=True)
+            import soundfile as sf
+            sf.write(str(out_p), waveform.squeeze(0).cpu().numpy(), sr, subtype="PCM_16")
+            saved_processed_path = str(out_p)
+
         # 3. VAD speech segmentation
         report("Performing Voice Activity Detection (VAD)...", 0.16)
         speech_segments = self.vad.segment(waveform, duration)
@@ -123,6 +135,8 @@ class TranscriptionPipeline:
                 "duration": duration,
                 "segments": [],
                 "full_text": "",
+                "processed_audio_path": saved_processed_path,
+                "chunks_dir": str(chunks_dir) if chunks_dir else None,
                 "elapsed_seconds": round(time.time() - start_time, 2)
             }
 
@@ -172,13 +186,15 @@ class TranscriptionPipeline:
         # 6. Adaptive Ambiguity Resolution (Auto-slow tricky frames & flag unresolved for human review)
         if enable_ambiguity_resolver:
             report("Evaluating ambiguity & auto-slowing tricky audio frames...", 0.90)
-            for seg in transcribed_segments:
+            for idx, seg in enumerate(transcribed_segments):
                 check_stop()
                 seg = self.ambiguity_resolver.evaluate_and_resolve(
                     waveform=waveform,
                     seg=seg,
                     transcribe_fn=self.transcriber.transcribe_chunk,
-                    sr=sr
+                    sr=sr,
+                    output_chunks_dir=chunks_dir,
+                    seg_idx=idx
                 )
 
         check_stop()
@@ -203,6 +219,8 @@ class TranscriptionPipeline:
             "duration": round(duration, 2),
             "segments": transcribed_segments,
             "full_text": formatted_text,
+            "processed_audio_path": saved_processed_path,
+            "chunks_dir": str(chunks_dir) if chunks_dir else None,
             "vram_stats": vram_stats,
             "elapsed_seconds": elapsed
         }
