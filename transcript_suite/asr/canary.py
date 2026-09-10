@@ -41,15 +41,19 @@ class CanaryQwenTranscriber:
             self.model = SALM.from_pretrained(self.model_name)
             if self.device.startswith("cuda") and torch.cuda.is_available():
                 self.model = self.model.to(device=self.device, dtype=self.dtype)
+                torch.backends.cuda.matmul.allow_tf32 = True
+                torch.backends.cudnn.allow_tf32 = True
             self.model.eval()
             self._is_loaded = True
-            print("[Canary-Qwen] Model successfully loaded.")
+            print(f"[Canary-Qwen] Model successfully loaded on {self.device} ({self.dtype}).")
         except Exception as e:
             print(f"[Canary-Qwen Warning] Failed to load NeMo SALM model directly: {e}")
             print("[Canary-Qwen Warning] Attempting alternative NeMo ASR loading or fallback...")
             try:
                 import nemo.collections.asr as nemo_asr
                 self.model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=self.model_name)
+                if self.device.startswith("cuda") and torch.cuda.is_available():
+                    self.model = self.model.to(device=self.device)
                 self.model.eval()
                 self._is_loaded = True
             except Exception as e2:

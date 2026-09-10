@@ -22,7 +22,7 @@ class NeMoTitaNetDiarizer(BaseDiarizer):
         self.device = device
         self.model = None
         self._is_loaded = False
-        self.vad = SileroVADSegmenter(max_chunk_duration=6.0, min_chunk_duration=0.8)
+        self.vad = SileroVADSegmenter(max_chunk_duration=6.0, min_chunk_duration=0.8, device=self.device)
 
     def _load_model(self):
         if self._is_loaded:
@@ -35,7 +35,7 @@ class NeMoTitaNetDiarizer(BaseDiarizer):
                 self.model = self.model.to(self.device)
             self.model.eval()
             self._is_loaded = True
-            print("[NeMo Diarizer] TitaNet model successfully loaded.")
+            print("[NeMo Diarizer] TitaNet model successfully loaded on GPU.")
         except Exception as e:
             print(f"[NeMo Diarizer Warning] Could not load NeMo TitaNet: {e}.")
             self._is_loaded = False

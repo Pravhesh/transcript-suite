@@ -31,16 +31,22 @@ class TranscriptionPipeline:
             sample_rate=config.sample_rate,
             max_chunk_duration=config.max_chunk_duration_s,
             min_chunk_duration=config.min_chunk_duration_s,
-            padding_duration=config.vad_padding_s
+            padding_duration=config.vad_padding_s,
+            device=config.device
         )
-        self.transcriber = CanaryQwenTranscriber(model_name=model_name or config.model_name)
+        self.transcriber = CanaryQwenTranscriber(
+            model_name=model_name or config.model_name,
+            device=config.device,
+            dtype=config.dtype
+        )
         self.vram_manager = VRAMManager()
         
         # Select diarizer route
         if diarizer_type == "pyannote":
-            self.diarizer = PyAnnoteDiarizer(hf_token=hf_token or config.hf_token)
+            self.diarizer = PyAnnoteDiarizer(hf_token=hf_token or config.hf_token, device=config.device)
         else:
-            self.diarizer = NeMoTitaNetDiarizer(model_name=config.nemo_diarizer_model)
+            self.diarizer = NeMoTitaNetDiarizer(model_name=config.nemo_diarizer_model, device=config.device)
+
 
     def _assign_speaker_to_segment(self, seg_start: float, seg_end: float, speaker_turns: List[SpeakerTurn]) -> str:
         """

@@ -255,9 +255,9 @@ function initAudioPlayer(taskId) {
 
   wavesurfer = WaveSurfer.create({
     container: '#waveform',
-    waveColor: '#3d4841',
-    progressColor: '#637a6b',
-    cursorColor: '#8a9b8f',
+    waveColor: '#1c2420',
+    progressColor: '#4d6655',
+    cursorColor: '#748078',
     height: 70,
     barWidth: 2,
     barGap: 1,
@@ -278,14 +278,14 @@ function updateWaveformTheme() {
   if (!wavesurfer) return;
   const currentTheme = document.body.dataset.theme;
   if (currentTheme === "forest-sage") {
-    wavesurfer.setOptions({ waveColor: '#2b3930', progressColor: '#708a78' });
+    wavesurfer.setOptions({ waveColor: '#202a24', progressColor: '#607a68' });
   } else if (currentTheme === "nordic-slate") {
-    wavesurfer.setOptions({ waveColor: '#252e3d', progressColor: '#647f96' });
+    wavesurfer.setOptions({ waveColor: '#1d232e', progressColor: '#587187' });
   } else if (currentTheme === "warm-umber") {
-    wavesurfer.setOptions({ waveColor: '#362b25', progressColor: '#856f62' });
+    wavesurfer.setOptions({ waveColor: '#2a221e', progressColor: '#786357' });
   } else {
-    // foggy-woodland
-    wavesurfer.setOptions({ waveColor: '#343b37', progressColor: '#556c7f' });
+    // foggy-woodland (even darker)
+    wavesurfer.setOptions({ waveColor: '#1c2420', progressColor: '#4d6655' });
   }
 }
 

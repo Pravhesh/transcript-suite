@@ -4,46 +4,46 @@
 
 :root,
 [data-theme="foggy-woodland"] {
-  /* Default: Foggy Woodland (Overcast day forest with browns, greens, grays, and stream blues) */
-  --bg-primary: #131615;
-  --bg-secondary: #1a1e1c;
-  --bg-surface: #222724;
-  --bg-surface-hover: #29302c;
-  --bg-input: #171b19;
+  /* Default: Foggy Woodland (Deep shadowy wet forest with cold stream blues, dark bark, and pine shadows) */
+  --bg-primary: #0a0d0b;
+  --bg-secondary: #101412;
+  --bg-surface: #151b17;
+  --bg-surface-hover: #1b231f;
+  --bg-input: #0c100e;
   
-  --border-dim: #2c332e;
-  --border-focus: #4b5950;
+  --border-dim: #1e2621;
+  --border-focus: #35473c;
   
-  --text-primary: #c3c8c4;
-  --text-secondary: #8e9690;
-  --text-muted: #646d66;
+  --text-primary: #b8c0bb;
+  --text-secondary: #748078;
+  --text-muted: #4a544e;
   
-  --accent-pine: #637a6b;
-  --accent-stream-blue: #556c7f;
-  --accent-bark: #756254;
-  --accent-mist-gray: #6b7771;
+  --accent-pine: #4d6655;
+  --accent-stream-blue: #44596b;
+  --accent-bark: #57463a;
+  --accent-mist-gray: #525e57;
   
-  --active-segment-bg: rgba(85, 108, 127, 0.18);
-  --active-segment-border: #4d6475;
+  --active-segment-bg: rgba(68, 89, 107, 0.22);
+  --active-segment-border: #3b4e5e;
 
-  /* Speaker Badges (Subtle, Muted, Low-Saturation) */
-  --spk-0-bg: #27343e;
-  --spk-0-text: #9bb1c2;
-  --spk-0-border: #384956;
+  /* Speaker Badges (Deep, Subdued, Low-Contrast) */
+  --spk-0-bg: #17232b;
+  --spk-0-text: #8ca2b3;
+  --spk-0-border: #253440;
 
-  --spk-1-bg: #2a382e;
-  --spk-1-text: #9cb5a3;
-  --spk-1-border: #3b4d40;
+  --spk-1-bg: #18241b;
+  --spk-1-text: #8ca793;
+  --spk-1-border: #26362b;
 
-  --spk-2-bg: #382e28;
-  --spk-2-text: #c0aca0;
-  --spk-2-border: #4d3f37;
+  --spk-2-bg: #241b16;
+  --spk-2-text: #ab978a;
+  --spk-2-border: #382b23;
 
-  --spk-3-bg: #2e3330;
-  --spk-3-text: #a4b0a9;
-  --spk-3-border: #424945;
+  --spk-3-bg: #1c201e;
+  --spk-3-text: #8f9c95;
+  --spk-3-border: #2a312e;
   
-  --vram-bar-bg: #44564c;
+  --vram-bar-bg: #303d35;
 }
 
 /* Theme 2: Forest Sage */

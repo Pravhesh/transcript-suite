@@ -33,12 +33,14 @@ class SileroVADSegmenter:
         sample_rate: int = 16000,
         max_chunk_duration: float = 25.0,
         min_chunk_duration: float = 1.0,
-        padding_duration: float = 0.25
+        padding_duration: float = 0.25,
+        device: str = "cuda" if torch.cuda.is_available() else "cpu"
     ):
         self.sample_rate = sample_rate
         self.max_chunk_duration = max_chunk_duration
         self.min_chunk_duration = min_chunk_duration
         self.padding_duration = padding_duration
+        self.device = device
         self._model = None
         self._utils = None
 
@@ -50,19 +52,20 @@ class SileroVADSegmenter:
                 force_reload=False,
                 onnx=False
             )
-            self._model = model
+            self._model = model.to(self.device)
+            self._model.eval()
             self._utils = utils
 
     def segment(self, waveform: torch.Tensor, total_duration: float) -> List[SpeechSegment]:
         """
-        Segments audio into speech intervals bounded by max_chunk_duration.
+        Segments audio into speech intervals bounded by max_chunk_duration on GPU.
         """
         try:
             self._load_model()
             (get_speech_timestamps, _, _, _, _) = self._utils
 
-            # Silero expects 1D float tensor
-            audio_1d = waveform.squeeze(0).float()
+            # Silero expects 1D float tensor on the same device as the model
+            audio_1d = waveform.squeeze(0).to(self.device).float()
             speech_timestamps = get_speech_timestamps(
                 audio_1d,
                 self._model,

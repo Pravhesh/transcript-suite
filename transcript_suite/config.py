@@ -14,6 +14,11 @@ class SuiteConfig:
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     dtype: torch.dtype = torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else torch.float16
     
+    # GPU Acceleration Optimizations (RTX 4060 Ada Lovelace)
+    use_gpu_vad: bool = torch.cuda.is_available()
+    enable_tf32: bool = True
+    cudnn_benchmark: bool = True
+    
     # Audio pipeline
     sample_rate: int = 16000
     target_channels: int = 1  # Mono
@@ -38,5 +43,13 @@ class SuiteConfig:
     def __post_init__(self):
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Enable Ada Lovelace Tensor Core acceleration
+        if self.enable_tf32 and torch.cuda.is_available():
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+        if self.cudnn_benchmark and torch.cuda.is_available():
+            torch.backends.cudnn.benchmark = True
+
 
 config = SuiteConfig()
