@@ -54,15 +54,17 @@ def transcribe(
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output text file path"),
     diarizer: str = typer.Option("nemo", "--diarizer", "-d", help="Diarization route ('nemo' or 'pyannote')"),
     speaker_labels: bool = typer.Option(True, "--speaker-labels/--no-speaker-labels", help="Enable speaker diarization"),
+    enhancer: bool = typer.Option(True, "--enhancer/--no-enhancer", help="Enable GPU speech noise filter & vocal amplifier"),
+    ambiguity_resolver: bool = typer.Option(True, "--ambiguity-resolver/--no-ambiguity-resolver", help="Enable auto-slowdown for ambiguous audio frames"),
     hf_token: Optional[str] = typer.Option(None, "--hf-token", help="Hugging Face token (required if using pyannote)"),
     timestamps: bool = typer.Option(True, "--timestamps/--no-timestamps", help="Include timestamps in output")
 ):
-    """Transcribes an audio file with speaker diarization using Canary-Qwen-2.5B."""
+    """Transcribes an audio file with speaker diarization, GPU speech enhancement, and ambiguity resolution."""
     if not audio_file.exists():
         console.print(f"[bold red]Error:[/bold red] Audio file not found: {audio_file}")
         raise typer.Exit(1)
 
-    console.print(Panel(f"[bold cyan]Transcribing:[/bold cyan] {audio_file.name}\n[dim]Diarizer: {diarizer} | Model: {config.model_name}[/dim]", border_style="cyan"))
+    console.print(Panel(f"[bold cyan]Transcribing:[/bold cyan] {audio_file.name}\n[dim]Diarizer: {diarizer} | Enhancer: {enhancer} | Ambiguity Resolver: {ambiguity_resolver}[/dim]", border_style="cyan"))
 
     from .pipeline import TranscriptionPipeline
     pipeline = TranscriptionPipeline(diarizer_type=diarizer, hf_token=hf_token)
@@ -84,6 +86,8 @@ def transcribe(
         result = pipeline.process_file(
             file_path=audio_file,
             enable_diarization=speaker_labels,
+            enable_enhancer=enhancer,
+            enable_ambiguity_resolver=ambiguity_resolver,
             progress_callback=on_progress
         )
 

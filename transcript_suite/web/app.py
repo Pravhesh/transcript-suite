@@ -59,10 +59,12 @@ async def create_transcription_task(
     audio: UploadFile = File(...),
     diarizer: str = Form("nemo"),
     speaker_labels: bool = Form(True),
+    enable_enhancer: bool = Form(True),
+    enable_ambiguity: bool = Form(True),
     hf_token: Optional[str] = Form(None)
 ):
     """
-    Uploads an AAC/audio file and starts background transcription with pause/stop support.
+    Uploads an AAC/audio file and starts background transcription with enhancer and ambiguity controls.
     """
     task_id = str(uuid.uuid4())
     file_ext = Path(audio.filename).suffix or ".aac"
@@ -100,10 +102,13 @@ async def create_transcription_task(
         file_path=saved_path,
         diarizer=diarizer,
         speaker_labels=speaker_labels,
+        enable_enhancer=enable_enhancer,
+        enable_ambiguity=enable_ambiguity,
         hf_token=hf_token
     )
 
     return {"task_id": task_id, "status": "queued"}
+
 
 
 @app.post("/api/tasks/{task_id}/pause")
@@ -155,6 +160,8 @@ def run_transcription_worker(
     file_path: Path,
     diarizer: str,
     speaker_labels: bool,
+    enable_enhancer: bool,
+    enable_ambiguity: bool,
     hf_token: Optional[str]
 ):
     ctrl = TASK_CONTROLS.get(task_id)
@@ -179,6 +186,8 @@ def run_transcription_worker(
         result = pipeline.process_file(
             file_path=file_path,
             enable_diarization=speaker_labels,
+            enable_enhancer=enable_enhancer,
+            enable_ambiguity_resolver=enable_ambiguity,
             progress_callback=on_progress,
             pause_event=pause_evt,
             stop_event=stop_evt

@@ -11,8 +11,10 @@ import torch
 from .config import config
 from .audio.loader import AudioLoader
 from .audio.vad import SileroVADSegmenter
+from .audio.enhancer import GPUSpeechEnhancer
 from .asr.canary import CanaryQwenTranscriber
 from .asr.memory import VRAMManager
+from .asr.ambiguity import AmbiguityResolver
 from .diarization.nemo_titanet import NeMoTitaNetDiarizer
 from .diarization.pyannote import PyAnnoteDiarizer
 from .diarization.base import SpeakerTurn
@@ -27,6 +29,8 @@ class TranscriptionPipeline:
         model_name: Optional[str] = None
     ):
         self.audio_loader = AudioLoader(target_sr=config.sample_rate)
+        self.enhancer = GPUSpeechEnhancer(sample_rate=config.sample_rate, device=config.device)
+        self.ambiguity_resolver = AmbiguityResolver(sample_rate=config.sample_rate)
         self.vad = SileroVADSegmenter(
             sample_rate=config.sample_rate,
             max_chunk_duration=config.max_chunk_duration_s,
@@ -46,6 +50,7 @@ class TranscriptionPipeline:
             self.diarizer = PyAnnoteDiarizer(hf_token=hf_token or config.hf_token, device=config.device)
         else:
             self.diarizer = NeMoTitaNetDiarizer(model_name=config.nemo_diarizer_model, device=config.device)
+
 
 
     def _assign_speaker_to_segment(self, seg_start: float, seg_end: float, speaker_turns: List[SpeakerTurn]) -> str:
@@ -74,13 +79,15 @@ class TranscriptionPipeline:
         self,
         file_path: str | Path,
         enable_diarization: bool = True,
+        enable_enhancer: bool = True,
+        enable_ambiguity_resolver: bool = True,
         speaker_aliases: Optional[Dict[str, str]] = None,
         progress_callback: Optional[Callable[[str, float, Optional[Dict[str, Any]]], None]] = None,
         pause_event: Optional[any] = None,
         stop_event: Optional[any] = None
     ) -> Dict[str, Any]:
         """
-        Processes an audio file end-to-end with pause/stop support and memory optimization.
+        Processes an audio file end-to-end with GPU enhancement, ambiguity slowdown, and pause/stop support.
         """
         start_time = time.time()
         file_path = Path(file_path).resolve()
@@ -95,12 +102,18 @@ class TranscriptionPipeline:
                 progress_callback(stage, frac, current_seg)
 
         # 1. Load and normalize audio
-        report("Loading audio & converting to 16kHz mono...", 0.05)
+        report("Loading audio & converting to 16kHz mono...", 0.04)
         waveform, sr, duration = self.audio_loader.load_audio(file_path)
         check_stop()
 
-        # 2. VAD speech segmentation
-        report("Performing Voice Activity Detection (VAD)...", 0.15)
+        # 2. GPU Speech Enhancer & Noise Filter
+        if enable_enhancer:
+            report("Applying GPU speech noise filter & vocal amplifier...", 0.08)
+            waveform = self.enhancer.enhance(waveform)
+            check_stop()
+
+        # 3. VAD speech segmentation
+        report("Performing Voice Activity Detection (VAD)...", 0.16)
         speech_segments = self.vad.segment(waveform, duration)
         check_stop()
 
@@ -113,10 +126,10 @@ class TranscriptionPipeline:
                 "elapsed_seconds": round(time.time() - start_time, 2)
             }
 
-        # 3. Speaker Diarization
+        # 4. Speaker Diarization
         speaker_turns: List[SpeakerTurn] = []
         if enable_diarization:
-            report("Running speaker diarization...", 0.30)
+            report("Running speaker diarization...", 0.28)
             try:
                 speaker_turns = self.diarizer.diarize(waveform, sr)
             except Exception as e:
@@ -136,13 +149,13 @@ class TranscriptionPipeline:
         for seg in speech_segments:
             seg.speaker = self._assign_speaker_to_segment(seg.start, seg.end, speaker_turns)
 
-        # 4. Canary-Qwen ASR Transcription
-        report("Transcribing speech chunks with Canary-Qwen-2.5B...", 0.40)
+        # 5. Canary-Qwen ASR Transcription
+        report("Transcribing speech chunks with Canary-Qwen-2.5B...", 0.38)
         total_chunks = len(speech_segments)
 
         def asr_progress(current_idx: int, total_idx: int, seg_dict: Dict[str, Any]):
             check_stop()
-            frac = 0.40 + (current_idx / total_idx) * 0.55
+            frac = 0.38 + (current_idx / total_idx) * 0.50
             report(f"Transcribed chunk {current_idx}/{total_idx}", frac, seg_dict)
 
         transcribed_segments = self.transcriber.transcribe_waveform_segments(
@@ -156,7 +169,21 @@ class TranscriptionPipeline:
 
         check_stop()
 
-        # 5. Format & Finalize
+        # 6. Adaptive Ambiguity Resolution (Auto-slow tricky frames & flag unresolved for human review)
+        if enable_ambiguity_resolver:
+            report("Evaluating ambiguity & auto-slowing tricky audio frames...", 0.90)
+            for seg in transcribed_segments:
+                check_stop()
+                seg = self.ambiguity_resolver.evaluate_and_resolve(
+                    waveform=waveform,
+                    seg=seg,
+                    transcribe_fn=self.transcriber.transcribe_chunk,
+                    sr=sr
+                )
+
+        check_stop()
+
+        # 7. Format & Finalize
         report("Finalizing transcript...", 0.98)
         formatted_text = TranscriptExporter.export_text(
             transcribed_segments,

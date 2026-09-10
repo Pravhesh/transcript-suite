@@ -22,6 +22,8 @@ const fileInput = document.getElementById("fileInput");
 const dropzoneText = document.getElementById("dropzoneText");
 const btnStart = document.getElementById("btnStart");
 const speakerLabelsCheckbox = document.getElementById("speakerLabelsCheckbox");
+const voiceEnhancerCheckbox = document.getElementById("voiceEnhancerCheckbox");
+const ambiguityCheckbox = document.getElementById("ambiguityCheckbox");
 const diarizerSelect = document.getElementById("diarizerSelect");
 
 const progressCard = document.getElementById("progressCard");
@@ -44,6 +46,7 @@ const playerTime = document.getElementById("playerTime");
 const transcriptCard = document.getElementById("transcriptCard");
 const transcriptFeed = document.getElementById("transcriptFeed");
 const speakerFilters = document.getElementById("speakerFilters");
+const reviewFilterPill = document.getElementById("reviewFilterPill");
 const searchInput = document.getElementById("searchInput");
 const btnExportTxt = document.getElementById("btnExportTxt");
 
@@ -143,6 +146,8 @@ btnStart.addEventListener("click", async () => {
   formData.append("audio", selectedFile);
   formData.append("diarizer", diarizerSelect.value);
   formData.append("speaker_labels", speakerLabelsCheckbox.checked);
+  formData.append("enable_enhancer", voiceEnhancerCheckbox ? voiceEnhancerCheckbox.checked : true);
+  formData.append("enable_ambiguity", ambiguityCheckbox ? ambiguityCheckbox.checked : true);
 
   try {
     const res = await fetch("/api/transcribe", { method: "POST", body: formData });
@@ -319,7 +324,9 @@ function renderTranscriptFeed() {
     const rawSpeaker = seg.speaker || "Speaker 0";
     const displayName = speakerAliases[rawSpeaker] || rawSpeaker;
 
-    if (activeSpeakerFilter !== "ALL" && rawSpeaker !== activeSpeakerFilter) {
+    if (activeSpeakerFilter === "REVIEW") {
+      if (!seg.needs_review) return;
+    } else if (activeSpeakerFilter !== "ALL" && rawSpeaker !== activeSpeakerFilter) {
       return;
     }
 
@@ -335,10 +342,19 @@ function renderTranscriptFeed() {
 
     const spkClass = getSpeakerClass(rawSpeaker);
 
+    let badgeExtras = "";
+    if (seg.slowed_audio_used) {
+      badgeExtras += `<span class="badge-slowed" title="Auto-slowed to 0.75x for acoustic clarification">🐢 0.75x</span>`;
+    }
+    if (seg.needs_review) {
+      badgeExtras += `<span class="badge-review" title="High ambiguity persisted after slowdown. Review recommended.">⚠️ Needs Review</span>`;
+    }
+
     block.innerHTML = `
       <div class="segment-header">
         <span class="speaker-badge ${spkClass}">${displayName}</span>
         <span class="timestamp-pill">[${formatSeconds(seg.start)} - ${formatSeconds(seg.end)}]</span>
+        ${badgeExtras}
       </div>
       <div class="segment-text" contenteditable="true" spellcheck="false">${seg.text}</div>
     `;
@@ -396,6 +412,20 @@ function renderSpeakerFilters() {
     });
     speakerFilters.appendChild(pill);
   });
+
+  // Review Filter Pill (Minimal Human Intervention Queue)
+  const reviewCount = currentSegments.filter(s => s.needs_review).length;
+  if (reviewCount > 0) {
+    const reviewPill = document.createElement("div");
+    reviewPill.className = `filter-pill filter-review ${activeSpeakerFilter === 'REVIEW' ? 'active' : ''}`;
+    reviewPill.innerText = `⚠️ Needs Review (${reviewCount})`;
+    reviewPill.addEventListener("click", () => {
+      activeSpeakerFilter = "REVIEW";
+      renderSpeakerFilters();
+      renderTranscriptFeed();
+    });
+    speakerFilters.appendChild(reviewPill);
+  }
 
   speakerFilters.querySelector('[data-speaker="ALL"]').addEventListener("click", () => {
     activeSpeakerFilter = "ALL";

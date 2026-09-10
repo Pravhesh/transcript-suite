@@ -50,9 +50,19 @@
       </div>
 
       <div class="options-row">
-        <label class="checkbox-label">
+        <label class="checkbox-label" title="Diarize distinct speakers">
           <input type="checkbox" id="speakerLabelsCheckbox" checked>
-          <span>Enable Speaker Diarization</span>
+          <span>Speaker Diarization</span>
+        </label>
+
+        <label class="checkbox-label" title="Low-cut rumble filter, spectral noise gate, and vocal presence equalizer on GPU">
+          <input type="checkbox" id="voiceEnhancerCheckbox" checked>
+          <span>Voice Filter & Amplifier (GPU)</span>
+        </label>
+
+        <label class="checkbox-label" title="Auto-slows tricky audio frames to 0.75x and re-evaluates before asking for human review">
+          <input type="checkbox" id="ambiguityCheckbox" checked>
+          <span>Ambiguity Resolver (Auto-slow)</span>
         </label>
 
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -109,6 +119,7 @@
       <div class="toolbar">
         <div class="speaker-filters" id="speakerFilters">
           <div class="filter-pill active" data-speaker="ALL">All Speakers</div>
+          <div class="filter-pill filter-review" id="reviewFilterPill" style="display: none;">⚠️ Needs Review (0)</div>
         </div>
         <div class="actions">
           <input type="text" class="text-input" id="searchInput" placeholder="Search transcript...">

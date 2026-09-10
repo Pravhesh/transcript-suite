@@ -460,6 +460,44 @@ main {
   color: #fff;
 }
 
+.filter-pill.filter-review {
+  background-color: #241e17;
+  border-color: #3d3124;
+  color: #c7b099;
+}
+
+.filter-pill.filter-review.active {
+  background-color: #4a3c2c;
+  border-color: #63503a;
+  color: #edd9c5;
+}
+
+.badge-review {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background-color: #2b231a;
+  border: 1px solid #4a3a2a;
+  color: #cca888;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.badge-slowed {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background-color: #1a2420;
+  border: 1px solid #2e3d36;
+  color: #92b5a1;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .actions {
   display: flex;
   gap: 10px;
