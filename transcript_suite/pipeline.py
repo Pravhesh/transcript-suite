@@ -104,123 +104,135 @@ class TranscriptionPipeline:
             if progress_callback:
                 progress_callback(stage, frac, current_seg)
 
-        # 1. Load and normalize audio
-        report("Loading audio & converting to 16kHz mono...", 0.04)
-        waveform, sr, duration = self.audio_loader.load_audio(file_path)
-        check_stop()
-
-        # 2. GPU Speech Enhancer & Noise Filter
-        if enable_enhancer:
-            report("Applying GPU speech noise filter & vocal amplifier...", 0.08)
-            waveform = self.enhancer.enhance(waveform)
+        try:
+            # 1. Load and normalize audio
+            report("Loading audio & converting to 16kHz mono...", 0.04)
+            waveform, sr, duration = self.audio_loader.load_audio(file_path)
             check_stop()
 
-        # Save processed waveform for UI playback and synchronization
-        saved_processed_path = None
-        if output_processed_path:
-            out_p = Path(output_processed_path).resolve()
-            out_p.parent.mkdir(parents=True, exist_ok=True)
-            import soundfile as sf
-            sf.write(str(out_p), waveform.squeeze(0).cpu().numpy(), sr, subtype="PCM_16")
-            saved_processed_path = str(out_p)
+            # 2. GPU Speech Enhancer & Noise Filter
+            if enable_enhancer:
+                report("Applying GPU speech noise filter & vocal amplifier...", 0.08)
+                waveform = self.enhancer.enhance(waveform)
+                check_stop()
 
-        # 3. VAD speech segmentation
-        report("Performing Voice Activity Detection (VAD)...", 0.16)
-        speech_segments = self.vad.segment(waveform, duration)
-        check_stop()
+            # Save processed waveform for UI playback and synchronization
+            saved_processed_path = None
+            if output_processed_path:
+                out_p = Path(output_processed_path).resolve()
+                out_p.parent.mkdir(parents=True, exist_ok=True)
+                import soundfile as sf
+                sf.write(str(out_p), waveform.squeeze(0).cpu().numpy(), sr, subtype="PCM_16")
+                saved_processed_path = str(out_p)
 
-        if not speech_segments:
+            # 3. VAD speech segmentation
+            report("Performing Voice Activity Detection (VAD)...", 0.16)
+            speech_segments = self.vad.segment(waveform, duration)
+            check_stop()
+
+            if not speech_segments:
+                print("[Pipeline Warning] No speech detected in file.")
+                return {
+                    "file_path": str(file_path),
+                    "file_name": file_path.name,
+                    "duration": round(duration, 2),
+                    "segments": [],
+                    "full_text": "",
+                    "processed_audio_path": saved_processed_path,
+                    "chunks_dir": str(chunks_dir) if chunks_dir else None,
+                    "vram_stats": self.vram_manager.get_stats(),
+                    "elapsed_seconds": round(time.time() - start_time, 2)
+                }
+
+            # 4. Speaker Diarization
+            speaker_turns = []
+            if enable_diarization:
+                report("Performing Speaker Diarization...", 0.24)
+                try:
+                    speaker_turns = self.diarizer.diarize(file_path)
+                except Exception as e:
+                    print(f"[Diarization Warning] Diarization failed ({e}), falling back to single speaker.")
+                    speaker_turns = [SpeakerTurn(start=0.0, end=duration, speaker="Speaker 0")]
+                finally:
+                    # Crucial RAM optimization: unload diarizer model immediately
+                    if hasattr(self.diarizer, "unload_model"):
+                        self.diarizer.unload_model()
+                    self.vram_manager.clear_cache()
+            else:
+                speaker_turns = [SpeakerTurn(start=0.0, end=duration, speaker="Speaker 0")]
+
+            check_stop()
+
+            # Assign speakers to VAD speech segments
+            for seg in speech_segments:
+                seg.speaker = self._assign_speaker_to_segment(seg.start, seg.end, speaker_turns)
+
+            # 5. Canary-Qwen ASR Transcription
+            report("Transcribing speech chunks with Canary-Qwen-2.5B...", 0.38)
+            total_chunks = len(speech_segments)
+
+            def asr_progress(current_idx: int, total_idx: int, seg_dict: Dict[str, Any]):
+                check_stop()
+                frac = 0.38 + (current_idx / total_idx) * 0.50
+                report(f"Transcribed chunk {current_idx}/{total_idx}", frac, seg_dict)
+
+            transcribed_segments = self.transcriber.transcribe_waveform_segments(
+                waveform=waveform,
+                segments=speech_segments,
+                sr=sr,
+                progress_callback=asr_progress,
+                pause_event=pause_event,
+                stop_event=stop_event
+            )
+
+            check_stop()
+
+            # 6. Adaptive Ambiguity Resolution (Auto-slow tricky frames & flag unresolved for human review)
+            if enable_ambiguity_resolver:
+                report("Evaluating ambiguity & auto-slowing tricky audio frames...", 0.90)
+                for idx, seg in enumerate(transcribed_segments):
+                    check_stop()
+                    seg = self.ambiguity_resolver.evaluate_and_resolve(
+                        waveform=waveform,
+                        seg=seg,
+                        transcribe_fn=self.transcriber.transcribe_chunk,
+                        sr=sr,
+                        output_chunks_dir=chunks_dir,
+                        seg_idx=idx
+                    )
+
+            check_stop()
+
+            # Unload Canary-Qwen model right after transcription & ambiguity resolution are done
+            if hasattr(self.transcriber, "unload_model"):
+                self.transcriber.unload_model()
+            self.vram_manager.clear_cache()
+
+            # 7. Format & Finalize
+            report("Finalizing transcript...", 0.98)
+            formatted_text = TranscriptExporter.export_text(
+                transcribed_segments,
+                speaker_aliases=speaker_aliases,
+                include_timestamps=True,
+                include_speakers=True
+            )
+
+            elapsed = round(time.time() - start_time, 2)
+            vram_stats = self.vram_manager.get_stats()
+            report("Complete", 1.0, None)
+
             return {
                 "file_path": str(file_path),
-                "duration": duration,
-                "segments": [],
-                "full_text": "",
+                "file_name": file_path.name,
+                "duration": round(duration, 2),
+                "segments": transcribed_segments,
+                "full_text": formatted_text,
                 "processed_audio_path": saved_processed_path,
                 "chunks_dir": str(chunks_dir) if chunks_dir else None,
-                "elapsed_seconds": round(time.time() - start_time, 2)
+                "vram_stats": vram_stats,
+                "elapsed_seconds": elapsed
             }
-
-        # 4. Speaker Diarization
-        speaker_turns: List[SpeakerTurn] = []
-        if enable_diarization:
-            report("Running speaker diarization...", 0.28)
-            try:
-                speaker_turns = self.diarizer.diarize(waveform, sr)
-            except Exception as e:
-                print(f"[Diarization Warning] Diarization failed ({e}), falling back to single speaker.")
-                speaker_turns = [SpeakerTurn(start=0.0, end=duration, speaker="Speaker 0")]
-            finally:
-                # Crucial RAM optimization: unload diarizer model immediately
-                if hasattr(self.diarizer, "unload_model"):
-                    self.diarizer.unload_model()
-                self.vram_manager.clear_cache()
-        else:
-            speaker_turns = [SpeakerTurn(start=0.0, end=duration, speaker="Speaker 0")]
-
-        check_stop()
-
-        # Assign speakers to VAD speech segments
-        for seg in speech_segments:
-            seg.speaker = self._assign_speaker_to_segment(seg.start, seg.end, speaker_turns)
-
-        # 5. Canary-Qwen ASR Transcription
-        report("Transcribing speech chunks with Canary-Qwen-2.5B...", 0.38)
-        total_chunks = len(speech_segments)
-
-        def asr_progress(current_idx: int, total_idx: int, seg_dict: Dict[str, Any]):
-            check_stop()
-            frac = 0.38 + (current_idx / total_idx) * 0.50
-            report(f"Transcribed chunk {current_idx}/{total_idx}", frac, seg_dict)
-
-        transcribed_segments = self.transcriber.transcribe_waveform_segments(
-            waveform=waveform,
-            segments=speech_segments,
-            sr=sr,
-            progress_callback=asr_progress,
-            pause_event=pause_event,
-            stop_event=stop_event
-        )
-
-        check_stop()
-
-        # 6. Adaptive Ambiguity Resolution (Auto-slow tricky frames & flag unresolved for human review)
-        if enable_ambiguity_resolver:
-            report("Evaluating ambiguity & auto-slowing tricky audio frames...", 0.90)
-            for idx, seg in enumerate(transcribed_segments):
-                check_stop()
-                seg = self.ambiguity_resolver.evaluate_and_resolve(
-                    waveform=waveform,
-                    seg=seg,
-                    transcribe_fn=self.transcriber.transcribe_chunk,
-                    sr=sr,
-                    output_chunks_dir=chunks_dir,
-                    seg_idx=idx
-                )
-
-        check_stop()
-
-        # 7. Format & Finalize
-        report("Finalizing transcript...", 0.98)
-        formatted_text = TranscriptExporter.export_text(
-            transcribed_segments,
-            speaker_aliases=speaker_aliases,
-            include_timestamps=True,
-            include_speakers=True
-        )
-
-        elapsed = round(time.time() - start_time, 2)
-        vram_stats = self.vram_manager.get_stats()
-        report("Complete", 1.0, None)
-
-
-        return {
-            "file_path": str(file_path),
-            "file_name": file_path.name,
-            "duration": round(duration, 2),
-            "segments": transcribed_segments,
-            "full_text": formatted_text,
-            "processed_audio_path": saved_processed_path,
-            "chunks_dir": str(chunks_dir) if chunks_dir else None,
-            "vram_stats": vram_stats,
-            "elapsed_seconds": elapsed
-        }
+        finally:
+            if hasattr(self.transcriber, "unload_model"):
+                self.transcriber.unload_model()
+            self.vram_manager.clear_cache()

@@ -220,6 +220,8 @@ def run_transcription_worker(
         TASKS[task_id]["message"] = str(e)
     finally:
         # Aggressive memory cleanup when worker finishes or stops
+        if ctrl and ctrl.get("pipeline") and hasattr(ctrl["pipeline"].transcriber, "unload_model"):
+            ctrl["pipeline"].transcriber.unload_model()
         vram_manager.clear_cache()
 
 

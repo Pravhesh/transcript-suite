@@ -29,6 +29,8 @@ class CanaryQwenTranscriber:
     def load_model(self):
         """
         Loads the Canary-Qwen-2.5B SALM model into GPU memory.
+        Uses accelerate.init_empty_weights and direct safetensors streaming to cuda:0
+        to completely eliminate the 10-15 GB CPU-RAM spike.
         """
         if self._is_loaded:
             return
@@ -37,40 +39,107 @@ class CanaryQwenTranscriber:
         self.vram_manager.clear_cache()
 
         try:
-            from nemo.collections.speechlm2.models import SALM
-
-            kwargs = {}
             if self.device.startswith("cuda") and torch.cuda.is_available():
-                kwargs["map_location"] = self.device
-                kwargs["torch_dtype"] = self.dtype
+                from accelerate import init_empty_weights
+                from accelerate.utils import set_module_tensor_to_device
+                from safetensors import safe_open
+                from huggingface_hub import hf_hub_download
+                from transformers.utils.hub import cached_file
+                from omegaconf import OmegaConf
+                from nemo.collections.speechlm2.models import SALM
+                from nemo.collections.speechlm2.parts.hf_hub import _inject_local_artifact_paths, CONFIG_NAME
 
-            # Load directly to GPU VRAM in BF16, bypassing the ~10GB CPU-RAM float32 spike
-            self.model = SALM.from_pretrained(self.model_name, **kwargs)
-            if self.device.startswith("cuda") and torch.cuda.is_available():
-                self.model = self.model.to(device=self.device, dtype=self.dtype)
+                # 1. Fetch config without instantiating weights
+                _cached_file_kwargs = dict(
+                    cache_dir=None,
+                    force_download=False,
+                    local_files_only=False,
+                    token=None,
+                    revision=None,
+                    _raise_exceptions_for_gated_repo=False,
+                    _raise_exceptions_for_missing_entries=False,
+                    _raise_exceptions_for_connection_errors=False,
+                )
+                cfg_file = cached_file(self.model_name, CONFIG_NAME, **_cached_file_kwargs)
+                cfg = OmegaConf.to_container(OmegaConf.load(cfg_file))
+                _inject_local_artifact_paths(cfg, self.model_name, _cached_file_kwargs)
+                cfg['pretrained_weights'] = False
+
+                # 2. Instantiate on meta device (0 MB RAM)
+                with init_empty_weights():
+                    self.model = SALM(cfg)
+
+                # 3. Stream safetensors directly into CUDA VRAM in bfloat16
+                weights_path = hf_hub_download(repo_id=self.model_name, filename='model.safetensors')
+                with safe_open(weights_path, framework='pt', device='cpu') as f:
+                    for param_name in f.keys():
+                        tensor = f.get_tensor(param_name)
+                        set_module_tensor_to_device(
+                            self.model,
+                            param_name,
+                            device=self.device,
+                            value=tensor,
+                            dtype=self.dtype
+                        )
+
+                # 4. Tie tied weights
+                if hasattr(self.model.llm, 'base_model') and hasattr(self.model.llm.base_model, 'model'):
+                    self.model.llm.base_model.model.lm_head.weight = self.model.embed_tokens.weight
+                elif hasattr(self.model.llm, 'model'):
+                    self.model.llm.lm_head.weight = self.model.embed_tokens.weight
+
+                # 5. Move any remaining meta buffers to target device
+                for name, buf in list(self.model.named_buffers()):
+                    if buf.device.type == 'meta':
+                        set_module_tensor_to_device(
+                            self.model,
+                            name,
+                            device=self.device,
+                            value=torch.zeros(buf.shape, dtype=self.dtype, device=self.device)
+                        )
+
+                self.model = self.model.to(self.device)
                 torch.backends.cuda.matmul.allow_tf32 = True
                 torch.backends.cudnn.allow_tf32 = True
+            else:
+                from nemo.collections.speechlm2.models import SALM
+                self.model = SALM.from_pretrained(self.model_name)
+                self.model = self.model.to(device=self.device)
+
             self.model.eval()
             self._is_loaded = True
             self.vram_manager.clear_cache()
-            print(f"[Canary-Qwen] Model successfully loaded directly on {self.device} ({self.dtype}).")
+            print(f"[Canary-Qwen] Model successfully loaded directly on {self.device} ({self.dtype}) without RAM spike.")
         except Exception as e:
-            print(f"[Canary-Qwen Warning] Failed to load NeMo SALM model directly: {e}")
-            print("[Canary-Qwen Warning] Attempting alternative NeMo ASR loading or fallback...")
+            print(f"[Canary-Qwen Warning] Direct streaming failed ({e}), falling back to standard loader...")
             try:
-                import nemo.collections.asr as nemo_asr
-                fallback_kwargs = {}
+                from nemo.collections.speechlm2.models import SALM
+                kwargs = {}
                 if self.device.startswith("cuda") and torch.cuda.is_available():
-                    fallback_kwargs["map_location"] = torch.device(self.device)
-                self.model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=self.model_name, **fallback_kwargs)
+                    kwargs["map_location"] = self.device
+                    kwargs["torch_dtype"] = self.dtype
+                self.model = SALM.from_pretrained(self.model_name, **kwargs)
                 if self.device.startswith("cuda") and torch.cuda.is_available():
-                    self.model = self.model.to(device=self.device)
+                    self.model = self.model.to(device=self.device, dtype=self.dtype)
                 self.model.eval()
                 self._is_loaded = True
                 self.vram_manager.clear_cache()
             except Exception as e2:
-                print(f"[Canary-Qwen Error] Model initialization failed: {e2}")
-                raise e
+                print(f"[Canary-Qwen Warning] Failed to load NeMo SALM model: {e2}")
+                try:
+                    import nemo.collections.asr as nemo_asr
+                    fallback_kwargs = {}
+                    if self.device.startswith("cuda") and torch.cuda.is_available():
+                        fallback_kwargs["map_location"] = torch.device(self.device)
+                    self.model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=self.model_name, **fallback_kwargs)
+                    if self.device.startswith("cuda") and torch.cuda.is_available():
+                        self.model = self.model.to(device=self.device)
+                    self.model.eval()
+                    self._is_loaded = True
+                    self.vram_manager.clear_cache()
+                except Exception as e3:
+                    print(f"[Canary-Qwen Error] Model initialization failed: {e3}")
+                    raise e
 
 
     def transcribe_chunk(self, wav_path: str | Path) -> str:
@@ -89,7 +158,8 @@ class CanaryQwenTranscriber:
                 "content": f"Transcribe the following: {self.model.audio_locator_tag}",
                 "audio": [wav_path_str]
             }]]
-            with torch.inference_mode():
+            autocast_device = "cuda" if self.device.startswith("cuda") and torch.cuda.is_available() else "cpu"
+            with torch.inference_mode(), torch.autocast(device_type=autocast_device, dtype=self.dtype if autocast_device == "cuda" else torch.float32):
                 answer_ids = self.model.generate(prompts=prompt, max_new_tokens=256)
                 if hasattr(self.model, "tokenizer"):
                     text = self.model.tokenizer.ids_to_text(answer_ids[0].cpu())
