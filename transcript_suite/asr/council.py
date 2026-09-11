@@ -203,10 +203,12 @@ class ModelCouncil:
             print(f"[Council Warning] Whisper transcription failed: {e}")
             return ""
 
-    def transcribe_batch_whisper(self, wav_paths: list[str | Path], batch_size: int = 16) -> list[str]:
+    def transcribe_batch_whisper(self, wav_paths: list[str | Path], batch_size: int = 8) -> list[str]:
         """Transcribes a batch of audio chunks using Whisper cross-examiner."""
+        if not wav_paths:
+            return []
         pipe = self._get_whisper_pipeline()
-        if pipe is None or not wav_paths:
+        if pipe is None:
             return [""] * len(wav_paths)
         try:
             resolved_paths = [str(Path(p).resolve()) for p in wav_paths]
@@ -247,8 +249,10 @@ class ModelCouncil:
 
     def transcribe_batch_conformer(self, wav_paths: list[str | Path], batch_size: int = 16) -> list[str]:
         """Transcribes a list of audio chunk paths using Conformer-CTC in parallel batches."""
+        if not wav_paths:
+            return []
         model = self._get_conformer_model()
-        if model is None or not wav_paths:
+        if model is None:
             return [""] * len(wav_paths)
         try:
             resolved_paths = [str(Path(p).resolve()) for p in wav_paths]
@@ -286,8 +290,10 @@ class ModelCouncil:
 
     def transcribe_batch_parakeet(self, wav_paths: list[str | Path], batch_size: int = 16) -> list[str]:
         """Transcribes a list of audio chunk paths using Parakeet-TDT in parallel batches."""
+        if not wav_paths:
+            return []
         model = self._get_parakeet_model()
-        if model is None or not wav_paths:
+        if model is None:
             return [""] * len(wav_paths)
         try:
             resolved_paths = [str(Path(p).resolve()) for p in wav_paths]

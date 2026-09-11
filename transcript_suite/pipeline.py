@@ -250,7 +250,7 @@ class TranscriptionPipeline:
                     report("Pass 2/3: Whisper Cross-Examination (Batched)...", 0.56)
                     check_stop()
                     try:
-                        whisper_hyps = self.council.transcribe_batch_whisper(chunk_wavs, batch_size=16)
+                        whisper_hyps = self.council.transcribe_batch_whisper(chunk_wavs, batch_size=8)
                     except Exception as e:
                         print(f"[Pipeline Warning] Batched Whisper error ({e}), falling back to sequential...")
                         whisper_hyps = []
