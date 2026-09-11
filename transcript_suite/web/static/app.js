@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Transcript Suite - Client Application Logic
+   Transcript Suite - Client Application Logic (Supreme Council Studio)
    ========================================================================== */
 
 let selectedFile = null;
@@ -15,7 +15,7 @@ let muteState = { orig: false, model: false };
 let volumeState = { orig: 1.0, model: 1.0 };
 let chunkAuditionAudio = null;
 
-// DOM Elements
+// DOM Elements: Header & Metrics
 const themeSelect = document.getElementById("themeSelect");
 const vramMeter = document.getElementById("vramMeter");
 const vramBarFill = document.getElementById("vramBarFill");
@@ -24,6 +24,31 @@ const ramBarFill = document.getElementById("ramBarFill");
 const ramText = document.getElementById("ramText");
 const appRamText = document.getElementById("appRamText");
 
+// Primary Tab Navigation
+const tabBtnStudio = document.getElementById("tabBtnStudio");
+const tabBtnTranscript = document.getElementById("tabBtnTranscript");
+const tabBtnTelemetry = document.getElementById("tabBtnTelemetry");
+const tabTranscriptBadge = document.getElementById("tabTranscriptBadge");
+
+const paneStudio = document.getElementById("paneStudio");
+const paneTranscript = document.getElementById("paneTranscript");
+const paneTelemetry = document.getElementById("paneTelemetry");
+
+// Cache & Storage Dropdown Elements
+const btnCacheDropdownToggle = document.getElementById("btnCacheDropdownToggle");
+const cacheDropdownMenu = document.getElementById("cacheDropdownMenu");
+const cacheVramVal = document.getElementById("cacheVramVal");
+const cacheRamVal = document.getElementById("cacheRamVal");
+const cacheTempAudioVal = document.getElementById("cacheTempAudioVal");
+const cacheHfVal = document.getElementById("cacheHfVal");
+const cacheNemoVal = document.getElementById("cacheNemoVal");
+const cacheTotalDiskVal = document.getElementById("cacheTotalDiskVal");
+const btnClearVramOnly = document.getElementById("btnClearVramOnly");
+const btnClearRamOnly = document.getElementById("btnClearRamOnly");
+const btnClearTempAudio = document.getElementById("btnClearTempAudio");
+const btnFlushAllMemory = document.getElementById("btnFlushAllMemory");
+
+// Upload & Controls
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
 const dropzoneText = document.getElementById("dropzoneText");
@@ -31,8 +56,11 @@ const btnStart = document.getElementById("btnStart");
 const speakerLabelsCheckbox = document.getElementById("speakerLabelsCheckbox");
 const voiceEnhancerCheckbox = document.getElementById("voiceEnhancerCheckbox");
 const ambiguityCheckbox = document.getElementById("ambiguityCheckbox");
+const councilCheckbox = document.getElementById("councilCheckbox");
+const councilModeSelect = document.getElementById("councilModeSelect");
 const diarizerSelect = document.getElementById("diarizerSelect");
 
+// Progress Card
 const progressCard = document.getElementById("progressCard");
 const progressStatus = document.getElementById("progressStatus");
 const progressPercentage = document.getElementById("progressPercentage");
@@ -43,6 +71,7 @@ const btnStop = document.getElementById("btnStop");
 
 let pollTimer = null;
 
+// Dual-Track Player Elements
 const playerCard = document.getElementById("playerCard");
 const btnABOriginal = document.getElementById("btnABOriginal");
 const btnABMix = document.getElementById("btnABMix");
@@ -63,13 +92,35 @@ const btnFwd5 = document.getElementById("btnFwd5");
 const playbackSpeed = document.getElementById("playbackSpeed");
 const playerTime = document.getElementById("playerTime");
 
-const transcriptCard = document.getElementById("transcriptCard");
+// Transcript Workspace & Left Sidebar Elements
+const speakerSidebar = document.getElementById("speakerSidebar");
+const speakerCountBadge = document.getElementById("speakerCountBadge");
+const speakerSearchInput = document.getElementById("speakerSearchInput");
+const speakerListCompact = document.getElementById("speakerListCompact");
+const pillFilterAll = document.getElementById("pillFilterAll");
+const pillFilterReview = document.getElementById("pillFilterReview");
+const pillFilterDisputed = document.getElementById("pillFilterDisputed");
+const filterCountAll = document.getElementById("filterCountAll");
+const filterCountReview = document.getElementById("filterCountReview");
+const filterCountDisputed = document.getElementById("filterCountDisputed");
+
+const transcriptWorkspace = document.getElementById("transcriptWorkspace");
 const transcriptFeed = document.getElementById("transcriptFeed");
-const speakerFilters = document.getElementById("speakerFilters");
-const reviewFilterPill = document.getElementById("reviewFilterPill");
 const searchInput = document.getElementById("searchInput");
 const btnExportTxt = document.getElementById("btnExportTxt");
 
+// Floating Player Dock Elements
+const floatingPlayer = document.getElementById("floatingPlayer");
+const btnFloatingPlayPause = document.getElementById("btnFloatingPlayPause");
+const floatingTime = document.getElementById("floatingTime");
+const floatingSpeaker = document.getElementById("floatingSpeaker");
+const floatingSnippet = document.getElementById("floatingSnippet");
+const btnFloatingBack5 = document.getElementById("btnFloatingBack5");
+const btnFloatingFwd5 = document.getElementById("btnFloatingFwd5");
+const floatingPlaybackSpeed = document.getElementById("floatingPlaybackSpeed");
+const btnFloatingJump = document.getElementById("btnFloatingJump");
+
+// Rename Speakers Modal
 const renameModal = document.getElementById("renameModal");
 const btnRenameModal = document.getElementById("btnRenameModal");
 const btnCancelRename = document.getElementById("btnCancelRename");
@@ -90,70 +141,191 @@ themeSelect.addEventListener("change", (e) => {
   updateWaveformTheme();
 });
 
-// --- 2. VRAM & System RAM Monitoring ---
+// --- 2. Primary Tab Navigation ---
+function switchTab(tabId) {
+  const allTabs = [
+    { btn: tabBtnStudio, pane: paneStudio, id: "paneStudio" },
+    { btn: tabBtnTranscript, pane: paneTranscript, id: "paneTranscript" },
+    { btn: tabBtnTelemetry, pane: paneTelemetry, id: "paneTelemetry" }
+  ];
+
+  allTabs.forEach(item => {
+    if (item.btn) item.btn.classList.toggle("active", item.id === tabId);
+    if (item.pane) item.pane.classList.toggle("active", item.id === tabId);
+  });
+}
+
+if (tabBtnStudio) tabBtnStudio.addEventListener("click", () => switchTab("paneStudio"));
+if (tabBtnTranscript) tabBtnTranscript.addEventListener("click", () => switchTab("paneTranscript"));
+if (tabBtnTelemetry) tabBtnTelemetry.addEventListener("click", () => switchTab("paneTelemetry"));
+
+// --- 3. Cache & Storage Dropdown Management ---
+function initCacheDropdown() {
+  if (!btnCacheDropdownToggle || !cacheDropdownMenu) return;
+
+  btnCacheDropdownToggle.addEventListener("click", (e) => {
+    e.stopPropagation();
+    cacheDropdownMenu.classList.toggle("show");
+    if (cacheDropdownMenu.classList.contains("show")) {
+      fetchCacheBreakdown();
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!cacheDropdownMenu.contains(e.target) && e.target !== btnCacheDropdownToggle) {
+      cacheDropdownMenu.classList.remove("show");
+    }
+  });
+
+  const wireClearBtn = (btn, target) => {
+    if (!btn) return;
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const origText = btn.innerText;
+      btn.innerText = "Cleaning...";
+      btn.disabled = true;
+      try {
+        const res = await fetch("/api/cache/clear", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target })
+        });
+        if (res.ok) {
+          btn.innerText = "✓ Cleared";
+          setTimeout(() => {
+            btn.innerText = origText;
+            btn.disabled = false;
+          }, 1200);
+          fetchCacheBreakdown();
+          fetchMemoryStats();
+          fetchTelemetryData();
+        } else {
+          btn.innerText = "⚠️ Failed";
+          setTimeout(() => {
+            btn.innerText = origText;
+            btn.disabled = false;
+          }, 1200);
+        }
+      } catch (err) {
+        btn.innerText = "⚠️ Error";
+        setTimeout(() => {
+          btn.innerText = origText;
+          btn.disabled = false;
+        }, 1200);
+      }
+    });
+  };
+
+  wireClearBtn(btnClearVramOnly, "vram");
+  wireClearBtn(btnClearRamOnly, "ram");
+  wireClearBtn(btnClearTempAudio, "temp_audio");
+  wireClearBtn(btnFlushAllMemory, "all");
+}
+
+async function fetchCacheBreakdown() {
+  try {
+    const res = await fetch("/api/cache/stats");
+    if (!res.ok) return;
+    const data = await res.json();
+    const mem = data.memory || {};
+    const storage = data.storage || {};
+
+    if (cacheVramVal) cacheVramVal.innerText = `${mem.vram_reserved_mb || 0} MB reserved`;
+    if (cacheRamVal) cacheRamVal.innerText = `${mem.app_ram_rss_mb || 0} MB RSS`;
+    if (cacheTempAudioVal) cacheTempAudioVal.innerText = `${storage.temp_audio_mb || 0} MB`;
+    if (cacheHfVal) cacheHfVal.innerText = `${storage.hf_total_gb || 0} GB`;
+    if (cacheNemoVal) cacheNemoVal.innerText = `${storage.nemo_total_gb || 0} GB`;
+    if (cacheTotalDiskVal) cacheTotalDiskVal.innerText = `${storage.total_disk_gb || 0} GB`;
+  } catch (err) {
+    console.warn("Failed to fetch cache breakdown:", err);
+  }
+}
+
+// --- 4. Live Memory Telemetry ---
 async function fetchMemoryStats() {
   try {
     const res = await fetch("/api/vram");
     if (!res.ok) return;
     const data = await res.json();
-    
-    // App RAM (Process RSS)
-    if (appRamText && data.proc_ram_used_gb !== undefined) {
-      appRamText.innerText = `${data.proc_ram_used_gb.toFixed(2)} GB`;
+
+    if (appRamText && data.app_ram_rss_gb !== undefined) {
+      appRamText.innerText = `${data.app_ram_rss_gb.toFixed(2)} GB`;
     }
 
-    // System RAM
-    if (data.sys_ram_total_gb > 0) {
-      ramBarFill.style.width = `${data.sys_ram_percent}%`;
-      ramText.innerText = `${data.sys_ram_used_gb} / ${data.sys_ram_total_gb} GB`;
+    if (ramText && data.sys_ram_used_gb !== undefined && data.sys_ram_total_gb !== undefined) {
+      ramText.innerText = `${data.sys_ram_used_gb.toFixed(1)} / ${data.sys_ram_total_gb.toFixed(1)} GB`;
+    }
+    if (ramBarFill && data.sys_ram_percent !== undefined) {
+      ramBarFill.style.width = `${Math.min(100, Math.max(0, data.sys_ram_percent))}%`;
+      if (data.sys_ram_percent > 88) {
+        ramBarFill.style.backgroundColor = "#ef4444";
+      } else if (data.sys_ram_percent > 75) {
+        ramBarFill.style.backgroundColor = "#f59e0b";
+      } else {
+        ramBarFill.style.backgroundColor = "var(--accent-bark)";
+      }
     }
 
-    // GPU VRAM
-    if (data.available) {
-      vramBarFill.style.width = `${data.percent_used}%`;
-      vramText.innerText = `${data.reserved_gb} / ${data.total_gb} GB (${data.percent_used}%)`;
+    const alloc = data.allocated_gb || 0;
+    const total = data.total_gb || 7.6;
+    const pct = data.percent_used || 0;
+
+    vramText.innerText = `${alloc.toFixed(2)} / ${total.toFixed(1)} GB`;
+    vramBarFill.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+
+    if (pct > 85) {
+      vramBarFill.style.backgroundColor = "#ef4444";
+    } else if (pct > 65) {
+      vramBarFill.style.backgroundColor = "#f59e0b";
     } else {
-      vramText.innerText = "CPU Mode";
+      vramBarFill.style.backgroundColor = "var(--accent-light)";
     }
-  } catch (err) {
-    // Silent fail on polling error
+  } catch (e) {
+    console.warn("Failed to fetch VRAM stats:", e);
   }
 }
-setInterval(fetchMemoryStats, 2500);
+
+setInterval(fetchMemoryStats, 3000);
 fetchMemoryStats();
 
-
-// --- 3. Drag & Drop File Handling ---
+// --- 5. File Upload & Start Transcription ---
 dropzone.addEventListener("click", () => fileInput.click());
 
 dropzone.addEventListener("dragover", (e) => {
   e.preventDefault();
-  dropzone.classList.add("dragover");
+  dropzone.style.borderColor = "var(--accent-light)";
 });
 
-dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+dropzone.addEventListener("dragleave", () => {
+  dropzone.style.borderColor = "var(--border-dim)";
+});
 
 dropzone.addEventListener("drop", (e) => {
   e.preventDefault();
-  dropzone.classList.remove("dragover");
-  if (e.dataTransfer.files.length > 0) {
-    handleFileSelect(e.dataTransfer.files[0]);
+  dropzone.style.borderColor = "var(--border-dim)";
+  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+    handleFile(e.dataTransfer.files[0]);
   }
 });
 
 fileInput.addEventListener("change", (e) => {
-  if (e.target.files.length > 0) {
-    handleFileSelect(e.target.files[0]);
+  if (e.target.files && e.target.files[0]) {
+    handleFile(e.target.files[0]);
   }
 });
 
-function handleFileSelect(file) {
+function handleFile(file) {
   selectedFile = file;
-  dropzoneText.innerHTML = `<strong>Selected:</strong> ${file.name} (${(file.size / (1024*1024)).toFixed(1)} MB)`;
+  dropzoneText.innerHTML = `<strong>Selected:</strong> ${escapeHtml(file.name)} <span style="font-size: 12px; color: var(--text-muted);">(${formatFileSize(file.size)})</span>`;
   btnStart.disabled = false;
 }
 
-// --- 4. Transcription Initiation & Polling ---
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  else return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
 btnStart.addEventListener("click", async () => {
   if (!selectedFile) return;
 
@@ -173,8 +345,8 @@ btnStart.addEventListener("click", async () => {
   formData.append("speaker_labels", speakerLabelsCheckbox.checked);
   formData.append("enable_enhancer", voiceEnhancerCheckbox ? voiceEnhancerCheckbox.checked : true);
   formData.append("enable_ambiguity", ambiguityCheckbox ? ambiguityCheckbox.checked : true);
-  const councilCheckbox = document.getElementById("councilCheckbox");
   formData.append("enable_council", councilCheckbox ? councilCheckbox.checked : true);
+  formData.append("council_mode", councilModeSelect ? councilModeSelect.value : "sequential");
 
   try {
     const res = await fetch("/api/transcribe", { method: "POST", body: formData });
@@ -248,12 +420,12 @@ async function pollTaskStatus(taskId) {
       progressFill.style.width = `${data.progress}%`;
       progressPercentage.innerText = `${Math.round(data.progress)}%`;
 
-      // Live online per-segment rendering as chunks complete
+      // Live stream segments online into the editor tab
       if (data.segments && data.segments.length > 0) {
         if (currentSegments.length !== data.segments.length) {
           currentSegments = data.segments;
-          transcriptCard.style.display = "block";
-          renderSpeakerFilters();
+          if (tabTranscriptBadge) tabTranscriptBadge.innerText = currentSegments.length;
+          renderSpeakerSidebar();
           renderTranscriptFeed();
         }
       }
@@ -279,17 +451,18 @@ async function pollTaskStatus(taskId) {
   }, 1000);
 }
 
-
-// --- 5. Dual-Track Audio Studio & Ingest Comparison ---
 function onTranscriptionSuccess(data) {
   currentSegments = data.segments;
+  if (tabTranscriptBadge) tabTranscriptBadge.innerText = currentSegments.length;
   initAudioPlayer(data.id);
-  renderSpeakerFilters();
+  renderSpeakerSidebar();
   renderTranscriptFeed();
   playerCard.style.display = "block";
-  transcriptCard.style.display = "block";
+  // Seamlessly transition user to the Transcript & Editor tab
+  switchTab("paneTranscript");
 }
 
+// --- 6. Dual-Track Audio Studio Waveforms ---
 function getWaveThemeColors() {
   const currentTheme = document.body.dataset.theme;
   if (currentTheme === "forest-sage") {
@@ -299,56 +472,52 @@ function getWaveThemeColors() {
     };
   } else if (currentTheme === "nordic-slate") {
     return {
-      origWave: '#1d232e', origProgress: '#4d6980',
-      modelWave: '#1b2a26', modelProgress: '#4a7566'
+      origWave: '#232a35', origProgress: '#50637d',
+      modelWave: '#1d2c33', modelProgress: '#457a8c'
     };
   } else if (currentTheme === "warm-umber") {
     return {
-      origWave: '#2a221e', origProgress: '#70584b',
-      modelWave: '#26241b', modelProgress: '#636647'
+      origWave: '#2a221e', origProgress: '#7c5a43',
+      modelWave: '#2d281a', modelProgress: '#78683e'
     };
   } else {
-    // foggy-woodland
+    // Foggy woodland default
     return {
-      origWave: '#1a232b', origProgress: '#46677d',
-      modelWave: '#162219', modelProgress: '#4f7556'
+      origWave: '#1f2823', origProgress: '#558762',
+      modelWave: '#1b2621', modelProgress: '#6d9978'
     };
   }
 }
 
 function initAudioPlayer(taskId) {
-  if (wavesurferOrig) wavesurferOrig.destroy();
-  if (wavesurferModel) wavesurferModel.destroy();
+  if (wavesurferOrig) { wavesurferOrig.destroy(); wavesurferOrig = null; }
+  if (wavesurferModel) { wavesurferModel.destroy(); wavesurferModel = null; }
 
   const colors = getWaveThemeColors();
 
-  // Track 1: Original Audio
   wavesurferOrig = WaveSurfer.create({
     container: '#waveformOrig',
     waveColor: colors.origWave,
     progressColor: colors.origProgress,
-    cursorColor: '#7a8c99',
-    height: 52,
-    barWidth: 2,
-    barGap: 1,
-    barRadius: 2,
+    cursorColor: '#a87855',
+    cursorWidth: 2,
+    height: 64,
+    normalize: true,
     url: `/api/audio/${taskId}`
   });
 
-  // Track 2: Model Classification Audio
   wavesurferModel = WaveSurfer.create({
     container: '#waveformModel',
     waveColor: colors.modelWave,
     progressColor: colors.modelProgress,
-    cursorColor: '#748c7c',
-    height: 52,
-    barWidth: 2,
-    barGap: 1,
-    barRadius: 2,
+    cursorColor: '#558762',
+    cursorWidth: 2,
+    height: 64,
+    normalize: true,
     url: `/api/audio/${taskId}/processed`
   });
 
-  // Lockstep seeking synchronization with async debounce guard
+  // Lockstep seeking synchronization
   wavesurferOrig.on('seeking', (time) => {
     if (!isSeekingSync && wavesurferModel) {
       isSeekingSync = true;
@@ -367,10 +536,11 @@ function initAudioPlayer(taskId) {
 
   // Timeupdate, playhead sync, and drift correction
   wavesurferOrig.on('timeupdate', (currentTime) => {
-    updatePlaybackTime(currentTime, wavesurferOrig.getDuration());
+    const totalDuration = wavesurferOrig.getDuration();
+    updatePlaybackTime(currentTime, totalDuration);
     syncActiveSegment(currentTime);
+    updateFloatingPlayerTime(currentTime, totalDuration);
 
-    // Only re-align if significant drift occurs (>0.35s) to avoid buffer stutter
     if (wavesurferModel && wavesurferOrig.isPlaying() && !isSeekingSync) {
       const diff = Math.abs(currentTime - wavesurferModel.getCurrentTime());
       if (diff > 0.35) {
@@ -381,9 +551,10 @@ function initAudioPlayer(taskId) {
     }
   });
 
-  // Play / Pause event handlers with initial lockstep alignment
+  // Play / Pause event handlers
   wavesurferOrig.on('play', () => {
     btnPlayPause.innerText = "⏸ Pause";
+    if (btnFloatingPlayPause) btnFloatingPlayPause.innerText = "⏸";
     if (wavesurferModel) {
       const t = wavesurferOrig.getCurrentTime();
       if (Math.abs(wavesurferModel.getCurrentTime() - t) > 0.06 && !isSeekingSync) {
@@ -391,17 +562,14 @@ function initAudioPlayer(taskId) {
         wavesurferModel.setTime(t);
         setTimeout(() => { isSeekingSync = false; }, 40);
       }
-      if (!wavesurferModel.isPlaying()) {
-        wavesurferModel.play();
-      }
+      if (!wavesurferModel.isPlaying()) wavesurferModel.play();
     }
   });
 
   wavesurferOrig.on('pause', () => {
     btnPlayPause.innerText = "▶ Play Both";
-    if (wavesurferModel && wavesurferModel.isPlaying()) {
-      wavesurferModel.pause();
-    }
+    if (btnFloatingPlayPause) btnFloatingPlayPause.innerText = "▶";
+    if (wavesurferModel && wavesurferModel.isPlaying()) wavesurferModel.pause();
   });
 
   wavesurferModel.on('play', () => {
@@ -412,31 +580,22 @@ function initAudioPlayer(taskId) {
         wavesurferOrig.setTime(t);
         setTimeout(() => { isSeekingSync = false; }, 40);
       }
-      if (!wavesurferOrig.isPlaying()) {
-        wavesurferOrig.play();
-      }
+      if (!wavesurferOrig.isPlaying()) wavesurferOrig.play();
     }
   });
 
   wavesurferModel.on('pause', () => {
-    if (wavesurferOrig && wavesurferOrig.isPlaying()) {
-      wavesurferOrig.pause();
-    }
+    if (wavesurferOrig && wavesurferOrig.isPlaying()) wavesurferOrig.pause();
   });
 
-  // Setup initial mix levels
   wavesurferOrig.on('ready', () => updateMixLevels());
   wavesurferModel.on('ready', () => updateMixLevels());
 }
 
 function updateWaveformTheme() {
   const colors = getWaveThemeColors();
-  if (wavesurferOrig) {
-    wavesurferOrig.setOptions({ waveColor: colors.origWave, progressColor: colors.origProgress });
-  }
-  if (wavesurferModel) {
-    wavesurferModel.setOptions({ waveColor: colors.modelWave, progressColor: colors.modelProgress });
-  }
+  if (wavesurferOrig) wavesurferOrig.setOptions({ waveColor: colors.origWave, progressColor: colors.origProgress });
+  if (wavesurferModel) wavesurferModel.setOptions({ waveColor: colors.modelWave, progressColor: colors.modelProgress });
 }
 
 // Master Transport Controls
@@ -453,77 +612,84 @@ btnPlayPause.addEventListener("click", () => {
 
 btnBack5.addEventListener("click", () => {
   if (!wavesurferOrig) return;
-  const newTime = Math.max(0, wavesurferOrig.getCurrentTime() - 5);
-  wavesurferOrig.setTime(newTime);
-  if (wavesurferModel) wavesurferModel.setTime(newTime);
+  const t = Math.max(0, wavesurferOrig.getCurrentTime() - 5);
+  wavesurferOrig.setTime(t);
+  if (wavesurferModel) wavesurferModel.setTime(t);
 });
 
 btnFwd5.addEventListener("click", () => {
   if (!wavesurferOrig) return;
-  const newTime = Math.min(wavesurferOrig.getDuration(), wavesurferOrig.getCurrentTime() + 5);
-  wavesurferOrig.setTime(newTime);
-  if (wavesurferModel) wavesurferModel.setTime(newTime);
+  const t = Math.min(wavesurferOrig.getDuration(), wavesurferOrig.getCurrentTime() + 5);
+  wavesurferOrig.setTime(t);
+  if (wavesurferModel) wavesurferModel.setTime(t);
 });
 
 playbackSpeed.addEventListener("change", (e) => {
   const rate = parseFloat(e.target.value);
   if (wavesurferOrig) wavesurferOrig.setPlaybackRate(rate);
   if (wavesurferModel) wavesurferModel.setPlaybackRate(rate);
+  if (floatingPlaybackSpeed) floatingPlaybackSpeed.value = e.target.value;
 });
 
-// Mix & Match Audio Engine
+// A/B & Crossfader Controls
+function setCrossfade(percent) {
+  audioCrossfader.value = percent;
+  const p = percent / 100.0;
+  let vOrig = 1.0;
+  let vModel = 1.0;
+
+  if (p < 0.5) {
+    vOrig = 1.0;
+    vModel = p * 2.0;
+  } else {
+    vOrig = (1.0 - p) * 2.0;
+    vModel = 1.0;
+  }
+
+  volumeState.orig = vOrig;
+  volumeState.model = vModel;
+  volOrig.value = vOrig;
+  volModel.value = vModel;
+
+  btnABOriginal.classList.toggle("active", percent <= 10);
+  btnABMix.classList.toggle("active", percent > 40 && percent < 60);
+  btnABModel.classList.toggle("active", percent >= 90);
+
+  updateMixLevels();
+}
+
 function updateMixLevels() {
   if (!wavesurferOrig || !wavesurferModel) return;
 
-  const cross = parseFloat(audioCrossfader.value); // 0 (100% orig) to 100 (100% model)
-  const origFactor = Math.cos((cross / 100) * (Math.PI / 2));
-  const modelFactor = Math.sin((cross / 100) * (Math.PI / 2));
+  let finalVolOrig = volumeState.orig;
+  let finalVolModel = volumeState.model;
 
-  let finalOrigVol = volumeState.orig * origFactor;
-  let finalModelVol = volumeState.model * modelFactor;
+  if (soloState.orig) finalVolModel = 0;
+  if (soloState.model) finalVolOrig = 0;
+  if (muteState.orig) finalVolOrig = 0;
+  if (muteState.model) finalVolModel = 0;
 
-  // Solo handling
-  if (soloState.orig && !soloState.model) {
-    finalOrigVol = volumeState.orig;
-    finalModelVol = 0;
-  } else if (soloState.model && !soloState.orig) {
-    finalModelVol = volumeState.model;
-    finalOrigVol = 0;
-  }
-
-  // Mute handling
-  if (muteState.orig) finalOrigVol = 0;
-  if (muteState.model) finalModelVol = 0;
-
-  wavesurferOrig.setVolume(finalOrigVol);
-  wavesurferModel.setVolume(finalModelVol);
-}
-
-function setCrossfade(val) {
-  audioCrossfader.value = val;
-  btnABOriginal.classList.toggle("active", val === 0);
-  btnABMix.classList.toggle("active", val === 50);
-  btnABModel.classList.toggle("active", val === 100);
-  soloState.orig = false;
-  soloState.model = false;
-  soloOrig.classList.remove("active");
-  soloModel.classList.remove("active");
-  updateMixLevels();
+  wavesurferOrig.setVolume(finalVolOrig);
+  wavesurferModel.setVolume(finalVolModel);
 }
 
 btnABOriginal.addEventListener("click", () => setCrossfade(0));
 btnABMix.addEventListener("click", () => setCrossfade(50));
 btnABModel.addEventListener("click", () => setCrossfade(100));
 
-audioCrossfader.addEventListener("input", () => {
-  const val = parseInt(audioCrossfader.value, 10);
+audioCrossfader.addEventListener("input", (e) => {
+  const val = parseFloat(e.target.value);
+  const p = val / 100.0;
+  volumeState.orig = p < 0.5 ? 1.0 : (1.0 - p) * 2.0;
+  volumeState.model = p < 0.5 ? p * 2.0 : 1.0;
+  volOrig.value = volumeState.orig;
+  volModel.value = volumeState.model;
   btnABOriginal.classList.toggle("active", val <= 10);
   btnABMix.classList.toggle("active", val > 40 && val < 60);
   btnABModel.classList.toggle("active", val >= 90);
   updateMixLevels();
 });
 
-// Channel Strip Controls
 soloOrig.addEventListener("click", () => {
   soloState.orig = !soloState.orig;
   if (soloState.orig) soloState.model = false;
@@ -569,21 +735,170 @@ function formatSeconds(sec) {
 }
 
 function updatePlaybackTime(curr, total) {
-  playerTime.innerText = `${formatSeconds(curr)} / ${formatSeconds(total || 0)}`;
+  if (playerTime) {
+    playerTime.innerText = `${formatSeconds(curr)} / ${formatSeconds(total || 0)}`;
+  }
 }
 
-// --- 6. Playhead Sync & Segment Rendering ---
+// --- 7. Floating Audio Player Dock Synchronization ---
+function initFloatingPlayer() {
+  if (!btnFloatingPlayPause) return;
+
+  btnFloatingPlayPause.addEventListener("click", () => {
+    btnPlayPause.click();
+  });
+
+  btnFloatingBack5.addEventListener("click", () => {
+    btnBack5.click();
+  });
+
+  btnFloatingFwd5.addEventListener("click", () => {
+    btnFwd5.click();
+  });
+
+  floatingPlaybackSpeed.addEventListener("change", (e) => {
+    playbackSpeed.value = e.target.value;
+    playbackSpeed.dispatchEvent(new Event("change"));
+  });
+
+  btnFloatingJump.addEventListener("click", () => {
+    if (!wavesurferOrig) return;
+    const t = wavesurferOrig.getCurrentTime();
+    syncActiveSegment(t, true);
+  });
+}
+
+function updateFloatingPlayerTime(curr, total) {
+  if (floatingTime) {
+    floatingTime.innerText = `${formatSeconds(curr)} / ${formatSeconds(total || 0)}`;
+  }
+}
+
+// --- 8. Left Sidebar Speaker Hub & Compact List ---
 function getSpeakerClass(speaker) {
   const match = speaker.match(/\d+/);
   const num = match ? parseInt(match[0], 10) % 4 : 0;
   return `spk-${num}`;
 }
 
+function renderSpeakerSidebar() {
+  if (!speakerListCompact) return;
+  speakerListCompact.innerHTML = "";
+
+  // 1. Gather all speaker stats
+  const speakerStats = {};
+  currentSegments.forEach(seg => {
+    const spk = seg.speaker || "Speaker 0";
+    if (!speakerStats[spk]) {
+      speakerStats[spk] = { count: 0, duration: 0 };
+    }
+    speakerStats[spk].count += 1;
+    speakerStats[spk].duration += (seg.end - seg.start);
+  });
+
+  const distinctSpeakers = Object.keys(speakerStats).sort();
+  if (speakerCountBadge) speakerCountBadge.innerText = distinctSpeakers.length;
+
+  // 2. Global filter chips counts
+  const reviewCount = currentSegments.filter(s => s.needs_review).length;
+  const disputedCount = currentSegments.filter(s => s.council && s.council.agreement_type === 'SPLIT_DECISION').length;
+
+  if (filterCountAll) filterCountAll.innerText = currentSegments.length;
+  if (filterCountReview) filterCountReview.innerText = reviewCount;
+  if (filterCountDisputed) filterCountDisputed.innerText = disputedCount;
+
+  if (pillFilterReview) pillFilterReview.style.display = reviewCount > 0 ? "flex" : "none";
+  if (pillFilterDisputed) pillFilterDisputed.style.display = disputedCount > 0 ? "flex" : "none";
+
+  // Wire filter pill clicks
+  const setFilter = (filt) => {
+    activeSpeakerFilter = filt;
+    pillFilterAll.classList.toggle("active", filt === "ALL");
+    pillFilterReview.classList.toggle("active", filt === "REVIEW");
+    pillFilterDisputed.classList.toggle("active", filt === "DISPUTED");
+    renderSpeakerSidebar();
+    renderTranscriptFeed();
+  };
+
+  pillFilterAll.onclick = () => setFilter("ALL");
+  pillFilterReview.onclick = () => setFilter("REVIEW");
+  pillFilterDisputed.onclick = () => setFilter("DISPUTED");
+
+  // 3. Render compact cards
+  const query = (speakerSearchInput ? speakerSearchInput.value : "").toLowerCase();
+
+  distinctSpeakers.forEach(spk => {
+    const displayName = speakerAliases[spk] || spk;
+    if (query && !displayName.toLowerCase().includes(query) && !spk.toLowerCase().includes(query)) {
+      return;
+    }
+
+    const stats = speakerStats[spk];
+    const card = document.createElement("div");
+    card.className = `speaker-card-compact ${activeSpeakerFilter === spk ? 'active' : ''}`;
+    card.dataset.speaker = spk;
+
+    const spkClass = getSpeakerClass(spk);
+
+    card.innerHTML = `
+      <div class="speaker-card-left">
+        <span class="speaker-avatar-dot ${spkClass}"></span>
+        <div class="speaker-info-col">
+          <span class="speaker-alias-name" title="${spk}">${displayName}</span>
+          <span class="speaker-talk-time">${stats.count} chunks • ${formatSeconds(stats.duration)}</span>
+        </div>
+      </div>
+      <button class="btn-inline-rename" data-spk="${spk}" title="Rename alias">✏️</button>
+    `;
+
+    card.addEventListener("click", (e) => {
+      if (e.target.classList.contains("btn-inline-rename")) return;
+      activeSpeakerFilter = (activeSpeakerFilter === spk) ? "ALL" : spk;
+      pillFilterAll.classList.toggle("active", activeSpeakerFilter === "ALL");
+      renderSpeakerSidebar();
+      renderTranscriptFeed();
+    });
+
+    const renameBtn = card.querySelector(".btn-inline-rename");
+    renameBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const currentName = speakerAliases[spk] || spk;
+      const newName = prompt(`Rename ${spk}:`, currentName);
+      if (newName !== null && newName.trim() !== "") {
+        speakerAliases[spk] = newName.trim();
+        renderSpeakerSidebar();
+        renderTranscriptFeed();
+      }
+    });
+
+    speakerListCompact.appendChild(card);
+  });
+}
+
+if (speakerSearchInput) {
+  speakerSearchInput.addEventListener("input", () => renderSpeakerSidebar());
+}
+
+// --- 9. Transcript Workspace & Editor Feed ---
 const expandedCouncilSet = new Set();
 
 function renderTranscriptFeed() {
+  if (!transcriptFeed) return;
   transcriptFeed.innerHTML = "";
-  const query = searchInput.value.toLowerCase();
+  const query = searchInput ? searchInput.value.toLowerCase() : "";
+
+  if (currentSegments.length === 0) {
+    transcriptFeed.innerHTML = `
+      <div class="empty-state-notice">
+        <div style="font-size: 36px; margin-bottom: 8px;">🎙️</div>
+        <div style="font-weight: 600;">No transcript segments yet</div>
+        <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+          Upload an audio file in the <strong>Studio & Ingest</strong> tab to begin transcription.
+        </div>
+      </div>
+    `;
+    return;
+  }
 
   currentSegments.forEach((seg, index) => {
     const rawSpeaker = seg.speaker || "Speaker 0";
@@ -614,7 +929,10 @@ function renderTranscriptFeed() {
       badgeExtras += `<span class="badge-slowed" title="Auto-slowed to 0.75x for acoustic clarification">🐢 0.75x</span>`;
     }
     if (seg.needs_review) {
-      badgeExtras += `<span class="badge-review" title="High ambiguity persisted after slowdown. Review recommended.">⚠️ Needs Review</span>`;
+      badgeExtras += `<span class="badge-review" title="High ambiguity persisted. Review recommended.">⚠️ Needs Review</span>`;
+    }
+    if (seg.edited) {
+      badgeExtras += `<span class="badge-edited" title="Manually edited">Edited</span>`;
     }
 
     // Council deliberation badge & drawer
@@ -679,9 +997,7 @@ function renderTranscriptFeed() {
               <span>🏛️ Council Deliberation (${agreeType})</span>
               <span style="font-size: 11px; color: var(--text-muted);">${seg.council.consensus_score ? `Consensus: ${scorePct}%` : ''}</span>
             </div>
-            <div class="council-votes-list">
-              ${votesHtml}
-            </div>
+            <div class="council-votes-list">${votesHtml}</div>
             ${disputedHtml}
             <div class="council-notes-text">📝 ${seg.council.deliberation_notes || ''}</div>
           </div>
@@ -689,13 +1005,16 @@ function renderTranscriptFeed() {
       }
     }
 
-    // Audition button for chunk classification sample
+    // Audition sample button
     let auditionBtn = "";
     if (seg.slowed_audio_used) {
-      auditionBtn = `<button class="btn-audition" data-slow="true" title="Audition exact 0.75x time-stretched audio sample evaluated by model">🐢 0.75x Sample</button>`;
+      auditionBtn = `<button class="btn-audition" data-slow="true" title="Audition exact 0.75x time-stretched audio sample">🐢 0.75x</button>`;
     } else {
-      auditionBtn = `<button class="btn-audition" data-slow="false" title="Audition this segment in Model Classification Ingest">🎧 Model Ingest</button>`;
+      auditionBtn = `<button class="btn-audition" data-slow="false" title="Audition this segment in Model Classification Ingest">🎧 Model</button>`;
     }
+
+    // Delete chunk button
+    const deleteBtn = `<button class="btn-delete-segment" data-index="${index}" title="Delete this chunk from transcript">🗑️</button>`;
 
     block.innerHTML = `
       <div class="segment-header">
@@ -705,27 +1024,25 @@ function renderTranscriptFeed() {
         ${councilBadge}
         ${councilToggleBtn}
         ${auditionBtn}
+        ${deleteBtn}
       </div>
-      <div class="segment-text" contenteditable="true" spellcheck="false">${seg.text}</div>
+      <div class="segment-text" contenteditable="true" spellcheck="false" data-index="${index}">${seg.text}</div>
       ${councilDrawerHtml}
     `;
 
-    // Toggle Council Drawer button
+    // Toggle Council Drawer
     const cToggle = block.querySelector(".btn-council-toggle");
     if (cToggle) {
       cToggle.addEventListener("click", (e) => {
         e.stopPropagation();
         const segIdx = parseInt(cToggle.dataset.index, 10);
-        if (expandedCouncilSet.has(segIdx)) {
-          expandedCouncilSet.delete(segIdx);
-        } else {
-          expandedCouncilSet.add(segIdx);
-        }
+        if (expandedCouncilSet.has(segIdx)) expandedCouncilSet.delete(segIdx);
+        else expandedCouncilSet.add(segIdx);
         renderTranscriptFeed();
       });
     }
 
-    // Adopt Juror Hypothesis buttons
+    // Adopt Juror Hypothesis
     block.querySelectorAll(".btn-adopt-hyp").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -733,10 +1050,36 @@ function renderTranscriptFeed() {
         const adoptedText = decodeURIComponent(btn.dataset.text);
         if (currentSegments[segIdx]) {
           currentSegments[segIdx].text = adoptedText;
+          currentSegments[segIdx].edited = true;
           renderTranscriptFeed();
+          if (currentTaskId) {
+            fetch(`/api/tasks/${currentTaskId}/segments/${segIdx}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: adoptedText })
+            }).catch(console.warn);
+          }
         }
       });
     });
+
+    // Delete Chunk button
+    const delBtn = block.querySelector(".btn-delete-segment");
+    if (delBtn) {
+      delBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const segIdx = parseInt(delBtn.dataset.index, 10);
+        if (confirm(`Delete chunk [${formatSeconds(seg.start)} - ${formatSeconds(seg.end)}]?`)) {
+          currentSegments.splice(segIdx, 1);
+          if (tabTranscriptBadge) tabTranscriptBadge.innerText = currentSegments.length;
+          renderSpeakerSidebar();
+          renderTranscriptFeed();
+          if (currentTaskId) {
+            fetch(`/api/tasks/${currentTaskId}/segments/${segIdx}`, { method: "DELETE" }).catch(console.warn);
+          }
+        }
+      });
+    }
 
     // Audition chunk button logic
     const audBtn = block.querySelector(".btn-audition");
@@ -747,13 +1090,10 @@ function renderTranscriptFeed() {
         if (isSlow) {
           if (chunkAuditionAudio) chunkAuditionAudio.pause();
           chunkAuditionAudio = new Audio(`/api/audio/${currentTaskId}/chunk/${index}`);
-          audBtn.innerText = "🔊 Playing 0.75x...";
+          audBtn.innerText = "🔊 Playing...";
           chunkAuditionAudio.play().catch(err => console.warn(err));
-          chunkAuditionAudio.onended = () => {
-            audBtn.innerText = "🐢 0.75x Sample";
-          };
+          chunkAuditionAudio.onended = () => { audBtn.innerText = "🐢 0.75x"; };
         } else {
-          // Switch to Model Ingested audio and play segment
           setCrossfade(100);
           if (wavesurferOrig) {
             wavesurferOrig.setTime(seg.start);
@@ -765,9 +1105,9 @@ function renderTranscriptFeed() {
       });
     }
 
-    // Click block or timestamp to jump both players
+    // Click block to jump both players
     block.addEventListener("click", (e) => {
-      if (e.target.classList.contains("segment-text") || e.target.classList.contains("btn-audition") || e.target.classList.contains("btn-council-toggle") || e.target.classList.contains("btn-adopt-hyp")) return;
+      if (e.target.classList.contains("segment-text") || e.target.classList.contains("btn-audition") || e.target.classList.contains("btn-council-toggle") || e.target.classList.contains("btn-adopt-hyp") || e.target.classList.contains("btn-delete-segment")) return;
       if (wavesurferOrig) {
         wavesurferOrig.setTime(seg.start);
         if (wavesurferModel) wavesurferModel.setTime(seg.start);
@@ -776,25 +1116,57 @@ function renderTranscriptFeed() {
       }
     });
 
-    // In-place edits update memory
+    // Contenteditable events & keyboard shortcuts
     const textEl = block.querySelector(".segment-text");
     textEl.addEventListener("blur", () => {
-      seg.text = textEl.innerText.trim();
+      const newTxt = textEl.innerText.trim();
+      if (newTxt !== seg.text) {
+        seg.text = newTxt;
+        seg.edited = true;
+        if (currentTaskId) {
+          fetch(`/api/tasks/${currentTaskId}/segments/${index}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: newTxt })
+          }).catch(console.warn);
+        }
+      }
+    });
+
+    textEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        textEl.blur();
+        // Focus next segment text if available
+        const nextBlock = transcriptFeed.querySelector(`.segment-block[data-index="${index + 1}"]`);
+        if (nextBlock) {
+          const nextText = nextBlock.querySelector(".segment-text");
+          if (nextText) nextText.focus();
+        }
+      }
     });
 
     transcriptFeed.appendChild(block);
   });
 }
 
-function syncActiveSegment(currentTime) {
+function syncActiveSegment(currentTime, forceScroll = false) {
   const blocks = transcriptFeed.querySelectorAll(".segment-block");
   blocks.forEach((b) => {
     const start = parseFloat(b.dataset.start);
     const end = parseFloat(b.dataset.end);
     if (currentTime >= start && currentTime <= end) {
-      if (!b.classList.contains("active")) {
+      if (!b.classList.contains("active") || forceScroll) {
         b.classList.add("active");
         b.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+        // Update floating snippet
+        const idx = parseInt(b.dataset.index, 10);
+        if (currentSegments[idx]) {
+          const spk = currentSegments[idx].speaker || "Speaker --";
+          if (floatingSpeaker) floatingSpeaker.innerText = speakerAliases[spk] || spk;
+          if (floatingSnippet) floatingSnippet.innerText = `"${currentSegments[idx].text}"`;
+        }
       }
     } else {
       b.classList.remove("active");
@@ -802,133 +1174,80 @@ function syncActiveSegment(currentTime) {
   });
 }
 
-// --- 7. Speaker Filters & Search ---
-function renderSpeakerFilters() {
-  const speakers = Array.from(new Set(currentSegments.map(s => s.speaker || "Speaker 0")));
-  speakerFilters.innerHTML = `<div class="filter-pill ${activeSpeakerFilter === 'ALL' ? 'active' : ''}" data-speaker="ALL">All Speakers</div>`;
+if (searchInput) searchInput.addEventListener("input", () => renderTranscriptFeed());
 
-  speakers.forEach(spk => {
-    const displayName = speakerAliases[spk] || spk;
-    const pill = document.createElement("div");
-    pill.className = `filter-pill ${activeSpeakerFilter === spk ? 'active' : ''}`;
-    pill.dataset.speaker = spk;
-    pill.innerText = displayName;
-    pill.addEventListener("click", () => {
-      activeSpeakerFilter = spk;
-      renderSpeakerFilters();
-      renderTranscriptFeed();
+// --- 10. Speaker Aliases Modal Management ---
+if (btnRenameModal) {
+  btnRenameModal.addEventListener("click", () => {
+    const speakers = Array.from(new Set(currentSegments.map(s => s.speaker || "Speaker 0"))).sort();
+    aliasInputsContainer.innerHTML = "";
+
+    speakers.forEach(spk => {
+      const row = document.createElement("div");
+      row.className = "alias-row";
+      row.innerHTML = `
+        <span style="font-size: 13px; color: var(--text-secondary);">${spk}</span>
+        <input type="text" class="text-input alias-input" data-original="${spk}" value="${speakerAliases[spk] || ''}" placeholder="Enter name or leave as ${spk}">
+      `;
+      aliasInputsContainer.appendChild(row);
     });
-    speakerFilters.appendChild(pill);
+
+    renameModal.style.display = "flex";
   });
+}
 
-  // Review Filter Pill (Minimal Human Intervention Queue)
-  const reviewCount = currentSegments.filter(s => s.needs_review).length;
-  if (reviewCount > 0) {
-    const reviewPill = document.createElement("div");
-    reviewPill.className = `filter-pill filter-review ${activeSpeakerFilter === 'REVIEW' ? 'active' : ''}`;
-    reviewPill.innerText = `⚠️ Needs Review (${reviewCount})`;
-    reviewPill.addEventListener("click", () => {
-      activeSpeakerFilter = "REVIEW";
-      renderSpeakerFilters();
-      renderTranscriptFeed();
+if (btnCancelRename) btnCancelRename.addEventListener("click", () => renameModal.style.display = "none");
+
+if (btnSaveAliases) {
+  btnSaveAliases.addEventListener("click", () => {
+    const inputs = aliasInputsContainer.querySelectorAll(".alias-input");
+    inputs.forEach(inp => {
+      const original = inp.dataset.original;
+      const val = inp.value.trim();
+      if (val) speakerAliases[original] = val;
+      else delete speakerAliases[original];
     });
-    speakerFilters.appendChild(reviewPill);
-  }
-
-  // Council Disputed Filter Pill
-  const disputedCount = currentSegments.filter(s => s.council && s.council.agreement_type === 'SPLIT_DECISION').length;
-  if (disputedCount > 0) {
-    const dispPill = document.createElement("div");
-    dispPill.className = `filter-pill filter-disputed ${activeSpeakerFilter === 'DISPUTED' ? 'active' : ''}`;
-    dispPill.innerText = `⚖️ Council Disputed (${disputedCount})`;
-    dispPill.addEventListener("click", () => {
-      activeSpeakerFilter = "DISPUTED";
-      renderSpeakerFilters();
-      renderTranscriptFeed();
-    });
-    speakerFilters.appendChild(dispPill);
-  }
-
-  speakerFilters.querySelector('[data-speaker="ALL"]').addEventListener("click", () => {
-    activeSpeakerFilter = "ALL";
-    renderSpeakerFilters();
+    renameModal.style.display = "none";
+    renderSpeakerSidebar();
     renderTranscriptFeed();
   });
 }
 
-searchInput.addEventListener("input", () => renderTranscriptFeed());
+// --- 11. Export .TXT ---
+if (btnExportTxt) {
+  btnExportTxt.addEventListener("click", async () => {
+    if (!currentSegments || currentSegments.length === 0) return;
+    try {
+      const res = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          segments: currentSegments,
+          speaker_aliases: speakerAliases,
+          include_timestamps: true,
+          include_speakers: true
+        })
+      });
 
-// --- 8. Speaker Alias Management ---
-btnRenameModal.addEventListener("click", () => {
-  const speakers = Array.from(new Set(currentSegments.map(s => s.speaker || "Speaker 0")));
-  aliasInputsContainer.innerHTML = "";
+      if (!res.ok) throw new Error("Export failed");
+      const textData = await res.text();
 
-  speakers.forEach(spk => {
-    const row = document.createElement("div");
-    row.className = "alias-row";
-    row.innerHTML = `
-      <span style="font-size: 13px; color: var(--text-secondary);">${spk}</span>
-      <input type="text" class="text-input alias-input" data-original="${spk}" value="${speakerAliases[spk] || ''}" placeholder="Enter name or leave as ${spk}">
-    `;
-    aliasInputsContainer.appendChild(row);
-  });
-
-  renameModal.style.display = "flex";
-});
-
-btnCancelRename.addEventListener("click", () => renameModal.style.display = "none");
-
-btnSaveAliases.addEventListener("click", () => {
-  const inputs = aliasInputsContainer.querySelectorAll(".alias-input");
-  inputs.forEach(inp => {
-    const original = inp.dataset.original;
-    const val = inp.value.trim();
-    if (val) {
-      speakerAliases[original] = val;
-    } else {
-      delete speakerAliases[original];
+      const blob = new Blob([textData], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const baseName = selectedFile ? selectedFile.name.replace(/\.[^/.]+$/, "") : "transcript";
+      a.href = url;
+      a.download = `${baseName}_transcript.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Export failed: " + err.message);
     }
   });
-  renameModal.style.display = "none";
-  renderSpeakerFilters();
-  renderTranscriptFeed();
-});
+}
 
-// --- 9. Export .TXT ---
-btnExportTxt.addEventListener("click", async () => {
-  if (!currentSegments || currentSegments.length === 0) return;
-
-  try {
-    const res = await fetch("/api/export", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        segments: currentSegments,
-        speaker_aliases: speakerAliases,
-        include_timestamps: true,
-        include_speakers: true
-      })
-    });
-
-    if (!res.ok) throw new Error("Export failed");
-    const textData = await res.text();
-
-    const blob = new Blob([textData], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    const baseName = selectedFile ? selectedFile.name.replace(/\.[^/.]+$/, "") : "transcript";
-    a.href = url;
-    a.download = `${baseName}_transcript.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  } catch (err) {
-    alert("Export failed: " + err.message);
-  }
-});
-
-// Helper: Escape HTML
 function escapeHtml(str) {
   if (!str) return "";
   return String(str)
@@ -940,25 +1259,19 @@ function escapeHtml(str) {
 }
 
 // ==========================================================================
-// 10. Live Memory Trace & Execution Log Console
+// 12. Live Memory Trace & Execution Log Console
 // ==========================================================================
-
 let telemetryCadenceSeconds = 2;
 let telemetryTimer = null;
 let activeLogFilter = "ALL";
 let cachedTraceSamples = [];
 let cachedLogEntries = [];
 
-// DOM Elements
 const tabBtnTrace = document.getElementById("tabBtnTrace");
 const tabBtnLogs = document.getElementById("tabBtnLogs");
 const paneTrace = document.getElementById("paneTrace");
 const paneLogs = document.getElementById("paneLogs");
-const cadenceBtnGroup = document.getElementById("cadenceBtnGroup");
-const btnExportTraceCsv = document.getElementById("btnExportTraceCsv");
-const btnExportLogsCsv = document.getElementById("btnExportLogsCsv");
-const btnExportLogsTxt = document.getElementById("btnExportLogsTxt");
-const btnClearTelemetry = document.getElementById("btnClearTelemetry");
+const telemetryPulse = document.getElementById("telemetryPulse");
 
 const traceActiveTask = document.getElementById("traceActiveTask");
 const traceCurrentStage = document.getElementById("traceCurrentStage");
@@ -967,26 +1280,30 @@ const traceLiveRam = document.getElementById("traceLiveRam");
 const traceLiveVram = document.getElementById("traceLiveVram");
 const tracePeakMem = document.getElementById("tracePeakMem");
 const traceTableBody = document.getElementById("traceTableBody");
-const traceTableContainer = document.getElementById("traceTableContainer");
 const traceAutoScroll = document.getElementById("traceAutoScroll");
 const traceCountText = document.getElementById("traceCountText");
 
-const logLevelFilters = document.getElementById("logLevelFilters");
-const logSearchInput = document.getElementById("logSearchInput");
 const terminalBody = document.getElementById("terminalBody");
-const terminalContainer = document.getElementById("terminalContainer");
 const logsAutoScroll = document.getElementById("logsAutoScroll");
 const logCountText = document.getElementById("logCountText");
+const logLevelFilters = document.getElementById("logLevelFilters");
+const logSearchInput = document.getElementById("logSearchInput");
 
-// Tab Switching
-if (tabBtnTrace && tabBtnLogs) {
+const cadenceBtnGroup = document.getElementById("cadenceBtnGroup");
+const btnExportTraceCsv = document.getElementById("btnExportTraceCsv");
+const btnExportLogsCsv = document.getElementById("btnExportLogsCsv");
+const btnExportLogsTxt = document.getElementById("btnExportLogsTxt");
+const btnClearTelemetry = document.getElementById("btnClearTelemetry");
+const btnClearMemTelemetry = document.getElementById("btnClearMemTelemetry");
+
+function initTelemetryTabs() {
+  if (!tabBtnTrace || !tabBtnLogs) return;
   tabBtnTrace.addEventListener("click", () => {
     tabBtnTrace.classList.add("active");
     tabBtnLogs.classList.remove("active");
     paneTrace.classList.add("active");
     paneLogs.classList.remove("active");
   });
-
   tabBtnLogs.addEventListener("click", () => {
     tabBtnLogs.classList.add("active");
     tabBtnTrace.classList.remove("active");
@@ -995,38 +1312,19 @@ if (tabBtnTrace && tabBtnLogs) {
   });
 }
 
-// Cadence Selection: 2s, 5s, 10s
-if (cadenceBtnGroup) {
-  cadenceBtnGroup.addEventListener("click", (e) => {
-    const btn = e.target.closest(".btn-interval");
-    if (!btn) return;
-    cadenceBtnGroup.querySelectorAll(".btn-interval").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    telemetryCadenceSeconds = parseInt(btn.dataset.interval, 10) || 2;
-    startTelemetryPolling();
-    fetchTelemetryData();
+function initCadenceSelector() {
+  if (!cadenceBtnGroup) return;
+  const btns = cadenceBtnGroup.querySelectorAll(".btn-interval");
+  btns.forEach((b) => {
+    b.addEventListener("click", () => {
+      btns.forEach((x) => x.classList.remove("active"));
+      b.classList.add("active");
+      telemetryCadenceSeconds = parseInt(b.dataset.interval, 10) || 2;
+      startTelemetryPolling();
+    });
   });
 }
 
-// Log Level Filter Buttons
-if (logLevelFilters) {
-  logLevelFilters.addEventListener("click", (e) => {
-    const btn = e.target.closest(".log-filter-btn");
-    if (!btn) return;
-    logLevelFilters.querySelectorAll(".log-filter-btn").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    activeLogFilter = btn.dataset.level || "ALL";
-    renderLogs();
-  });
-}
-
-if (logSearchInput) {
-  logSearchInput.addEventListener("input", () => {
-    renderLogs();
-  });
-}
-
-// Polling Loop
 function startTelemetryPolling() {
   if (telemetryTimer) clearInterval(telemetryTimer);
   telemetryTimer = setInterval(fetchTelemetryData, telemetryCadenceSeconds * 1000);
@@ -1034,325 +1332,188 @@ function startTelemetryPolling() {
 
 async function fetchTelemetryData() {
   try {
-    const taskIdParam = currentTaskId ? `&task_id=${currentTaskId}` : "";
+    const tidParam = currentTaskId ? `&task_id=${currentTaskId}` : "";
+    const [resTrace, resLogs] = await Promise.all([
+      fetch(`/api/telemetry/trace?interval=${telemetryCadenceSeconds}${tidParam}`),
+      fetch(`/api/telemetry/logs?level=${activeLogFilter}${tidParam}`)
+    ]);
 
-    // Fetch Trace
-    const traceRes = await fetch(`/api/telemetry/trace?interval=${telemetryCadenceSeconds}${taskIdParam}`);
-    if (traceRes.ok) {
-      const data = await traceRes.json();
-      cachedTraceSamples = data.samples || [];
-      renderTrace(data);
+    if (resTrace.ok) {
+      const traceData = await resTrace.json();
+      renderTraceSummary(traceData.current, traceData.peak);
+      if (traceData.samples && traceData.samples.length > cachedTraceSamples.length) {
+        cachedTraceSamples = traceData.samples;
+        renderTraceTable(cachedTraceSamples);
+      }
     }
 
-    // Fetch Logs
-    const logsRes = await fetch(`/api/telemetry/logs?limit=400${taskIdParam}`);
-    if (logsRes.ok) {
-      const data = await logsRes.json();
-      cachedLogEntries = data.logs || [];
-      renderLogs();
+    if (resLogs.ok) {
+      const logsData = await resLogs.json();
+      if (logsData.logs && logsData.logs.length !== cachedLogEntries.length) {
+        cachedLogEntries = logsData.logs;
+        renderTerminalLogs(cachedLogEntries);
+      }
     }
-  } catch (err) {
-    // Silent fail
-  }
+  } catch (err) {}
 }
 
-function renderTrace(data) {
-  const current = data.current || {};
-  const activeTask = data.active_task;
-
-  // Update Summary Bar
+function renderTraceSummary(curr, peak) {
+  if (!curr) return;
   if (traceActiveTask) {
-    if (activeTask) {
-      traceActiveTask.innerHTML = `<strong>${escapeHtml(activeTask.filename || activeTask.id.slice(0, 8))}</strong> (${escapeHtml(activeTask.status)})`;
-    } else {
-      traceActiveTask.innerText = "System Idle";
-    }
+    traceActiveTask.innerText = curr.task_id && curr.task_id !== "system" ? curr.task_id.substring(0, 8) + "..." : "System Idle";
   }
-
-  if (traceCurrentStage) {
-    traceCurrentStage.innerText = activeTask ? (activeTask.stage || "In progress") : "Ready";
-  }
-
-  if (traceLiveAppRam) {
-    traceLiveAppRam.innerText = `${(current.proc_ram_used_gb || 0).toFixed(2)} GB`;
-  }
-  if (traceLiveRam && current.sys_ram_total_gb > 0) {
-    traceLiveRam.innerText = `${current.sys_ram_used_gb} / ${current.sys_ram_total_gb} GB (${current.sys_ram_percent}%)`;
-  }
-  if (traceLiveVram) {
-    if (current.available) {
-      traceLiveVram.innerText = `${current.allocated_gb || 0} alloc / ${current.reserved_gb} res / ${current.total_gb} GB`;
-    } else {
-      traceLiveVram.innerText = "CPU Mode";
-    }
-  }
-
-  // Calculate Peaks
-  let peakAppRam = 0;
-  let peakRam = 0;
-  let peakVram = 0;
-  cachedTraceSamples.forEach(s => {
-    if ((s.proc_ram_used_gb || 0) > peakAppRam) peakAppRam = s.proc_ram_used_gb;
-    if (s.ram_used_gb > peakRam) peakRam = s.ram_used_gb;
-    if (s.vram_alloc_gb > peakVram) peakVram = s.vram_alloc_gb;
-    if (s.vram_reserved_gb > peakVram) peakVram = s.vram_reserved_gb;
-  });
-  if (tracePeakMem) {
-    tracePeakMem.innerText = `${peakVram.toFixed(2)} GB VRAM / ${peakAppRam.toFixed(2)} GB App (${peakRam.toFixed(1)} GB Sys)`;
-  }
-
-  // Render Table Rows
-  if (traceCountText) {
-    traceCountText.innerText = `${data.total_recorded || cachedTraceSamples.length} samples recorded (${telemetryCadenceSeconds}s cadence)`;
-  }
-
-  if (traceTableBody) {
-    traceTableBody.innerHTML = cachedTraceSamples.map(s => {
-      let statusClass = "status-idle";
-      const st = (s.status || "").toLowerCase();
-      if (st === "processing") statusClass = "status-processing";
-      else if (st === "completed") statusClass = "status-completed";
-      else if (st === "paused") statusClass = "status-paused";
-      else if (st === "stopped") statusClass = "status-stopped";
-
-      const elapsedFmt = s.elapsed_s ? `${s.elapsed_s.toFixed(1)}s` : "--";
-      const taskDisplay = s.task_name && s.task_name !== "System Idle" ? s.task_name : (s.task_id && s.task_id !== "idle" ? s.task_id.slice(0, 8) : "Idle");
-
-      return `
-        <tr>
-          <td style="color: var(--text-muted);">${s.time_str || (s.timestamp ? s.timestamp.slice(11, 19) : '')}</td>
-          <td style="color: var(--text-secondary); font-weight: 500;">${elapsedFmt}</td>
-          <td title="${s.task_id || ''}" style="max-width: 160px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(taskDisplay)}</td>
-          <td style="max-width: 220px; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary);">${escapeHtml(s.stage || '')}</td>
-          <td style="color: var(--accent-light); font-weight: 600;">${(s.proc_ram_used_gb || 0).toFixed(2)} GB</td>
-          <td><strong>${s.ram_used_gb.toFixed(2)}</strong> / ${s.ram_total_gb.toFixed(1)} GB</td>
-          <td><strong>${s.vram_alloc_gb.toFixed(2)}</strong> / ${s.vram_total_gb.toFixed(1)} GB</td>
-          <td><span class="trace-status-pill ${statusClass}">${escapeHtml(s.status || 'idle')}</span></td>
-        </tr>
-      `;
-    }).join("");
-
-    if (traceAutoScroll && traceAutoScroll.checked && traceTableContainer) {
-      traceTableContainer.scrollTop = traceTableContainer.scrollHeight;
-    }
+  if (traceCurrentStage) traceCurrentStage.innerText = curr.stage || "Idle";
+  if (traceLiveAppRam) traceLiveAppRam.innerText = `${curr.app_ram_gb.toFixed(2)} GB`;
+  if (traceLiveRam) traceLiveRam.innerText = `${curr.sys_ram_used_gb.toFixed(1)} / ${curr.sys_ram_total_gb.toFixed(1)} GB`;
+  if (traceLiveVram) traceLiveVram.innerText = `${curr.vram_alloc_gb.toFixed(2)} / ${curr.vram_total_gb.toFixed(1)} GB`;
+  if (tracePeakMem && peak) {
+    tracePeakMem.innerText = `${peak.peak_vram_gb.toFixed(2)}G / ${peak.peak_ram_gb.toFixed(1)}G`;
   }
 }
 
-function renderLogs() {
-  if (!terminalBody) return;
-  const query = (logSearchInput ? logSearchInput.value : "").trim().toLowerCase();
+function renderTraceTable(samples) {
+  if (!traceTableBody) return;
+  traceTableBody.innerHTML = "";
+  samples.forEach((s) => {
+    const row = document.createElement("tr");
+    let statusClass = "status-idle";
+    let statusLabel = s.status || "IDLE";
+    if (statusLabel === "PROCESSING") statusClass = "status-processing";
+    else if (statusLabel === "COMPLETED") statusClass = "status-completed";
+    else if (statusLabel === "FAILED") statusClass = "status-failed";
 
-  const filtered = cachedLogEntries.filter(l => {
-    if (activeLogFilter !== "ALL" && (l.level || "").toUpperCase() !== activeLogFilter) {
-      return false;
-    }
-    if (query) {
-      const matchMsg = (l.message || "").toLowerCase().includes(query);
-      const matchLevel = (l.level || "").toLowerCase().includes(query);
-      const matchTask = (l.task_id || "").toLowerCase().includes(query);
-      return matchMsg || matchLevel || matchTask;
-    }
-    return true;
-  });
-
-  if (logCountText) {
-    logCountText.innerText = `${filtered.length} of ${cachedLogEntries.length} log entries`;
-  }
-
-  terminalBody.innerHTML = filtered.map(l => {
-    const lvl = (l.level || "INFO").toUpperCase();
-    let badgeClass = "badge-info";
-    if (lvl === "STAGE") badgeClass = "badge-stage";
-    else if (lvl === "CHUNK") badgeClass = "badge-chunk";
-    else if (lvl === "MEM") badgeClass = "badge-mem";
-    else if (lvl === "SUCCESS") badgeClass = "badge-success";
-    else if (lvl === "WARN") badgeClass = "badge-warn";
-    else if (lvl === "ERROR") badgeClass = "badge-error";
-
-    const memFmt = (l.ram_used_gb > 0) ? `RAM: ${l.ram_used_gb.toFixed(2)}G | VRAM: ${l.vram_alloc_gb.toFixed(2)}G` : "";
-
-    return `
-      <div class="log-entry">
-        <span class="log-time">[${l.time_str || (l.timestamp ? l.timestamp.slice(11, 19) : '')}]</span>
-        <span class="log-badge ${badgeClass}">${escapeHtml(lvl)}</span>
-        <span class="log-msg">${escapeHtml(l.message || '')}</span>
-        ${memFmt ? `<span class="log-mem-info">${memFmt}</span>` : ''}
-      </div>
+    row.innerHTML = `
+      <td style="font-family: monospace; font-size: 11px;">${s.time_str}</td>
+      <td style="font-family: monospace; font-size: 11px;">${s.elapsed_str}</td>
+      <td style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${s.task_id}">
+        ${s.task_id !== "system" ? s.task_id.substring(0, 8) + '...' : 'system'}
+      </td>
+      <td style="color: var(--text-primary); font-weight: 500;">${s.stage}</td>
+      <td style="font-weight: 600; color: var(--accent-light);">${s.app_ram_gb.toFixed(2)} GB</td>
+      <td>${s.sys_ram_used_gb.toFixed(1)} GB (${Math.round(s.sys_ram_pct)}%)</td>
+      <td style="color: var(--accent-light); font-weight: 600;">${s.vram_alloc_gb.toFixed(2)} GB (${Math.round(s.vram_pct)}%)</td>
+      <td><span class="status-pill ${statusClass}">${statusLabel}</span></td>
     `;
-  }).join("");
+    traceTableBody.appendChild(row);
+  });
 
-  if (logsAutoScroll && logsAutoScroll.checked && terminalContainer) {
-    terminalContainer.scrollTop = terminalContainer.scrollHeight;
+  if (traceCountText) traceCountText.innerText = `${samples.length} trace samples recorded`;
+  if (traceAutoScroll && traceAutoScroll.checked) {
+    const container = document.getElementById("traceTableContainer");
+    if (container) container.scrollTop = container.scrollHeight;
   }
 }
 
-// Client-side helper for download triggers
-function downloadBlob(content, filename, mimeType) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
+function renderTerminalLogs(entries) {
+  if (!terminalBody) return;
+  terminalBody.innerHTML = "";
+  const query = logSearchInput ? logSearchInput.value.toLowerCase() : "";
 
-// Export Trace as CSV
-if (btnExportTraceCsv) {
-  btnExportTraceCsv.addEventListener("click", async () => {
-    try {
-      const taskIdParam = currentTaskId ? `?task_id=${currentTaskId}` : "";
-      const res = await fetch(`/api/telemetry/export/trace.csv${taskIdParam}`);
-      if (res.ok) {
-        const csvText = await res.text();
-        const filename = `memory_trace_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "_")}.csv`;
-        downloadBlob(csvText, filename, "text/csv");
-        return;
-      }
-    } catch (err) {
-      // Fallback
+  entries.forEach((e) => {
+    if (query && !e.message.toLowerCase().includes(query) && !e.level.toLowerCase().includes(query)) {
+      return;
     }
 
-    // Fallback client generation
-    const headers = "Timestamp,Time,Elapsed_Sec,Task_ID,File_Name,Status,Stage,RAM_Used_GB,RAM_Total_GB,RAM_Percent,VRAM_Alloc_GB,VRAM_Reserved_GB,VRAM_Total_GB,VRAM_Percent";
-    const rows = cachedTraceSamples.map(s => [
-      `"${s.timestamp || ''}"`,
-      `"${s.time_str || ''}"`,
-      s.elapsed_s || 0,
-      `"${s.task_id || ''}"`,
-      `"${(s.task_name || '').replace(/"/g, '""')}"`,
-      `"${s.status || ''}"`,
-      `"${(s.stage || '').replace(/"/g, '""')}"`,
-      s.ram_used_gb || 0,
-      s.ram_total_gb || 0,
-      s.ram_pct || 0,
-      s.vram_alloc_gb || 0,
-      s.vram_reserved_gb || 0,
-      s.vram_total_gb || 0,
-      s.vram_pct || 0
-    ].join(","));
-    downloadBlob([headers, ...rows].join("\n"), `memory_trace_${Date.now()}.csv`, "text/csv");
+    const row = document.createElement("div");
+    row.className = "log-entry";
+
+    let badgeClass = "badge-info";
+    if (e.level === "STAGE") badgeClass = "badge-stage";
+    else if (e.level === "CHUNK") badgeClass = "badge-chunk";
+    else if (e.level === "MEM") badgeClass = "badge-mem";
+    else if (e.level === "WARN") badgeClass = "badge-warn";
+    else if (e.level === "ERROR") badgeClass = "badge-error";
+    else if (e.level === "SUCCESS") badgeClass = "badge-success";
+
+    row.innerHTML = `
+      <span class="log-time">${e.time_str}</span>
+      <span class="log-level-badge ${badgeClass}">${e.level}</span>
+      <span class="log-msg">${escapeHtml(e.message)}</span>
+      <span class="log-mem-tag">RAM: ${e.ram_used_gb.toFixed(2)}G | VRAM: ${e.vram_alloc_gb.toFixed(2)}G</span>
+    `;
+    terminalBody.appendChild(row);
   });
+
+  if (logCountText) logCountText.innerText = `${entries.length} log entries`;
+  if (logsAutoScroll && logsAutoScroll.checked) {
+    const container = document.getElementById("terminalContainer");
+    if (container) container.scrollTop = container.scrollHeight;
+  }
 }
 
-// Export Logs as CSV
-if (btnExportLogsCsv) {
-  btnExportLogsCsv.addEventListener("click", async () => {
-    try {
-      const taskIdParam = currentTaskId ? `?task_id=${currentTaskId}` : "";
-      const res = await fetch(`/api/telemetry/export/logs.csv${taskIdParam}`);
-      if (res.ok) {
-        const csvText = await res.text();
-        const filename = `execution_logs_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "_")}.csv`;
-        downloadBlob(csvText, filename, "text/csv");
-        return;
-      }
-    } catch (err) {}
-
-    // Fallback client generation
-    const headers = "Timestamp,Time,Level,Task_ID,Message,RAM_Used_GB,RAM_Total_GB,RAM_Percent,VRAM_Alloc_GB,VRAM_Reserved_GB,VRAM_Total_GB,VRAM_Percent";
-    const rows = cachedLogEntries.map(l => [
-      `"${l.timestamp || ''}"`,
-      `"${l.time_str || ''}"`,
-      `"${l.level || ''}"`,
-      `"${l.task_id || ''}"`,
-      `"${(l.message || '').replace(/"/g, '""')}"`,
-      l.ram_used_gb || 0,
-      l.ram_total_gb || 0,
-      l.ram_pct || 0,
-      l.vram_alloc_gb || 0,
-      l.vram_reserved_gb || 0,
-      l.vram_total_gb || 0,
-      l.vram_pct || 0
-    ].join(","));
-    downloadBlob([headers, ...rows].join("\n"), `execution_logs_${Date.now()}.csv`, "text/csv");
-  });
-}
-
-// Export Logs as TXT
-if (btnExportLogsTxt) {
-  btnExportLogsTxt.addEventListener("click", async () => {
-    try {
-      const taskIdParam = currentTaskId ? `?task_id=${currentTaskId}` : "";
-      const res = await fetch(`/api/telemetry/export/logs.txt${taskIdParam}`);
-      if (res.ok) {
-        const txt = await res.text();
-        const filename = `execution_logs_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "_")}.txt`;
-        downloadBlob(txt, filename, "text/plain");
-        return;
-      }
-    } catch (err) {}
-
-    // Fallback client generation
-    const lines = cachedLogEntries.map(l => `[${l.time_str || ''}] [${(l.level || 'INFO').padEnd(7)}] ${l.message} | RAM: ${l.ram_used_gb}GB, VRAM: ${l.vram_alloc_gb}GB`);
-    downloadBlob(lines.join("\n"), `execution_logs_${Date.now()}.txt`, "text/plain");
-  });
-}
-
-// Clear Telemetry
-if (btnClearTelemetry) {
-  btnClearTelemetry.addEventListener("click", async () => {
-    if (!confirm("Clear live memory trace and execution logs?")) return;
-    try {
-      await fetch("/api/telemetry/clear", { method: "POST" });
-    } catch (err) {}
-    cachedTraceSamples = [];
-    cachedLogEntries = [];
-    if (traceTableBody) traceTableBody.innerHTML = "";
-    if (terminalBody) terminalBody.innerHTML = "";
-    if (traceCountText) traceCountText.innerText = "0 trace samples recorded";
-    if (logCountText) logCountText.innerText = "0 log entries";
-    fetchTelemetryData();
-  });
-}
-
-// Proactive RAM & GPU Memory Cache Trimming
-async function triggerMemoryClear(btnElement) {
-  if (!btnElement) return;
-  const origText = btnElement.innerText;
-  btnElement.innerText = "🧹 Trimming...";
-  btnElement.disabled = true;
-  try {
-    const res = await fetch("/api/memory/clear", { method: "POST" });
-    if (res.ok) {
-      btnElement.innerText = "✨ Memory Cleaned!";
-      setTimeout(() => {
-        btnElement.innerText = origText;
-        btnElement.disabled = false;
-      }, 1500);
-      updateVRAM();
+function initLogLevelFilters() {
+  if (!logLevelFilters) return;
+  const btns = logLevelFilters.querySelectorAll(".log-filter-btn");
+  btns.forEach((b) => {
+    b.addEventListener("click", () => {
+      btns.forEach((x) => x.classList.remove("active"));
+      b.classList.add("active");
+      activeLogFilter = b.dataset.level || "ALL";
       fetchTelemetryData();
-    } else {
-      btnElement.innerText = "⚠️ Trim Failed";
-      setTimeout(() => {
-        btnElement.innerText = origText;
-        btnElement.disabled = false;
-      }, 1500);
-    }
-  } catch (e) {
-    btnElement.innerText = "⚠️ Error";
-    setTimeout(() => {
-      btnElement.innerText = origText;
-      btnElement.disabled = false;
-    }, 1500);
+    });
+  });
+  if (logSearchInput) {
+    logSearchInput.addEventListener("input", () => renderTerminalLogs(cachedLogEntries));
   }
 }
 
-const btnClearMemHeader = document.getElementById("btnClearMemHeader");
-if (btnClearMemHeader) {
-  btnClearMemHeader.addEventListener("click", () => triggerMemoryClear(btnClearMemHeader));
+function initTelemetryExports() {
+  if (btnExportTraceCsv) {
+    btnExportTraceCsv.addEventListener("click", () => {
+      const tid = currentTaskId ? `?task_id=${currentTaskId}` : "";
+      window.open(`/api/telemetry/export/trace.csv${tid}`, "_blank");
+    });
+  }
+  if (btnExportLogsCsv) {
+    btnExportLogsCsv.addEventListener("click", () => {
+      const tid = currentTaskId ? `?task_id=${currentTaskId}` : "";
+      window.open(`/api/telemetry/export/logs.csv${tid}`, "_blank");
+    });
+  }
+  if (btnExportLogsTxt) {
+    btnExportLogsTxt.addEventListener("click", () => {
+      const tid = currentTaskId ? `?task_id=${currentTaskId}` : "";
+      window.open(`/api/telemetry/export/logs.txt${tid}`, "_blank");
+    });
+  }
+  if (btnClearTelemetry) {
+    btnClearTelemetry.addEventListener("click", async () => {
+      try { await fetch("/api/telemetry/clear", { method: "POST" }); } catch (err) {}
+      cachedTraceSamples = [];
+      cachedLogEntries = [];
+      if (traceTableBody) traceTableBody.innerHTML = "";
+      if (terminalBody) terminalBody.innerHTML = "";
+      fetchTelemetryData();
+    });
+  }
+  if (btnClearMemTelemetry) {
+    btnClearMemTelemetry.addEventListener("click", async () => {
+      const orig = btnClearMemTelemetry.innerText;
+      btnClearMemTelemetry.innerText = "🧹 Trimming...";
+      try {
+        await fetch("/api/cache/clear", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target: "all" })
+        });
+        btnClearMemTelemetry.innerText = "✨ Cleaned!";
+        setTimeout(() => { btnClearMemTelemetry.innerText = orig; }, 1200);
+        fetchMemoryStats();
+        fetchTelemetryData();
+      } catch (e) {
+        btnClearMemTelemetry.innerText = orig;
+      }
+    });
+  }
 }
 
-const btnClearMemTelemetry = document.getElementById("btnClearMemTelemetry");
-if (btnClearMemTelemetry) {
-  btnClearMemTelemetry.addEventListener("click", () => triggerMemoryClear(btnClearMemTelemetry));
-}
-
-// Start Telemetry on Load
+// Initialize Everything on Load
+initTheme();
+initCacheDropdown();
+initFloatingPlayer();
+initTelemetryTabs();
+initCadenceSelector();
+initLogLevelFilters();
+initTelemetryExports();
 startTelemetryPolling();
 fetchTelemetryData();
-
-initTheme();
-

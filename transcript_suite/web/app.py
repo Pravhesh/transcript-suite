@@ -145,35 +145,161 @@ async def index():
     return PlainTextResponse("Transcript Suite Web UI not found.")
 
 
+def get_path_size(p: Path) -> int:
+    """Calculates disk usage of a path safely in bytes."""
+    if not p.exists():
+        return 0
+    if p.is_file():
+        try:
+            return p.stat().st_size
+        except OSError:
+            return 0
+    total = 0
+    try:
+        for item in p.rglob("*"):
+            if item.is_file() and not item.is_symlink():
+                try:
+                    total += item.stat().st_size
+                except OSError:
+                    pass
+    except Exception:
+        pass
+    return total
+
+
+def get_cache_breakdown() -> Dict[str, Any]:
+    """Inspects RAM, VRAM, and on-disk model/temp cache footprints."""
+    mem_stats = vram_manager.get_stats()
+    
+    hf_cache_dir = Path.home() / ".cache" / "huggingface" / "hub"
+    nemo_cache_dir = Path.home() / ".cache" / "torch" / "NeMo"
+    temp_dir = Path("/tmp")
+    
+    hf_models = []
+    hf_total = 0
+    if hf_cache_dir.exists():
+        for d in hf_cache_dir.iterdir():
+            if d.is_dir():
+                sz = get_path_size(d)
+                hf_total += sz
+                if sz > 5 * 1024 * 1024:
+                    clean_name = d.name.replace("models--", "").replace("--", "/")
+                    hf_models.append({"name": clean_name, "bytes": sz, "mb": round(sz / (1024 * 1024), 1)})
+        hf_models.sort(key=lambda x: x["bytes"], reverse=True)
+        
+    nemo_models = []
+    nemo_total = 0
+    if nemo_cache_dir.exists():
+        for d in nemo_cache_dir.iterdir():
+            sz = get_path_size(d)
+            nemo_total += sz
+            if sz > 5 * 1024 * 1024:
+                nemo_models.append({"name": d.name, "bytes": sz, "mb": round(sz / (1024 * 1024), 1)})
+        nemo_models.sort(key=lambda x: x["bytes"], reverse=True)
+        
+    temp_audio_bytes = 0
+    if temp_dir.exists():
+        for f in temp_dir.glob("*"):
+            try:
+                if f.is_file() and (f.suffix.lower() in [".wav", ".aac", ".mp3", ".m4a", ".flac"] or "transcript_suite" in f.name):
+                    temp_audio_bytes += f.stat().st_size
+                elif f.is_dir() and "transcript_suite" in f.name:
+                    temp_audio_bytes += get_path_size(f)
+            except OSError:
+                pass
+    upload_bytes = get_path_size(config.upload_dir)
+    total_temp = temp_audio_bytes + upload_bytes
+    total_disk = hf_total + nemo_total + total_temp
+
+    return {
+        "memory": {
+            "vram_allocated_mb": mem_stats.get("allocated_mb", 0),
+            "vram_reserved_mb": mem_stats.get("reserved_mb", 0),
+            "vram_total_mb": mem_stats.get("total_mb", 0),
+            "app_ram_rss_mb": mem_stats.get("app_ram_rss_mb", 0),
+            "sys_ram_used_gb": mem_stats.get("sys_ram_used_gb", 0),
+            "sys_ram_total_gb": mem_stats.get("sys_ram_total_gb", 0),
+        },
+        "storage": {
+            "hf_total_bytes": hf_total,
+            "hf_total_mb": round(hf_total / (1024 * 1024), 1),
+            "hf_total_gb": round(hf_total / (1024 * 1024 * 1024), 2),
+            "hf_models": hf_models,
+            "nemo_total_bytes": nemo_total,
+            "nemo_total_mb": round(nemo_total / (1024 * 1024), 1),
+            "nemo_total_gb": round(nemo_total / (1024 * 1024 * 1024), 2),
+            "nemo_models": nemo_models,
+            "temp_audio_bytes": total_temp,
+            "temp_audio_mb": round(total_temp / (1024 * 1024), 1),
+            "total_disk_bytes": total_disk,
+            "total_disk_gb": round(total_disk / (1024 * 1024 * 1024), 2),
+        }
+    }
+
+
 @app.get("/api/vram")
 async def get_vram():
     """Returns real-time GPU VRAM and System RAM telemetry."""
     return vram_manager.get_stats()
 
 
+@app.get("/api/cache/stats")
+async def get_cache_stats_endpoint():
+    """Returns granular memory and on-disk storage breakdown."""
+    return get_cache_breakdown()
+
+
+@app.post("/api/cache/clear")
+async def clear_cache_endpoint(payload: Optional[Dict[str, Any]] = None):
+    """
+    Granular cache clear endpoint:
+    - target: 'vram' | 'ram' | 'temp_audio' | 'all'
+    """
+    target = (payload or {}).get("target", "all")
+    import ctypes
+    
+    cleared = []
+    if target in ("vram", "all"):
+        vram_manager.clear_cache()
+        if torch.cuda.is_available():
+            torch.cuda.ipc_collect()
+        cleared.append("GPU VRAM Cache")
+        
+    if target in ("ram", "all"):
+        gc.collect()
+        gc.collect()
+        try:
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:
+            pass
+        cleared.append("Process Heap (RAM)")
+        
+    if target in ("temp_audio", "all"):
+        # Clean stale /tmp audio files
+        temp_dir = Path("/tmp")
+        if temp_dir.exists():
+            for f in temp_dir.glob("transcript_suite*"):
+                try:
+                    if f.is_file():
+                        f.unlink()
+                    elif f.is_dir():
+                        import shutil
+                        shutil.rmtree(f, ignore_errors=True)
+                except Exception:
+                    pass
+        cleared.append("Temporary Audio Files")
+        
+    stats = vram_manager.get_stats()
+    breakdown = get_cache_breakdown()
+    add_log(None, "MEM", f"Cache cleared ({', '.join(cleared)}). Free VRAM: {stats.get('free_gb', 0)} GB, App RAM: {stats.get('app_ram_rss_gb', 0)} GB.", stats)
+    add_trace_sample()
+    return {"status": "cleared", "targets": cleared, "stats": stats, "breakdown": breakdown}
+
+
 @app.post("/api/memory/clear")
 async def clear_system_memory():
-    """
-    Manually triggers proactive memory cleanup:
-    - Runs 2 gc collection passes
-    - Clears PyTorch CUDA cached memory and IPC memory
-    - Calls malloc_trim(0) to release glibc heap pages directly back to Linux OS
-    """
-    import gc
-    gc.collect()
-    gc.collect()
-    vram_manager.clear_cache()
-    if torch.cuda.is_available():
-        torch.cuda.ipc_collect()
-    try:
-        import ctypes
-        ctypes.CDLL("libc.so.6").malloc_trim(0)
-    except Exception:
-        pass
-    stats = vram_manager.get_stats()
-    add_log(None, "MEM", f"Proactive memory trim: Cache flushed, heap trimmed back to OS. Free VRAM: {stats.get('free_gb', 0)} GB, System RAM used: {stats.get('sys_ram_used_gb', 0)} GB.", stats)
-    add_trace_sample()
-    return {"status": "cleared", "stats": stats}
+    """Backwards-compatible endpoint for proactive memory cleanup."""
+    return await clear_cache_endpoint({"target": "all"})
 
 
 @app.post("/api/transcribe")
@@ -185,10 +311,11 @@ async def create_transcription_task(
     enable_enhancer: bool = Form(True),
     enable_ambiguity: bool = Form(True),
     enable_council: bool = Form(True),
+    council_mode: str = Form("sequential"),
     hf_token: Optional[str] = Form(None)
 ):
     """
-    Uploads an AAC/audio file and starts background transcription with enhancer and ambiguity controls.
+    Uploads an AAC/audio file and starts background transcription with enhancer, ambiguity, and council controls.
     """
     task_id = str(uuid.uuid4())
     file_ext = Path(audio.filename).suffix or ".aac"
@@ -237,6 +364,7 @@ async def create_transcription_task(
         enable_enhancer=enable_enhancer,
         enable_ambiguity=enable_ambiguity,
         enable_council=enable_council,
+        council_mode=council_mode,
         hf_token=hf_token
     )
 
@@ -276,17 +404,16 @@ async def resume_task(task_id: str):
 
 @app.post("/api/tasks/{task_id}/stop")
 async def stop_task(task_id: str):
-    """Stops and cancels an in-progress transcription task, freeing memory."""
+    """Stops and cancels an in-progress transcription task."""
     ctrl = TASK_CONTROLS.get(task_id)
-    if ctrl:
-        ctrl["stop_event"].set()
-        ctrl["pause_event"].set()  # Unblock if currently paused
-        if ctrl.get("pipeline") and hasattr(ctrl["pipeline"].transcriber, "unload_model"):
-            ctrl["pipeline"].transcriber.unload_model()
-        if ctrl.get("pipeline") and hasattr(ctrl["pipeline"], "council") and hasattr(ctrl["pipeline"].council, "unload_members"):
-            ctrl["pipeline"].council.unload_members()
-
-    vram_manager.clear_cache()
+    if not ctrl:
+        raise HTTPException(status_code=404, detail="Task control not found")
+    ctrl["stop_event"].set()
+    ctrl["pause_event"].set()  # Unblock if paused
+    if ctrl.get("pipeline") and hasattr(ctrl["pipeline"].transcriber, "unload_model"):
+        ctrl["pipeline"].transcriber.unload_model()
+    if ctrl.get("pipeline") and hasattr(ctrl["pipeline"], "council") and hasattr(ctrl["pipeline"].council, "unload_members"):
+        ctrl["pipeline"].council.unload_members()
 
     if task_id in TASKS:
         TASKS[task_id]["status"] = "stopped"
@@ -294,6 +421,37 @@ async def stop_task(task_id: str):
     add_log(task_id, "WARN", "Transcription stopped and cancelled by user. VRAM reclaimed.")
     add_trace_sample(task_id)
     return {"status": "stopped"}
+
+
+@app.delete("/api/tasks/{task_id}/segments/{segment_idx}")
+async def delete_segment(task_id: str, segment_idx: int):
+    """Deletes a transcript segment from a task's in-memory record."""
+    if task_id not in TASKS:
+        raise HTTPException(status_code=404, detail="Task not found")
+    segs = TASKS[task_id].get("segments", [])
+    if segment_idx < 0 or segment_idx >= len(segs):
+        raise HTTPException(status_code=404, detail="Segment index out of range")
+    deleted = segs.pop(segment_idx)
+    # Recalculate full text
+    TASKS[task_id]["full_text"] = " ".join(s.get("text", "") for s in segs)
+    add_log(task_id, "INFO", f"Deleted segment {segment_idx} (Speaker: {deleted.get('speaker')}, '{deleted.get('text', '')[:30]}...')")
+    return {"status": "deleted", "remaining_count": len(segs)}
+
+
+@app.patch("/api/tasks/{task_id}/segments/{segment_idx}")
+async def patch_segment(task_id: str, segment_idx: int, payload: Dict[str, Any]):
+    """Updates a transcript segment text or speaker alias."""
+    if task_id not in TASKS:
+        raise HTTPException(status_code=404, detail="Task not found")
+    segs = TASKS[task_id].get("segments", [])
+    if segment_idx < 0 or segment_idx >= len(segs):
+        raise HTTPException(status_code=404, detail="Segment index out of range")
+    if "text" in payload:
+        segs[segment_idx]["text"] = payload["text"]
+    if "speaker" in payload:
+        segs[segment_idx]["speaker"] = payload["speaker"]
+    TASKS[task_id]["full_text"] = " ".join(s.get("text", "") for s in segs)
+    return {"status": "updated", "segment": segs[segment_idx]}
 
 
 def run_transcription_worker(
@@ -304,13 +462,14 @@ def run_transcription_worker(
     enable_enhancer: bool,
     enable_ambiguity: bool,
     enable_council: bool,
+    council_mode: str,
     hf_token: Optional[str]
 ):
     ctrl = TASK_CONTROLS.get(task_id)
     pause_evt = ctrl["pause_event"] if ctrl else None
     stop_evt = ctrl["stop_event"] if ctrl else None
 
-    add_log(task_id, "INFO", f"Pipeline starting: Diarizer={diarizer}, GPU Enhancer={enable_enhancer}, Ambiguity Resolver={enable_ambiguity}, Council={enable_council}")
+    add_log(task_id, "INFO", f"Pipeline starting: Diarizer={diarizer}, GPU Enhancer={enable_enhancer}, Ambiguity Resolver={enable_ambiguity}, Council={enable_council} ({council_mode})")
     pipeline = TranscriptionPipeline(diarizer_type=diarizer, hf_token=hf_token)
     if ctrl:
         ctrl["pipeline"] = pipeline
@@ -346,6 +505,7 @@ def run_transcription_worker(
             enable_enhancer=enable_enhancer,
             enable_ambiguity_resolver=enable_ambiguity,
             enable_council=enable_council,
+            council_mode=council_mode,
             progress_callback=on_progress,
             pause_event=pause_evt,
             stop_event=stop_evt,

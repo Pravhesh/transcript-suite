@@ -6,6 +6,8 @@ Coordinates Audio Loader -> Diarization -> VAD -> Canary-Qwen ASR -> Speaker Ali
 from typing import List, Dict, Any, Optional, Callable
 from pathlib import Path
 import time
+import tempfile
+import soundfile as sf
 import torch
 
 from .config import config
@@ -100,6 +102,7 @@ class TranscriptionPipeline:
         enable_enhancer: bool = True,
         enable_ambiguity_resolver: bool = True,
         enable_council: bool = True,
+        council_mode: str = "sequential",
         speaker_aliases: Optional[Dict[str, str]] = None,
         progress_callback: Optional[Callable[[str, float, Optional[Dict[str, Any]]], None]] = None,
         pause_event: Optional[any] = None,
@@ -206,52 +209,173 @@ class TranscriptionPipeline:
             transcribed_segments = []
 
             if enable_council:
-                report("Deliberating with Multi-Model Council (Canary + Whisper-Small + Conformer)...", 0.38)
-                for idx, seg in enumerate(speech_segments):
-                    check_stop()
-                    if pause_event:
-                        while not pause_event.is_set():
-                            if stop_event and stop_event.is_set():
-                                raise InterruptedError("Transcription stopped by user.")
-                            time.sleep(0.2)
+                if council_mode == "sequential":
+                    report("Pass 1/3: Canary-Qwen Context Pass...", 0.38)
+                    canary_hyps = []
+                    chunk_wavs = []
 
-                    start_sample = max(0, int(seg.start * sr))
-                    end_sample = min(waveform.shape[1], int(seg.end * sr))
-                    chunk_slice = waveform[:, start_sample:end_sample]
+                    # 1. Prepare temporary chunk files and run Canary-Qwen
+                    for idx, seg in enumerate(speech_segments):
+                        check_stop()
+                        if pause_event:
+                            while not pause_event.is_set():
+                                if stop_event and stop_event.is_set():
+                                    raise InterruptedError("Transcription stopped by user.")
+                                time.sleep(0.2)
 
-                    # Juror 1: Canary-Qwen
-                    try:
-                        canary_h = self.transcriber.transcribe_waveform_chunk(chunk_slice, sr=sr)
-                    except Exception as e:
-                        print(f"[Pipeline Warning] Canary chunk {idx} error: {e}")
-                        canary_h = ""
+                        start_sample = max(0, int(seg.start * sr))
+                        end_sample = min(waveform.shape[1], int(seg.end * sr))
+                        chunk_slice = waveform[:, start_sample:end_sample]
 
-                    # Council Deliberation (Whisper-Small + Conformer-CTC + Auditor)
-                    delib = self.council.deliberate_waveform_segment(
-                        waveform_slice=chunk_slice,
-                        sr=sr,
-                        canary_text=canary_h,
-                        seg_idx=idx,
-                        chunks_dir=Path(chunks_dir) if chunks_dir else None
-                    )
+                        c_file = Path(tempfile.NamedTemporaryFile(suffix=f"_seq_{idx}.wav", delete=False).name)
+                        sf.write(str(c_file), chunk_slice.squeeze(0).cpu().numpy(), sr, subtype="PCM_16")
+                        chunk_wavs.append(c_file)
 
-                    seg_dict = {
-                        "start": round(seg.start, 2),
-                        "end": round(seg.end, 2),
-                        "duration": round(seg.duration, 2),
-                        "speaker": getattr(seg, "speaker", "Speaker 0"),
-                        "text": delib.verdict,
-                        "council": delib.to_dict(),
-                        "needs_review": delib.needs_human_review,
-                        "ambiguity_score": round(1.0 - delib.consensus_score, 3)
-                    }
-                    transcribed_segments.append(seg_dict)
+                        try:
+                            c_h = self.transcriber.transcribe_waveform_chunk(chunk_slice, sr=sr)
+                        except Exception as e:
+                            print(f"[Pipeline Warning] Canary chunk {idx} error: {e}")
+                            c_h = ""
+                        canary_hyps.append(c_h)
 
-                    if (idx + 1) % 5 == 0:
-                        self.vram_manager.clear_cache()
+                        frac = 0.38 + ((idx + 1) / total_chunks) * 0.18
+                        report(f"Pass 1/3 (Canary-Qwen): Chunk {idx + 1}/{total_chunks}", frac)
 
-                    frac = 0.38 + ((idx + 1) / total_chunks) * 0.55
-                    report(f"Council deliberated chunk {idx + 1}/{total_chunks}: {delib.agreement_type}", frac, seg_dict)
+                    # Unload Canary-Qwen to reclaim ~5.2 GB VRAM for Pass 2
+                    if hasattr(self.transcriber, "unload_model"):
+                        self.transcriber.unload_model()
+                    self._reclaim_memory()
+
+                    # 2. Pass 2/3: Whisper Cross-Examination
+                    report("Pass 2/3: Whisper Cross-Examination Pass...", 0.56)
+                    whisper_hyps = []
+                    for idx, (seg, c_wav) in enumerate(zip(speech_segments, chunk_wavs)):
+                        check_stop()
+                        try:
+                            wh = self.council.transcribe_with_whisper(c_wav)
+                        except Exception as e:
+                            print(f"[Pipeline Warning] Whisper chunk {idx} error: {e}")
+                            wh = ""
+                        whisper_hyps.append(wh)
+
+                        frac = 0.56 + ((idx + 1) / total_chunks) * 0.18
+                        report(f"Pass 2/3 (Whisper): Chunk {idx + 1}/{total_chunks}", frac)
+
+                    # Unload Whisper
+                    self.council.unload_whisper()
+                    self._reclaim_memory()
+
+                    # 3. Pass 3/3: Acoustic Anchor & Transducer Verification
+                    report("Pass 3/3: Acoustic Anchor & Transducer Verification...", 0.74)
+                    ctc_hyps = []
+                    parakeet_hyps = []
+                    for idx, (seg, c_wav) in enumerate(zip(speech_segments, chunk_wavs)):
+                        check_stop()
+                        try:
+                            ctc_h = self.council.transcribe_with_conformer(c_wav)
+                        except Exception as e:
+                            print(f"[Pipeline Warning] Conformer chunk {idx} error: {e}")
+                            ctc_h = ""
+                        ctc_hyps.append(ctc_h)
+
+                        try:
+                            pk_h = self.council.transcribe_with_parakeet(c_wav)
+                        except Exception:
+                            pk_h = ""
+                        parakeet_hyps.append(pk_h)
+
+                        frac = 0.74 + ((idx + 1) / total_chunks) * 0.14
+                        report(f"Pass 3/3 (Anchor): Chunk {idx + 1}/{total_chunks}", frac)
+
+                    # Unload Parakeet & CTC
+                    self.council.unload_parakeet_and_ctc()
+                    self._reclaim_memory()
+
+                    # 4. Adjudication & Consensus Synthesis
+                    report("Adjudicating Supreme Council Consensus...", 0.88)
+                    for idx, seg in enumerate(speech_segments):
+                        start_sample = max(0, int(seg.start * sr))
+                        end_sample = min(waveform.shape[1], int(seg.end * sr))
+                        chunk_slice = waveform[:, start_sample:end_sample]
+                        c_wav = chunk_wavs[idx]
+
+                        delib = self.council.synthesize_deliberation(
+                            canary_text=canary_hyps[idx],
+                            whisper_text=whisper_hyps[idx],
+                            conformer_text=ctc_hyps[idx],
+                            parakeet_text=parakeet_hyps[idx] if parakeet_hyps[idx] else None,
+                            audio_path=c_wav,
+                            waveform=chunk_slice,
+                            seg_idx=idx,
+                            chunks_dir=Path(chunks_dir) if chunks_dir else None,
+                            sample_rate=sr
+                        )
+
+                        seg_dict = {
+                            "start": round(seg.start, 2),
+                            "end": round(seg.end, 2),
+                            "duration": round(seg.duration, 2),
+                            "speaker": getattr(seg, "speaker", "Speaker 0"),
+                            "text": delib.verdict,
+                            "council": delib.to_dict(),
+                            "needs_review": delib.needs_human_review,
+                            "ambiguity_score": round(1.0 - delib.consensus_score, 3)
+                        }
+                        transcribed_segments.append(seg_dict)
+                        frac = 0.88 + ((idx + 1) / total_chunks) * 0.10
+                        report(f"Council deliberated chunk {idx + 1}/{total_chunks}: {delib.agreement_type}", frac, seg_dict)
+
+                    for cw in chunk_wavs:
+                        cw.unlink(missing_ok=True)
+
+                else:
+                    # Concurrent 1-pass streaming mode
+                    report("Deliberating with Multi-Model Council (Concurrent)...", 0.38)
+                    for idx, seg in enumerate(speech_segments):
+                        check_stop()
+                        if pause_event:
+                            while not pause_event.is_set():
+                                if stop_event and stop_event.is_set():
+                                    raise InterruptedError("Transcription stopped by user.")
+                                time.sleep(0.2)
+
+                        start_sample = max(0, int(seg.start * sr))
+                        end_sample = min(waveform.shape[1], int(seg.end * sr))
+                        chunk_slice = waveform[:, start_sample:end_sample]
+
+                        # Juror 1: Canary-Qwen
+                        try:
+                            canary_h = self.transcriber.transcribe_waveform_chunk(chunk_slice, sr=sr)
+                        except Exception as e:
+                            print(f"[Pipeline Warning] Canary chunk {idx} error: {e}")
+                            canary_h = ""
+
+                        # Council Deliberation (Whisper + Conformer-CTC + Auditor)
+                        delib = self.council.deliberate_waveform_segment(
+                            waveform_slice=chunk_slice,
+                            sr=sr,
+                            canary_text=canary_h,
+                            seg_idx=idx,
+                            chunks_dir=Path(chunks_dir) if chunks_dir else None
+                        )
+
+                        seg_dict = {
+                            "start": round(seg.start, 2),
+                            "end": round(seg.end, 2),
+                            "duration": round(seg.duration, 2),
+                            "speaker": getattr(seg, "speaker", "Speaker 0"),
+                            "text": delib.verdict,
+                            "council": delib.to_dict(),
+                            "needs_review": delib.needs_human_review,
+                            "ambiguity_score": round(1.0 - delib.consensus_score, 3)
+                        }
+                        transcribed_segments.append(seg_dict)
+
+                        if (idx + 1) % 5 == 0:
+                            self.vram_manager.clear_cache()
+
+                        frac = 0.38 + ((idx + 1) / total_chunks) * 0.55
+                        report(f"Council deliberated chunk {idx + 1}/{total_chunks}: {delib.agreement_type}", frac, seg_dict)
 
             else:
                 # Fallback: Canary-Qwen solo transcription

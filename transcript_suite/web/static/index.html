@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Transcript Suite | Canary-Qwen-2.5B</title>
+  <title>Transcript Suite | Canary-Qwen-2.5B Supreme Council</title>
   <link rel="stylesheet" href="/static/style.css">
   <!-- WaveSurfer.js for audio waveform visualization -->
   <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
@@ -13,7 +13,7 @@
     <div class="brand">
       <div class="brand-icon">🌲</div>
       <div class="brand-title">Transcript Suite</div>
-      <div class="brand-badge">Canary-Qwen-2.5B</div>
+      <div class="brand-badge">Canary-Qwen-2.5B Supreme Council</div>
     </div>
     <div class="nav-controls">
       <div class="vram-meter" id="sysRamMeter" title="App RAM (Process RSS) & Total System RAM">
@@ -33,7 +33,76 @@
         </div>
         <span id="vramText">-- / 7.6 GB</span>
       </div>
-      <button class="btn-clear-cache-header" id="btnClearMemHeader" title="Proactively flush PyTorch CUDA cache, glibc heap, and Python garbage collector">🧹 Clear Cache</button>
+
+      <!-- Cache & Storage Dropdown Container -->
+      <div class="cache-dropdown-container" id="cacheDropdownContainer">
+        <button class="btn-clear-cache-header" id="btnCacheDropdownToggle" title="Inspect memory & disk footprints and trigger granular flushes">
+          🧹 Cache & Storage ▾
+        </button>
+        <div class="cache-dropdown-menu" id="cacheDropdownMenu">
+          <div class="cache-dropdown-header">
+            <span>⚡ Memory & Storage Footprint</span>
+            <span class="cache-status-live" id="cacheLiveStatus">Live</span>
+          </div>
+
+          <!-- Section 1: Active System Memory -->
+          <div class="cache-section">
+            <div class="cache-section-title">ACTIVE MEMORY</div>
+            <div class="cache-row">
+              <div class="cache-label-group">
+                <span class="cache-label">GPU VRAM Cache</span>
+                <span class="cache-val" id="cacheVramVal">-- MB</span>
+              </div>
+              <button class="btn-cache-action" id="btnClearVramOnly" data-target="vram" title="Flush PyTorch CUDA memory cache">Clear VRAM</button>
+            </div>
+            <div class="cache-row">
+              <div class="cache-label-group">
+                <span class="cache-label">Process Heap (RAM)</span>
+                <span class="cache-val" id="cacheRamVal">-- MB</span>
+              </div>
+              <button class="btn-cache-action" id="btnClearRamOnly" data-target="ram" title="Run Python GC and trim glibc heap to OS">Trim RAM</button>
+            </div>
+          </div>
+
+          <!-- Section 2: On-Disk Storage Footprint -->
+          <div class="cache-section">
+            <div class="cache-section-title">STORAGE & CHECKPOINTS</div>
+            <div class="cache-row">
+              <div class="cache-label-group">
+                <span class="cache-label">Temp Audio & Chunks</span>
+                <span class="cache-val" id="cacheTempAudioVal">-- MB</span>
+              </div>
+              <button class="btn-cache-action" id="btnClearTempAudio" data-target="temp_audio" title="Purge temporary audio slices & uploads">Purge Temp</button>
+            </div>
+            <div class="cache-row">
+              <div class="cache-label-group">
+                <span class="cache-label">Hugging Face Hub</span>
+                <span class="cache-val" id="cacheHfVal">-- GB</span>
+              </div>
+              <span class="cache-pill" title="Cached model weights">Models</span>
+            </div>
+            <div class="cache-row">
+              <div class="cache-label-group">
+                <span class="cache-label">NeMo / Torch Cache</span>
+                <span class="cache-val" id="cacheNemoVal">-- GB</span>
+              </div>
+              <span class="cache-pill" title="Cached NeMo checkpoints">Checkpoints</span>
+            </div>
+            <div class="cache-row cache-row-total">
+              <span class="cache-label" style="font-weight: 600;">Total Disk Footprint:</span>
+              <span class="cache-val-total" id="cacheTotalDiskVal">-- GB</span>
+            </div>
+          </div>
+
+          <!-- Section 3: Master Action Button -->
+          <div class="cache-dropdown-footer">
+            <button class="btn-cache-flush-all" id="btnFlushAllMemory" data-target="all" title="Flush GPU VRAM, trim RAM heap, and purge stale temp audio files">
+              🧹 Flush All Memory & Temp Cache
+            </button>
+          </div>
+        </div>
+      </div>
+
       <select class="theme-select" id="themeSelect">
         <option value="foggy-woodland">🌲 Foggy Woodland</option>
         <option value="forest-sage">🌿 Forest Sage</option>
@@ -43,286 +112,356 @@
     </div>
   </header>
 
+  <!-- Primary Tab Navigation Bar -->
+  <nav class="main-tabs-bar">
+    <button class="main-tab-btn active" data-tab="paneStudio" id="tabBtnStudio">🎙️ Studio & Ingest</button>
+    <button class="main-tab-btn" data-tab="paneTranscript" id="tabBtnTranscript">
+      📝 Transcript & Editor <span class="tab-badge" id="tabTranscriptBadge">0</span>
+    </button>
+    <button class="main-tab-btn" data-tab="paneTelemetry" id="tabBtnTelemetry">📈 Telemetry & Logs</button>
+  </nav>
+
   <main>
-    <!-- Upload Section -->
-    <div class="upload-card">
-      <div class="dropzone" id="dropzone">
-        <div class="dropzone-icon">🎙️</div>
-        <div class="dropzone-text" id="dropzoneText">Drop your AAC or audio file here, or click to browse</div>
-        <div class="dropzone-hint">Optimized for AAC & 16kHz audio with NVIDIA Canary-Qwen</div>
-        <input type="file" id="fileInput" accept="audio/*,.aac,.wav,.mp3,.m4a" style="display: none;">
-      </div>
-
-      <div class="options-row">
-        <label class="checkbox-label" title="Diarize distinct speakers">
-          <input type="checkbox" id="speakerLabelsCheckbox" checked>
-          <span>Speaker Diarization</span>
-        </label>
-
-        <label class="checkbox-label" title="Low-cut rumble filter, spectral noise gate, and vocal presence equalizer on GPU">
-          <input type="checkbox" id="voiceEnhancerCheckbox" checked>
-          <span>Voice Filter & Amplifier (GPU)</span>
-        </label>
-
-        <label class="checkbox-label" title="Auto-slows tricky audio frames to 0.75x and re-evaluates before asking for human review">
-          <input type="checkbox" id="ambiguityCheckbox" checked>
-          <span>Ambiguity Resolver (Auto-slow)</span>
-        </label>
-
-        <label class="checkbox-label" title="4-Juror Multi-Model Council: Canary-Qwen-2.5B + Whisper-Small + Standard Conformer-CTC + 0.75x Auditor to eliminate hallucinations">
-          <input type="checkbox" id="councilCheckbox" checked>
-          <span>⚖️ Multi-Model Council (Canary + Whisper + Conformer)</span>
-        </label>
-
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 13px; color: var(--text-secondary);">Diarizer:</span>
-          <select class="select-input" id="diarizerSelect">
-            <option value="nemo">NeMo TitaNet (Open & Local)</option>
-            <option value="pyannote">PyAnnote 3.x (Optional)</option>
-          </select>
+    <!-- TAB 1: STUDIO & INGEST PANE -->
+    <div class="tab-pane active" id="paneStudio">
+      <div class="upload-card">
+        <div class="dropzone" id="dropzone">
+          <div class="dropzone-icon">🎙️</div>
+          <div class="dropzone-text" id="dropzoneText">Drop your AAC or audio file here, or click to browse</div>
+          <div class="dropzone-hint">Optimized for AAC & 16kHz audio with NVIDIA Canary-Qwen & Tri-Model Supreme Council</div>
+          <input type="file" id="fileInput" accept="audio/*,.aac,.wav,.mp3,.m4a" style="display: none;">
         </div>
 
-        <button class="btn-primary" id="btnStart" disabled>Transcribe Audio</button>
-      </div>
-    </div>
+        <div class="options-row">
+          <label class="checkbox-label" title="Diarize distinct speakers">
+            <input type="checkbox" id="speakerLabelsCheckbox" checked>
+            <span>Speaker Diarization</span>
+          </label>
 
-    <!-- Progress Notification Card with Pause / Resume / Stop -->
-    <div class="progress-card" id="progressCard">
-      <div class="progress-header">
-        <span id="progressStatus">Initializing pipeline...</span>
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <span id="progressPercentage">0%</span>
-          <div class="progress-actions">
-            <button class="btn-control btn-pause" id="btnPause" title="Pause transcription">⏸ Pause</button>
-            <button class="btn-control btn-resume" id="btnResume" style="display: none;" title="Resume transcription">▶ Resume</button>
-            <button class="btn-control btn-stop" id="btnStop" title="Cancel & stop transcription">⏹ Stop</button>
+          <label class="checkbox-label" title="Low-cut rumble filter, spectral noise gate, and vocal presence equalizer on GPU">
+            <input type="checkbox" id="voiceEnhancerCheckbox" checked>
+            <span>Voice Filter & Amplifier (GPU)</span>
+          </label>
+
+          <label class="checkbox-label" title="Auto-slows tricky audio frames to 0.75x and re-evaluates before asking for human review">
+            <input type="checkbox" id="ambiguityCheckbox" checked>
+            <span>Ambiguity Resolver (Auto-slow)</span>
+          </label>
+
+          <label class="checkbox-label" title="Supreme Multi-Model Council: Canary-Qwen-2.5B + Whisper + Parakeet/Conformer to eliminate hallucinations">
+            <input type="checkbox" id="councilCheckbox" checked>
+            <span>⚖️ Multi-Model Council</span>
+          </label>
+
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 13px; color: var(--text-secondary);">Council Mode:</span>
+            <select class="select-input" id="councilModeSelect">
+              <option value="sequential">🔬 3-Sequential Supreme (Deepest Accuracy)</option>
+              <option value="concurrent">⚡ Concurrent (Fast 1-Pass)</option>
+            </select>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 13px; color: var(--text-secondary);">Diarizer:</span>
+            <select class="select-input" id="diarizerSelect">
+              <option value="nemo">NeMo TitaNet (Open & Local)</option>
+              <option value="pyannote">PyAnnote 3.x (Optional)</option>
+            </select>
+          </div>
+
+          <button class="btn-primary" id="btnStart" disabled>Transcribe Audio</button>
+        </div>
+      </div>
+
+      <div class="progress-card" id="progressCard">
+        <div class="progress-header">
+          <span id="progressStatus">Initializing pipeline...</span>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span id="progressPercentage">0%</span>
+            <div class="progress-actions">
+              <button class="btn-control btn-pause" id="btnPause" title="Pause transcription">⏸ Pause</button>
+              <button class="btn-control btn-resume" id="btnResume" style="display: none;" title="Resume transcription">▶ Resume</button>
+              <button class="btn-control btn-stop" id="btnStop" title="Cancel & stop transcription">⏹ Stop</button>
+            </div>
           </div>
         </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
       </div>
-      <div class="progress-track">
-        <div class="progress-fill" id="progressFill"></div>
+
+      <div class="player-card" id="playerCard">
+        <div class="studio-header">
+          <div class="studio-title-group">
+            <span class="studio-badge">🎙️ DUAL-TRACK AUDIO STUDIO</span>
+            <span class="sync-status-badge">⚡ Synchronized Lockstep</span>
+          </div>
+          <div class="mix-match-bar">
+            <div class="ab-toggle-group">
+              <button class="btn-ab active" id="btnABOriginal" title="Audition Original Audio Only">🎙️ Original</button>
+              <button class="btn-ab" id="btnABMix" title="Mix both tracks 50/50">🎛️ Mix 50/50</button>
+              <button class="btn-ab" id="btnABModel" title="Audition Model Classification Ingest Only">🤖 Model Ingested</button>
+            </div>
+            <div class="crossfader-container" title="Crossfader: blend between Original (left) and Model Ingested (right)">
+              <span class="crossfader-label">Orig</span>
+              <input type="range" class="crossfader" id="audioCrossfader" min="0" max="100" value="0">
+              <span class="crossfader-label">Model</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="track-row" id="trackOriginal">
+          <div class="track-channel-strip">
+            <div class="track-name">
+              <span class="track-dot dot-orig"></span>
+              <span class="track-title-text">Original Audio (Raw)</span>
+            </div>
+            <div class="track-channel-controls">
+              <button class="btn-strip btn-solo" id="soloOrig" title="Solo Original Track">S</button>
+              <button class="btn-strip btn-mute" id="muteOrig" title="Mute Original Track">M</button>
+              <input type="range" class="vol-slider" id="volOrig" min="0" max="1" step="0.05" value="1" title="Original Volume">
+            </div>
+          </div>
+          <div id="waveformOrig" class="waveform-box"></div>
+        </div>
+
+        <div class="track-row" id="trackModel">
+          <div class="track-channel-strip">
+            <div class="track-name">
+              <span class="track-dot dot-model"></span>
+              <span class="track-title-text">Model Classification Ingest (16kHz Enhanced)</span>
+            </div>
+            <div class="track-channel-controls">
+              <button class="btn-strip btn-solo" id="soloModel" title="Solo Model Ingest Track">S</button>
+              <button class="btn-strip btn-mute" id="muteModel" title="Mute Model Ingest Track">M</button>
+              <input type="range" class="vol-slider" id="volModel" min="0" max="1" step="0.05" value="0" title="Model Ingest Volume">
+            </div>
+          </div>
+          <div id="waveformModel" class="waveform-box"></div>
+        </div>
+
+        <div class="player-controls">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button class="btn-player" id="btnPlayPause">▶ Play Both</button>
+            <button class="btn-player" id="btnBack5">↺ -5s</button>
+            <button class="btn-player" id="btnFwd5">↻ +5s</button>
+            <select class="select-input" id="playbackSpeed">
+              <option value="1.0">1.0x Speed</option>
+              <option value="1.25">1.25x</option>
+              <option value="1.5">1.5x</option>
+              <option value="0.75">0.75x</option>
+            </select>
+          </div>
+          <div class="player-time" id="playerTime">00:00 / 00:00</div>
+        </div>
       </div>
     </div>
 
-    <!-- Live Memory Trace & Execution Log Console -->
-    <div class="telemetry-card" id="telemetryCard">
-      <div class="telemetry-header">
-        <div class="telemetry-tabs">
-          <button class="tab-btn active" id="tabBtnTrace">📈 Memory Trace</button>
-          <button class="tab-btn" id="tabBtnLogs">📜 Live Execution Logs</button>
-          <span class="pulse-indicator" id="telemetryPulse" title="Live telemetry active">● Live</span>
-        </div>
+    <!-- TAB 2: TRANSCRIPT & EDITOR PANE -->
+    <div class="tab-pane" id="paneTranscript">
+      <div class="studio-workspace-layout">
+        <!-- Left Sidebar: Speaker Hub & Quick Filters -->
+        <aside class="speaker-sidebar" id="speakerSidebar">
+          <div class="speaker-sidebar-header">
+            <div class="speaker-sidebar-title">
+              <span>👥 Speakers</span>
+              <span class="speaker-count-badge" id="speakerCountBadge">0</span>
+            </div>
+            <button class="btn-sidebar-action" id="btnRenameModal" title="Batch rename speaker aliases">✏️ Aliases</button>
+          </div>
 
-        <div class="telemetry-controls">
-          <!-- Interval selector for memory trace: 2s, 5s, 10s -->
-          <div class="interval-selector" title="Telemetry sampling & update cadence">
-            <span class="interval-label">⏱ Cadence:</span>
-            <div class="interval-btn-group" id="cadenceBtnGroup">
-              <button class="btn-interval active" data-interval="2">2s</button>
-              <button class="btn-interval" data-interval="5">5s</button>
-              <button class="btn-interval" data-interval="10">10s</button>
+          <div class="speaker-search-wrapper">
+            <input type="text" class="speaker-search-input" id="speakerSearchInput" placeholder="Filter speakers by name...">
+          </div>
+
+          <div class="sidebar-filter-group">
+            <div class="sidebar-filter-pill active" data-filter="ALL" id="pillFilterAll">
+              <span>All Chunks</span>
+              <span class="filter-count-chip" id="filterCountAll">0</span>
+            </div>
+            <div class="sidebar-filter-pill filter-review" data-filter="REVIEW" id="pillFilterReview" style="display: none;">
+              <span>⚠️ Needs Review</span>
+              <span class="filter-count-chip chip-review" id="filterCountReview">0</span>
+            </div>
+            <div class="sidebar-filter-pill filter-disputed" data-filter="DISPUTED" id="pillFilterDisputed" style="display: none;">
+              <span>⚖️ Disputed</span>
+              <span class="filter-count-chip chip-disputed" id="filterCountDisputed">0</span>
             </div>
           </div>
 
-          <!-- Export & clear buttons -->
-          <div class="telemetry-actions">
-            <button class="btn-telemetry" id="btnClearMemTelemetry" title="Flush VRAM & trim glibc memory">🧹 Clear Cache</button>
-            <button class="btn-telemetry" id="btnExportTraceCsv" title="Export Memory Trace as CSV">📥 Trace CSV</button>
-            <button class="btn-telemetry" id="btnExportLogsCsv" title="Export Execution Logs as CSV">📥 Logs CSV</button>
-            <button class="btn-telemetry" id="btnExportLogsTxt" title="Export Execution Logs as TXT">📥 Logs TXT</button>
-            <button class="btn-telemetry btn-telemetry-clear" id="btnClearTelemetry" title="Clear telemetry buffer">🗑️ Clear</button>
+          <div class="speaker-list-compact" id="speakerListCompact">
+            <!-- Dynamically populated speaker cards with talk-time stats -->
           </div>
-        </div>
+        </aside>
+
+        <!-- Right Main Panel: Transcript Feed & Workspace -->
+        <section class="transcript-workspace" id="transcriptWorkspace">
+          <div class="transcript-toolbar">
+            <div class="transcript-search-box">
+              <span class="search-icon">🔍</span>
+              <input type="text" class="text-input" id="searchInput" placeholder="Search spoken text across all chunks...">
+            </div>
+            <div class="transcript-actions">
+              <span class="editor-tip" title="Click text to edit inline. Press Ctrl+Enter to save and advance.">💡 Tip: Ctrl+Enter saves</span>
+              <button class="btn-primary" id="btnExportTxt">📥 Export .TXT</button>
+            </div>
+          </div>
+
+          <div class="transcript-feed" id="transcriptFeed">
+            <div class="empty-state-notice">
+              <div style="font-size: 36px; margin-bottom: 8px;">🎙️</div>
+              <div style="font-weight: 600;">No transcript segments yet</div>
+              <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                Upload an audio file in the <strong>Studio & Ingest</strong> tab to begin transcription.
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
 
-      <!-- Tab 1: Memory Trace Stream & Timeline -->
-      <div class="telemetry-tab-pane active" id="paneTrace">
-        <!-- Live summary metric chips -->
-        <div class="trace-summary-bar">
-          <div class="trace-chip">
-            <span class="chip-label">Active Task:</span>
-            <span class="chip-val" id="traceActiveTask">System Idle</span>
+      <!-- Persistent Floating Play/Pause Audio Player Dock -->
+      <div class="floating-player-dock" id="floatingPlayer">
+        <div class="floating-player-content">
+          <button class="btn-floating-play" id="btnFloatingPlayPause" title="Play / Pause Audio">▶</button>
+          <div class="floating-time-info">
+            <span class="floating-time" id="floatingTime">00:00 / 00:00</span>
+            <div class="floating-snippet-box">
+              <span class="floating-spk" id="floatingSpeaker">Speaker --</span>
+              <span class="floating-snippet" id="floatingSnippet">Ready to audition</span>
+            </div>
           </div>
-          <div class="trace-chip">
-            <span class="chip-label">Stage:</span>
-            <span class="chip-val" id="traceCurrentStage">Ready</span>
+          <div class="floating-controls">
+            <button class="btn-floating-mini" id="btnFloatingBack5" title="Rewind 5 seconds">↺ 5s</button>
+            <button class="btn-floating-mini" id="btnFloatingFwd5" title="Forward 5 seconds">↻ 5s</button>
+            <select class="select-input select-floating" id="floatingPlaybackSpeed">
+              <option value="1.0">1.0x</option>
+              <option value="1.25">1.25x</option>
+              <option value="1.5">1.5x</option>
+              <option value="0.75">0.75x</option>
+            </select>
+            <button class="btn-floating-jump" id="btnFloatingJump" title="Scroll transcript to current playhead">🎯 Jump</button>
           </div>
-          <div class="trace-chip">
-            <span class="chip-label">App RAM (RSS):</span>
-            <span class="chip-val" id="traceLiveAppRam">-- GB</span>
-          </div>
-          <div class="trace-chip">
-            <span class="chip-label">System RAM:</span>
-            <span class="chip-val" id="traceLiveRam">-- / -- GB</span>
-          </div>
-          <div class="trace-chip">
-            <span class="chip-label">GPU VRAM:</span>
-            <span class="chip-val" id="traceLiveVram">-- / -- GB</span>
-          </div>
-          <div class="trace-chip">
-            <span class="chip-label">Peak VRAM / RAM:</span>
-            <span class="chip-val" id="tracePeakMem">-- / -- GB</span>
-          </div>
-        </div>
-
-        <!-- Real-time Memory Trace Table -->
-        <div class="trace-table-container" id="traceTableContainer">
-          <table class="trace-table">
-            <thead>
-              <tr>
-                <th style="width: 80px;">Time</th>
-                <th style="width: 75px;">Elapsed</th>
-                <th>Task / Audio File</th>
-                <th>Pipeline Stage</th>
-                <th style="width: 110px;">App RAM</th>
-                <th style="width: 150px;">System RAM</th>
-                <th style="width: 150px;">GPU VRAM</th>
-                <th style="width: 95px;">Status</th>
-              </tr>
-            </thead>
-            <tbody id="traceTableBody">
-              <!-- Live trace rows stream here -->
-            </tbody>
-          </table>
-        </div>
-        <div class="telemetry-footer">
-          <label class="autoscroll-label">
-            <input type="checkbox" id="traceAutoScroll" checked>
-            <span>Auto-scroll to latest trace</span>
-          </label>
-          <span class="telemetry-count" id="traceCountText">0 trace samples recorded</span>
-        </div>
-      </div>
-
-      <!-- Tab 2: Live Execution Logs Terminal -->
-      <div class="telemetry-tab-pane" id="paneLogs">
-        <div class="log-filter-bar">
-          <div class="log-filters" id="logLevelFilters">
-            <button class="log-filter-btn active" data-level="ALL">All Events</button>
-            <button class="log-filter-btn" data-level="STAGE">Stages</button>
-            <button class="log-filter-btn" data-level="CHUNK">Chunks</button>
-            <button class="log-filter-btn" data-level="MEM">Memory</button>
-            <button class="log-filter-btn" data-level="ERROR">Errors</button>
-          </div>
-          <div class="log-search-box">
-            <input type="text" class="log-search-input" id="logSearchInput" placeholder="Search log entries...">
-          </div>
-        </div>
-
-        <div class="terminal-container" id="terminalContainer">
-          <div class="terminal-body" id="terminalBody">
-            <!-- Formatted log entries stream here -->
-          </div>
-        </div>
-        <div class="telemetry-footer">
-          <label class="autoscroll-label">
-            <input type="checkbox" id="logsAutoScroll" checked>
-            <span>Auto-scroll to latest log</span>
-          </label>
-          <span class="telemetry-count" id="logCountText">0 log entries</span>
         </div>
       </div>
     </div>
 
-    <!-- Dual-Track Audio Studio Card -->
-    <div class="player-card" id="playerCard">
-      <!-- Studio Header & Mix Controls -->
-      <div class="studio-header">
-        <div class="studio-title-group">
-          <span class="studio-badge">🎙️ DUAL-TRACK AUDIO STUDIO</span>
-          <span class="sync-status-badge">⚡ Synchronized Lockstep</span>
-        </div>
-        <div class="mix-match-bar">
-          <div class="ab-toggle-group">
-            <button class="btn-ab active" id="btnABOriginal" title="Audition Original Audio Only">🎙️ Original</button>
-            <button class="btn-ab" id="btnABMix" title="Mix both tracks 50/50">🎛️ Mix 50/50</button>
-            <button class="btn-ab" id="btnABModel" title="Audition Model Classification Ingest Only">🤖 Model Ingested</button>
+    <!-- TAB 3: TELEMETRY & LOGS PANE -->
+    <div class="tab-pane" id="paneTelemetry">
+      <div class="telemetry-card" id="telemetryCard">
+        <div class="telemetry-header">
+          <div class="telemetry-tabs">
+            <button class="tab-btn active" id="tabBtnTrace">📈 Memory Trace</button>
+            <button class="tab-btn" id="tabBtnLogs">📜 Live Execution Logs</button>
+            <span class="pulse-indicator" id="telemetryPulse" title="Live telemetry active">● Live</span>
           </div>
-          <div class="crossfader-container" title="Crossfader: blend between Original (left) and Model Ingested (right)">
-            <span class="crossfader-label">Orig</span>
-            <input type="range" class="crossfader" id="audioCrossfader" min="0" max="100" value="0">
-            <span class="crossfader-label">Model</span>
-          </div>
-        </div>
-      </div>
 
-      <!-- Track 1: Original Audio -->
-      <div class="track-row" id="trackOriginal">
-        <div class="track-channel-strip">
-          <div class="track-name">
-            <span class="track-dot dot-orig"></span>
-            <span class="track-title-text">Original Audio (Raw)</span>
-          </div>
-          <div class="track-channel-controls">
-            <button class="btn-strip btn-solo" id="soloOrig" title="Solo Original Track">S</button>
-            <button class="btn-strip btn-mute" id="muteOrig" title="Mute Original Track">M</button>
-            <input type="range" class="vol-slider" id="volOrig" min="0" max="1" step="0.05" value="1" title="Original Volume">
-          </div>
-        </div>
-        <div id="waveformOrig" class="waveform-box"></div>
-      </div>
+          <div class="telemetry-controls">
+            <div class="interval-selector" title="Telemetry sampling cadence">
+              <span class="interval-label">⏱ Cadence:</span>
+              <div class="interval-btn-group" id="cadenceBtnGroup">
+                <button class="btn-interval active" data-interval="2">2s</button>
+                <button class="btn-interval" data-interval="5">5s</button>
+                <button class="btn-interval" data-interval="10">10s</button>
+              </div>
+            </div>
 
-      <!-- Track 2: Model Classification Audio -->
-      <div class="track-row" id="trackModel">
-        <div class="track-channel-strip">
-          <div class="track-name">
-            <span class="track-dot dot-model"></span>
-            <span class="track-title-text">Model Classification Ingest (16kHz Enhanced)</span>
-          </div>
-          <div class="track-channel-controls">
-            <button class="btn-strip btn-solo" id="soloModel" title="Solo Model Ingest Track">S</button>
-            <button class="btn-strip btn-mute" id="muteModel" title="Mute Model Ingest Track">M</button>
-            <input type="range" class="vol-slider" id="volModel" min="0" max="1" step="0.05" value="0" title="Model Ingest Volume">
+            <div class="telemetry-actions">
+              <button class="btn-telemetry" id="btnClearMemTelemetry" title="Flush VRAM & trim glibc memory">🧹 Clear Cache</button>
+              <button class="btn-telemetry" id="btnExportTraceCsv" title="Export Memory Trace as CSV">📥 Trace CSV</button>
+              <button class="btn-telemetry" id="btnExportLogsCsv" title="Export Execution Logs as CSV">📥 Logs CSV</button>
+              <button class="btn-telemetry" id="btnExportLogsTxt" title="Export Execution Logs as TXT">📥 Logs TXT</button>
+              <button class="btn-telemetry btn-telemetry-clear" id="btnClearTelemetry" title="Clear telemetry buffer">🗑️ Clear</button>
+            </div>
           </div>
         </div>
-        <div id="waveformModel" class="waveform-box"></div>
-      </div>
 
-      <!-- Synchronized Master Transport Bar -->
-      <div class="player-controls">
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <button class="btn-player" id="btnPlayPause">▶ Play Both</button>
-          <button class="btn-player" id="btnBack5">↺ -5s</button>
-          <button class="btn-player" id="btnFwd5">↻ +5s</button>
-          <select class="select-input" id="playbackSpeed">
-            <option value="1.0">1.0x Speed</option>
-            <option value="1.25">1.25x</option>
-            <option value="1.5">1.5x</option>
-            <option value="0.75">0.75x</option>
-          </select>
-        </div>
-        <div class="player-time" id="playerTime">00:00 / 00:00</div>
-      </div>
-    </div>
+        <div class="telemetry-tab-pane active" id="paneTrace">
+          <div class="trace-summary-bar">
+            <div class="trace-chip">
+              <span class="chip-label">Active Task:</span>
+              <span class="chip-val" id="traceActiveTask">System Idle</span>
+            </div>
+            <div class="trace-chip">
+              <span class="chip-label">Stage:</span>
+              <span class="chip-val" id="traceCurrentStage">Ready</span>
+            </div>
+            <div class="trace-chip">
+              <span class="chip-label">App RAM (RSS):</span>
+              <span class="chip-val" id="traceLiveAppRam">-- GB</span>
+            </div>
+            <div class="trace-chip">
+              <span class="chip-label">System RAM:</span>
+              <span class="chip-val" id="traceLiveRam">-- / -- GB</span>
+            </div>
+            <div class="trace-chip">
+              <span class="chip-label">GPU VRAM:</span>
+              <span class="chip-val" id="traceLiveVram">-- / -- GB</span>
+            </div>
+            <div class="trace-chip">
+              <span class="chip-label">Peak VRAM / RAM:</span>
+              <span class="chip-val" id="tracePeakMem">-- / -- GB</span>
+            </div>
+          </div>
 
-    <!-- Transcript Workspace -->
-    <div class="transcript-card" id="transcriptCard">
-      <div class="toolbar">
-        <div class="speaker-filters" id="speakerFilters">
-          <div class="filter-pill active" data-speaker="ALL">All Speakers</div>
-          <div class="filter-pill filter-review" id="reviewFilterPill" style="display: none;">⚠️ Needs Review (0)</div>
-          <div class="filter-pill filter-disputed" id="disputedFilterPill" style="display: none;">⚖️ Council Disputed (0)</div>
+          <div class="trace-table-container" id="traceTableContainer">
+            <table class="trace-table">
+              <thead>
+                <tr>
+                  <th style="width: 80px;">Time</th>
+                  <th style="width: 75px;">Elapsed</th>
+                  <th>Task / Audio File</th>
+                  <th>Pipeline Stage</th>
+                  <th style="width: 110px;">App RAM</th>
+                  <th style="width: 150px;">System RAM</th>
+                  <th style="width: 150px;">GPU VRAM</th>
+                  <th style="width: 95px;">Status</th>
+                </tr>
+              </thead>
+              <tbody id="traceTableBody"></tbody>
+            </table>
+          </div>
+          <div class="telemetry-footer">
+            <label class="autoscroll-label">
+              <input type="checkbox" id="traceAutoScroll" checked>
+              <span>Auto-scroll to latest trace</span>
+            </label>
+            <span class="telemetry-count" id="traceCountText">0 trace samples recorded</span>
+          </div>
         </div>
-        <div class="actions">
-          <input type="text" class="text-input" id="searchInput" placeholder="Search transcript...">
-          <button class="btn-secondary" id="btnRenameModal">Rename Speakers</button>
-          <button class="btn-primary" id="btnExportTxt">Export .TXT</button>
-        </div>
-      </div>
 
-      <div class="transcript-feed" id="transcriptFeed">
-        <!-- Segments dynamically rendered here -->
+        <div class="telemetry-tab-pane" id="paneLogs">
+          <div class="log-filter-bar">
+            <div class="log-filters" id="logLevelFilters">
+              <button class="log-filter-btn active" data-level="ALL">All Events</button>
+              <button class="log-filter-btn" data-level="STAGE">Stages</button>
+              <button class="log-filter-btn" data-level="CHUNK">Chunks</button>
+              <button class="log-filter-btn" data-level="MEM">Memory</button>
+              <button class="log-filter-btn" data-level="ERROR">Errors</button>
+            </div>
+            <div class="log-search-box">
+              <input type="text" class="log-search-input" id="logSearchInput" placeholder="Search log entries...">
+            </div>
+          </div>
+
+          <div class="terminal-container" id="terminalContainer">
+            <div class="terminal-body" id="terminalBody"></div>
+          </div>
+          <div class="telemetry-footer">
+            <label class="autoscroll-label">
+              <input type="checkbox" id="logsAutoScroll" checked>
+              <span>Auto-scroll to latest log</span>
+            </label>
+            <span class="telemetry-count" id="logCountText">0 log entries</span>
+          </div>
+        </div>
       </div>
     </div>
   </main>
 
-  <!-- Rename Speakers Modal -->
   <div class="modal-overlay" id="renameModal">
     <div class="modal-content">
       <div class="modal-title">Rename Speaker Aliases</div>
-      <div class="modal-inputs" id="aliasInputsContainer">
-        <!-- Dynamic speaker alias rows -->
-      </div>
+      <div class="modal-inputs" id="aliasInputsContainer"></div>
       <div style="display: flex; justify-content: flex-end; gap: 8px;">
         <button class="btn-secondary" id="btnCancelRename">Cancel</button>
         <button class="btn-primary" id="btnSaveAliases">Apply</button>

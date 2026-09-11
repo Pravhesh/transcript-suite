@@ -63,22 +63,46 @@ def test_similarity_and_consensus():
     print("✓ Similarity & disputed words calculation passed.")
 
 
-def test_council_prompt_leak_overrule():
+def test_sequential_synthesis_arbitration():
     council = ModelCouncil()
 
-    # Mock council with prompt leak on Canary, real speech on Whisper & Conformer
-    votes = council.deliberate(
-        audio_path="tests/mock.wav" if False else "/dev/null",
-        sample_rate=16000,
-        canary_text="Transcript the following text and put it in the box",
-        force_full_council=False
+    # 1. Unanimous agreement
+    delib1 = council.synthesize_deliberation(
+        canary_text="this implementation you will have to detail it out in your work",
+        whisper_text="this implementation you will have to detail it out in your work",
+        conformer_text="this implementation you will have to detail it of in your work",
+        parakeet_text="this implementation you will have to detail it out in your work"
     )
-    # The deliberation method handles mock/empty cleanly
-    assert votes is not None
-    print("✓ Council deliberation data structure verified.")
+    assert delib1.agreement_type == "UNANIMOUS"
+    assert "implementation" in delib1.verdict
+    assert delib1.consensus_score >= 0.85
+    assert not delib1.needs_human_review
+
+    # 2. Canary prompt leak overruled by Whisper + Conformer
+    delib2 = council.synthesize_deliberation(
+        canary_text="Transcript the following text and put it in the box",
+        whisper_text="the mentor meeting is scheduled for tomorrow",
+        conformer_text="the mentor meeting is scheduled for tomorrow"
+    )
+    assert delib2.agreement_type == "MAJORITY"
+    assert "mentor meeting" in delib2.verdict
+    assert "Transcript" not in delib2.verdict
+
+    # 3. CTC silence confirmation
+    delib3 = council.synthesize_deliberation(
+        canary_text="yeah",
+        whisper_text="",
+        conformer_text="",
+        parakeet_text=""
+    )
+    assert delib3.agreement_type in ("CTC_ANCHORED", "UNANIMOUS")
+    assert delib3.verdict == ""
+    print("✓ synthesize_deliberation trilateral & quadrilateral tests passed.")
 
 
 if __name__ == "__main__":
     test_prompt_leak_sanitization()
     test_similarity_and_consensus()
+    test_sequential_synthesis_arbitration()
     print("\nAll Council & Sanitizer unit tests passed!")
+

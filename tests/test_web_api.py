@@ -187,12 +187,64 @@ def test_telemetry_endpoints():
     print("✓ /api/memory/clear proactive cache flush verified.")
 
 
+def test_cache_and_segment_management():
+    from transcript_suite.web.app import TASKS
+    client = TestClient(app)
+
+    # 1. Test /api/cache/stats
+    res_stats = client.get("/api/cache/stats")
+    assert res_stats.status_code == 200
+    data = res_stats.json()
+    assert "memory" in data
+    assert "storage" in data
+    assert "total_disk_gb" in data["storage"]
+    assert "hf_models" in data["storage"]
+    print("✓ /api/cache/stats returned storage and memory breakdown.")
+
+    # 2. Test granular /api/cache/clear (vram, ram, temp_audio, all)
+    res_clear_vram = client.post("/api/cache/clear", json={"target": "vram"})
+    assert res_clear_vram.status_code == 200
+    assert "GPU VRAM Cache" in res_clear_vram.json()["targets"]
+
+    res_clear_ram = client.post("/api/cache/clear", json={"target": "ram"})
+    assert res_clear_ram.status_code == 200
+    assert "Process Heap (RAM)" in res_clear_ram.json()["targets"]
+    print("✓ Granular /api/cache/clear targets verified.")
+
+    # 3. Test Segment Delete & Patch
+    task_id = "test-edit-task"
+    TASKS[task_id] = {
+        "id": task_id,
+        "segments": [
+            {"start": 0.0, "end": 2.0, "speaker": "Speaker 0", "text": "First chunk"},
+            {"start": 2.0, "end": 4.0, "speaker": "Speaker 1", "text": "Noise cough chunk"},
+            {"start": 4.0, "end": 6.0, "speaker": "Speaker 0", "text": "Third chunk"}
+        ],
+        "full_text": "First chunk Noise cough chunk Third chunk"
+    }
+
+    # Patch segment 0
+    res_patch = client.patch(f"/api/tasks/{task_id}/segments/0", json={"text": "Updated first chunk"})
+    assert res_patch.status_code == 200
+    assert TASKS[task_id]["segments"][0]["text"] == "Updated first chunk"
+
+    # Delete segment 1 (noise cough chunk)
+    res_del = client.delete(f"/api/tasks/{task_id}/segments/1")
+    assert res_del.status_code == 200
+    assert res_del.json()["remaining_count"] == 2
+    assert len(TASKS[task_id]["segments"]) == 2
+    assert TASKS[task_id]["segments"][1]["text"] == "Third chunk"
+    print("✓ Segment patch and delete endpoints verified.")
+
+
 if __name__ == "__main__":
     test_web_endpoints()
     test_task_control_endpoints()
     test_audio_stream_endpoints()
     test_telemetry_endpoints()
+    test_cache_and_segment_management()
     print("\nAll Web API and telemetry tests passed!")
+
 
 
 
