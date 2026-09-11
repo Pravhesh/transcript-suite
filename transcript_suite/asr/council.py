@@ -150,7 +150,8 @@ class ModelCouncil:
                 import nemo.collections.asr as nemo_asr
                 print(f"[Council] Loading Acoustic Anchor ({self.conformer_model_id}) onto {self.device}...")
                 self._conformer_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(
-                    model_name=self.conformer_model_id
+                    model_name=self.conformer_model_id,
+                    map_location="cpu"
                 )
                 if self.device.startswith("cuda") and torch.cuda.is_available():
                     self._conformer_model = self._conformer_model.to(self.device)
@@ -166,12 +167,13 @@ class ModelCouncil:
         if self._parakeet_model is None:
             try:
                 import nemo.collections.asr as nemo_asr
-                print(f"[Council] Loading Transducer Cross-Examiner ({self.parakeet_model_id}) onto {self.device}...")
+                print(f"[Council] Loading Transducer Cross-Examiner ({self.parakeet_model_id}) in FP16 onto {self.device}...")
                 self._parakeet_model = nemo_asr.models.ASRModel.from_pretrained(
-                    model_name=self.parakeet_model_id
+                    model_name=self.parakeet_model_id,
+                    map_location="cpu"
                 )
                 if self.device.startswith("cuda") and torch.cuda.is_available():
-                    self._parakeet_model = self._parakeet_model.to(self.device)
+                    self._parakeet_model = self._parakeet_model.half().to(self.device)
                 self._parakeet_model.eval()
                 self._is_parakeet_loaded = True
             except Exception as e:
