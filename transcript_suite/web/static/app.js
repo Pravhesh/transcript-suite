@@ -770,4 +770,381 @@ btnExportTxt.addEventListener("click", async () => {
   }
 });
 
+// Helper: Escape HTML
+function escapeHtml(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+// ==========================================================================
+// 10. Live Memory Trace & Execution Log Console
+// ==========================================================================
+
+let telemetryCadenceSeconds = 2;
+let telemetryTimer = null;
+let activeLogFilter = "ALL";
+let cachedTraceSamples = [];
+let cachedLogEntries = [];
+
+// DOM Elements
+const tabBtnTrace = document.getElementById("tabBtnTrace");
+const tabBtnLogs = document.getElementById("tabBtnLogs");
+const paneTrace = document.getElementById("paneTrace");
+const paneLogs = document.getElementById("paneLogs");
+const cadenceBtnGroup = document.getElementById("cadenceBtnGroup");
+const btnExportTraceCsv = document.getElementById("btnExportTraceCsv");
+const btnExportLogsCsv = document.getElementById("btnExportLogsCsv");
+const btnExportLogsTxt = document.getElementById("btnExportLogsTxt");
+const btnClearTelemetry = document.getElementById("btnClearTelemetry");
+
+const traceActiveTask = document.getElementById("traceActiveTask");
+const traceCurrentStage = document.getElementById("traceCurrentStage");
+const traceLiveRam = document.getElementById("traceLiveRam");
+const traceLiveVram = document.getElementById("traceLiveVram");
+const tracePeakMem = document.getElementById("tracePeakMem");
+const traceTableBody = document.getElementById("traceTableBody");
+const traceTableContainer = document.getElementById("traceTableContainer");
+const traceAutoScroll = document.getElementById("traceAutoScroll");
+const traceCountText = document.getElementById("traceCountText");
+
+const logLevelFilters = document.getElementById("logLevelFilters");
+const logSearchInput = document.getElementById("logSearchInput");
+const terminalBody = document.getElementById("terminalBody");
+const terminalContainer = document.getElementById("terminalContainer");
+const logsAutoScroll = document.getElementById("logsAutoScroll");
+const logCountText = document.getElementById("logCountText");
+
+// Tab Switching
+if (tabBtnTrace && tabBtnLogs) {
+  tabBtnTrace.addEventListener("click", () => {
+    tabBtnTrace.classList.add("active");
+    tabBtnLogs.classList.remove("active");
+    paneTrace.classList.add("active");
+    paneLogs.classList.remove("active");
+  });
+
+  tabBtnLogs.addEventListener("click", () => {
+    tabBtnLogs.classList.add("active");
+    tabBtnTrace.classList.remove("active");
+    paneLogs.classList.add("active");
+    paneTrace.classList.remove("active");
+  });
+}
+
+// Cadence Selection: 2s, 5s, 10s
+if (cadenceBtnGroup) {
+  cadenceBtnGroup.addEventListener("click", (e) => {
+    const btn = e.target.closest(".btn-interval");
+    if (!btn) return;
+    cadenceBtnGroup.querySelectorAll(".btn-interval").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    telemetryCadenceSeconds = parseInt(btn.dataset.interval, 10) || 2;
+    startTelemetryPolling();
+    fetchTelemetryData();
+  });
+}
+
+// Log Level Filter Buttons
+if (logLevelFilters) {
+  logLevelFilters.addEventListener("click", (e) => {
+    const btn = e.target.closest(".log-filter-btn");
+    if (!btn) return;
+    logLevelFilters.querySelectorAll(".log-filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    activeLogFilter = btn.dataset.level || "ALL";
+    renderLogs();
+  });
+}
+
+if (logSearchInput) {
+  logSearchInput.addEventListener("input", () => {
+    renderLogs();
+  });
+}
+
+// Polling Loop
+function startTelemetryPolling() {
+  if (telemetryTimer) clearInterval(telemetryTimer);
+  telemetryTimer = setInterval(fetchTelemetryData, telemetryCadenceSeconds * 1000);
+}
+
+async function fetchTelemetryData() {
+  try {
+    const taskIdParam = currentTaskId ? `&task_id=${currentTaskId}` : "";
+
+    // Fetch Trace
+    const traceRes = await fetch(`/api/telemetry/trace?interval=${telemetryCadenceSeconds}${taskIdParam}`);
+    if (traceRes.ok) {
+      const data = await traceRes.json();
+      cachedTraceSamples = data.samples || [];
+      renderTrace(data);
+    }
+
+    // Fetch Logs
+    const logsRes = await fetch(`/api/telemetry/logs?limit=400${taskIdParam}`);
+    if (logsRes.ok) {
+      const data = await logsRes.json();
+      cachedLogEntries = data.logs || [];
+      renderLogs();
+    }
+  } catch (err) {
+    // Silent fail
+  }
+}
+
+function renderTrace(data) {
+  const current = data.current || {};
+  const activeTask = data.active_task;
+
+  // Update Summary Bar
+  if (traceActiveTask) {
+    if (activeTask) {
+      traceActiveTask.innerHTML = `<strong>${escapeHtml(activeTask.filename || activeTask.id.slice(0, 8))}</strong> (${escapeHtml(activeTask.status)})`;
+    } else {
+      traceActiveTask.innerText = "System Idle";
+    }
+  }
+
+  if (traceCurrentStage) {
+    traceCurrentStage.innerText = activeTask ? (activeTask.stage || "In progress") : "Ready";
+  }
+
+  if (traceLiveRam && current.sys_ram_total_gb > 0) {
+    traceLiveRam.innerText = `${current.sys_ram_used_gb} / ${current.sys_ram_total_gb} GB (${current.sys_ram_percent}%)`;
+  }
+  if (traceLiveVram) {
+    if (current.available) {
+      traceLiveVram.innerText = `${current.allocated_gb || 0} alloc / ${current.reserved_gb} res / ${current.total_gb} GB`;
+    } else {
+      traceLiveVram.innerText = "CPU Mode";
+    }
+  }
+
+  // Calculate Peaks
+  let peakRam = 0;
+  let peakVram = 0;
+  cachedTraceSamples.forEach(s => {
+    if (s.ram_used_gb > peakRam) peakRam = s.ram_used_gb;
+    if (s.vram_alloc_gb > peakVram) peakVram = s.vram_alloc_gb;
+    if (s.vram_reserved_gb > peakVram) peakVram = s.vram_reserved_gb;
+  });
+  if (tracePeakMem) {
+    tracePeakMem.innerText = `${peakVram.toFixed(2)} GB VRAM / ${peakRam.toFixed(2)} GB RAM`;
+  }
+
+  // Render Table Rows
+  if (traceCountText) {
+    traceCountText.innerText = `${data.total_recorded || cachedTraceSamples.length} samples recorded (${telemetryCadenceSeconds}s cadence)`;
+  }
+
+  if (traceTableBody) {
+    traceTableBody.innerHTML = cachedTraceSamples.map(s => {
+      let statusClass = "status-idle";
+      const st = (s.status || "").toLowerCase();
+      if (st === "processing") statusClass = "status-processing";
+      else if (st === "completed") statusClass = "status-completed";
+      else if (st === "paused") statusClass = "status-paused";
+      else if (st === "stopped") statusClass = "status-stopped";
+
+      const elapsedFmt = s.elapsed_s ? `${s.elapsed_s.toFixed(1)}s` : "--";
+      const taskDisplay = s.task_name && s.task_name !== "System Idle" ? s.task_name : (s.task_id && s.task_id !== "idle" ? s.task_id.slice(0, 8) : "Idle");
+
+      return `
+        <tr>
+          <td style="color: var(--text-muted);">${s.time_str || (s.timestamp ? s.timestamp.slice(11, 19) : '')}</td>
+          <td style="color: var(--text-secondary); font-weight: 500;">${elapsedFmt}</td>
+          <td title="${s.task_id || ''}" style="max-width: 160px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(taskDisplay)}</td>
+          <td style="max-width: 240px; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary);">${escapeHtml(s.stage || '')}</td>
+          <td><strong>${s.ram_used_gb.toFixed(2)}</strong> / ${s.ram_total_gb.toFixed(1)} GB (${s.ram_pct}%)</td>
+          <td><strong>${s.vram_alloc_gb.toFixed(2)}</strong> / ${s.vram_total_gb.toFixed(1)} GB (${s.vram_pct}%)</td>
+          <td><span class="trace-status-pill ${statusClass}">${escapeHtml(s.status || 'idle')}</span></td>
+        </tr>
+      `;
+    }).join("");
+
+    if (traceAutoScroll && traceAutoScroll.checked && traceTableContainer) {
+      traceTableContainer.scrollTop = traceTableContainer.scrollHeight;
+    }
+  }
+}
+
+function renderLogs() {
+  if (!terminalBody) return;
+  const query = (logSearchInput ? logSearchInput.value : "").trim().toLowerCase();
+
+  const filtered = cachedLogEntries.filter(l => {
+    if (activeLogFilter !== "ALL" && (l.level || "").toUpperCase() !== activeLogFilter) {
+      return false;
+    }
+    if (query) {
+      const matchMsg = (l.message || "").toLowerCase().includes(query);
+      const matchLevel = (l.level || "").toLowerCase().includes(query);
+      const matchTask = (l.task_id || "").toLowerCase().includes(query);
+      return matchMsg || matchLevel || matchTask;
+    }
+    return true;
+  });
+
+  if (logCountText) {
+    logCountText.innerText = `${filtered.length} of ${cachedLogEntries.length} log entries`;
+  }
+
+  terminalBody.innerHTML = filtered.map(l => {
+    const lvl = (l.level || "INFO").toUpperCase();
+    let badgeClass = "badge-info";
+    if (lvl === "STAGE") badgeClass = "badge-stage";
+    else if (lvl === "CHUNK") badgeClass = "badge-chunk";
+    else if (lvl === "MEM") badgeClass = "badge-mem";
+    else if (lvl === "SUCCESS") badgeClass = "badge-success";
+    else if (lvl === "WARN") badgeClass = "badge-warn";
+    else if (lvl === "ERROR") badgeClass = "badge-error";
+
+    const memFmt = (l.ram_used_gb > 0) ? `RAM: ${l.ram_used_gb.toFixed(2)}G | VRAM: ${l.vram_alloc_gb.toFixed(2)}G` : "";
+
+    return `
+      <div class="log-entry">
+        <span class="log-time">[${l.time_str || (l.timestamp ? l.timestamp.slice(11, 19) : '')}]</span>
+        <span class="log-badge ${badgeClass}">${escapeHtml(lvl)}</span>
+        <span class="log-msg">${escapeHtml(l.message || '')}</span>
+        ${memFmt ? `<span class="log-mem-info">${memFmt}</span>` : ''}
+      </div>
+    `;
+  }).join("");
+
+  if (logsAutoScroll && logsAutoScroll.checked && terminalContainer) {
+    terminalContainer.scrollTop = terminalContainer.scrollHeight;
+  }
+}
+
+// Client-side helper for download triggers
+function downloadBlob(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Export Trace as CSV
+if (btnExportTraceCsv) {
+  btnExportTraceCsv.addEventListener("click", async () => {
+    try {
+      const taskIdParam = currentTaskId ? `?task_id=${currentTaskId}` : "";
+      const res = await fetch(`/api/telemetry/export/trace.csv${taskIdParam}`);
+      if (res.ok) {
+        const csvText = await res.text();
+        const filename = `memory_trace_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "_")}.csv`;
+        downloadBlob(csvText, filename, "text/csv");
+        return;
+      }
+    } catch (err) {
+      // Fallback
+    }
+
+    // Fallback client generation
+    const headers = "Timestamp,Time,Elapsed_Sec,Task_ID,File_Name,Status,Stage,RAM_Used_GB,RAM_Total_GB,RAM_Percent,VRAM_Alloc_GB,VRAM_Reserved_GB,VRAM_Total_GB,VRAM_Percent";
+    const rows = cachedTraceSamples.map(s => [
+      `"${s.timestamp || ''}"`,
+      `"${s.time_str || ''}"`,
+      s.elapsed_s || 0,
+      `"${s.task_id || ''}"`,
+      `"${(s.task_name || '').replace(/"/g, '""')}"`,
+      `"${s.status || ''}"`,
+      `"${(s.stage || '').replace(/"/g, '""')}"`,
+      s.ram_used_gb || 0,
+      s.ram_total_gb || 0,
+      s.ram_pct || 0,
+      s.vram_alloc_gb || 0,
+      s.vram_reserved_gb || 0,
+      s.vram_total_gb || 0,
+      s.vram_pct || 0
+    ].join(","));
+    downloadBlob([headers, ...rows].join("\n"), `memory_trace_${Date.now()}.csv`, "text/csv");
+  });
+}
+
+// Export Logs as CSV
+if (btnExportLogsCsv) {
+  btnExportLogsCsv.addEventListener("click", async () => {
+    try {
+      const taskIdParam = currentTaskId ? `?task_id=${currentTaskId}` : "";
+      const res = await fetch(`/api/telemetry/export/logs.csv${taskIdParam}`);
+      if (res.ok) {
+        const csvText = await res.text();
+        const filename = `execution_logs_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "_")}.csv`;
+        downloadBlob(csvText, filename, "text/csv");
+        return;
+      }
+    } catch (err) {}
+
+    // Fallback client generation
+    const headers = "Timestamp,Time,Level,Task_ID,Message,RAM_Used_GB,RAM_Total_GB,RAM_Percent,VRAM_Alloc_GB,VRAM_Reserved_GB,VRAM_Total_GB,VRAM_Percent";
+    const rows = cachedLogEntries.map(l => [
+      `"${l.timestamp || ''}"`,
+      `"${l.time_str || ''}"`,
+      `"${l.level || ''}"`,
+      `"${l.task_id || ''}"`,
+      `"${(l.message || '').replace(/"/g, '""')}"`,
+      l.ram_used_gb || 0,
+      l.ram_total_gb || 0,
+      l.ram_pct || 0,
+      l.vram_alloc_gb || 0,
+      l.vram_reserved_gb || 0,
+      l.vram_total_gb || 0,
+      l.vram_pct || 0
+    ].join(","));
+    downloadBlob([headers, ...rows].join("\n"), `execution_logs_${Date.now()}.csv`, "text/csv");
+  });
+}
+
+// Export Logs as TXT
+if (btnExportLogsTxt) {
+  btnExportLogsTxt.addEventListener("click", async () => {
+    try {
+      const taskIdParam = currentTaskId ? `?task_id=${currentTaskId}` : "";
+      const res = await fetch(`/api/telemetry/export/logs.txt${taskIdParam}`);
+      if (res.ok) {
+        const txt = await res.text();
+        const filename = `execution_logs_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "_")}.txt`;
+        downloadBlob(txt, filename, "text/plain");
+        return;
+      }
+    } catch (err) {}
+
+    // Fallback client generation
+    const lines = cachedLogEntries.map(l => `[${l.time_str || ''}] [${(l.level || 'INFO').padEnd(7)}] ${l.message} | RAM: ${l.ram_used_gb}GB, VRAM: ${l.vram_alloc_gb}GB`);
+    downloadBlob(lines.join("\n"), `execution_logs_${Date.now()}.txt`, "text/plain");
+  });
+}
+
+// Clear Telemetry
+if (btnClearTelemetry) {
+  btnClearTelemetry.addEventListener("click", async () => {
+    if (!confirm("Clear live memory trace and execution logs?")) return;
+    try {
+      await fetch("/api/telemetry/clear", { method: "POST" });
+    } catch (err) {}
+    cachedTraceSamples = [];
+    cachedLogEntries = [];
+    if (traceTableBody) traceTableBody.innerHTML = "";
+    if (terminalBody) terminalBody.innerHTML = "";
+    if (traceCountText) traceCountText.innerText = "0 trace samples recorded";
+    if (logCountText) logCountText.innerText = "0 log entries";
+    fetchTelemetryData();
+  });
+}
+
+// Start Telemetry on Load
+startTelemetryPolling();
+fetchTelemetryData();
+
 initTheme();

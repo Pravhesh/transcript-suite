@@ -887,3 +887,449 @@ main {
   justify-content: space-between;
   gap: 12px;
 }
+
+/* ==========================================================================
+   Live Memory Trace & Execution Log Console Styles
+   ========================================================================== */
+
+.telemetry-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-dim);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.telemetry-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  border-bottom: 1px solid var(--border-dim);
+  padding-bottom: 12px;
+}
+
+.telemetry-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tab-btn {
+  background-color: transparent;
+  border: 1px solid var(--border-dim);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tab-btn:hover {
+  background-color: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.tab-btn.active {
+  background-color: var(--bg-surface);
+  border-color: var(--border-focus);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.pulse-indicator {
+  font-size: 11px;
+  font-weight: 600;
+  color: #69a779;
+  background-color: rgba(105, 167, 121, 0.12);
+  padding: 3px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(105, 167, 121, 0.25);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: 0.5px;
+}
+
+.telemetry-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.interval-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--bg-surface);
+  padding: 3px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-dim);
+}
+
+.interval-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.interval-btn-group {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-interval {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-interval:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-surface-hover);
+}
+
+.btn-interval.active {
+  background-color: var(--accent-stream-blue);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.telemetry-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-telemetry {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-dim);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-telemetry:hover {
+  background-color: var(--bg-surface-hover);
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+
+.btn-telemetry-clear:hover {
+  background-color: rgba(180, 80, 80, 0.15);
+  color: #d18282;
+  border-color: rgba(180, 80, 80, 0.3);
+}
+
+.telemetry-tab-pane {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.telemetry-tab-pane.active {
+  display: flex;
+}
+
+/* Trace Summary Metrics Bar */
+.trace-summary-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background-color: var(--bg-surface);
+  border-radius: 8px;
+  border: 1px solid var(--border-dim);
+}
+
+.trace-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 2px 8px;
+  background-color: var(--bg-secondary);
+  border-radius: 6px;
+  border: 1px solid var(--border-dim);
+}
+
+.chip-label {
+  color: var(--text-secondary);
+}
+
+.chip-val {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-family: ui-monospace, monospace;
+}
+
+/* Real-time Trace Table */
+.trace-table-container {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--border-dim);
+  border-radius: 8px;
+  background-color: var(--bg-primary);
+}
+
+.trace-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: ui-monospace, monospace;
+}
+
+.trace-table th {
+  background-color: var(--bg-surface);
+  color: var(--text-secondary);
+  text-align: left;
+  padding: 8px 12px;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  border-bottom: 1px solid var(--border-dim);
+  z-index: 2;
+}
+
+.trace-table td {
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.trace-table tr:hover {
+  background-color: var(--bg-surface-hover);
+}
+
+.trace-status-pill {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.status-processing {
+  background-color: rgba(68, 89, 107, 0.25);
+  color: #9cbdd8;
+  border: 1px solid #3b4e5e;
+}
+
+.status-completed {
+  background-color: rgba(77, 102, 85, 0.25);
+  color: #9eccaa;
+  border: 1px solid #4d6655;
+}
+
+.status-paused {
+  background-color: rgba(150, 110, 50, 0.25);
+  color: #e2be82;
+  border: 1px solid #7d5f30;
+}
+
+.status-stopped {
+  background-color: rgba(140, 60, 60, 0.25);
+  color: #df9797;
+  border: 1px solid #6b3535;
+}
+
+.status-idle {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  border: 1px solid var(--border-dim);
+}
+
+.telemetry-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 4px;
+}
+
+.autoscroll-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.telemetry-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Live Terminal Log Screen */
+.log-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.log-filters {
+  display: flex;
+  gap: 6px;
+}
+
+.log-filter-btn {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-dim);
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.log-filter-btn:hover {
+  background-color: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.log-filter-btn.active {
+  background-color: var(--bg-surface-hover);
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+  font-weight: 600;
+}
+
+.log-search-box {
+  flex: 1;
+  max-width: 260px;
+}
+
+.log-search-input {
+  width: 100%;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-dim);
+  color: var(--text-primary);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  outline: none;
+}
+
+.log-search-input:focus {
+  border-color: var(--border-focus);
+}
+
+.terminal-container {
+  max-height: 280px;
+  overflow-y: auto;
+  background-color: #070908;
+  border: 1px solid var(--border-dim);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.terminal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.log-entry {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  word-break: break-all;
+}
+
+.log-time {
+  color: var(--text-muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.log-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.badge-info {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.badge-stage {
+  background-color: rgba(77, 102, 85, 0.25);
+  color: #8bb397;
+  border: 1px solid rgba(77, 102, 85, 0.4);
+}
+
+.badge-chunk {
+  background-color: rgba(68, 89, 107, 0.25);
+  color: #8daec7;
+  border: 1px solid rgba(68, 89, 107, 0.4);
+}
+
+.badge-mem {
+  background-color: rgba(87, 70, 58, 0.35);
+  color: #ccb19b;
+  border: 1px solid rgba(87, 70, 58, 0.5);
+}
+
+.badge-success {
+  background-color: rgba(60, 115, 75, 0.3);
+  color: #8ce2a3;
+  border: 1px solid rgba(60, 115, 75, 0.4);
+}
+
+.badge-warn {
+  background-color: rgba(140, 100, 40, 0.3);
+  color: #f1cf8c;
+  border: 1px solid rgba(140, 100, 40, 0.4);
+}
+
+.badge-error {
+  background-color: rgba(140, 50, 50, 0.35);
+  color: #ff9b9b;
+  border: 1px solid rgba(140, 50, 50, 0.5);
+}
+
+.log-msg {
+  color: var(--text-primary);
+}
+
+.log-mem-info {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+

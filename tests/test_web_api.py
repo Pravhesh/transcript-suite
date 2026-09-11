@@ -115,10 +115,75 @@ def test_audio_stream_endpoints():
 
         print("✓ Original, processed, and chunk audio stream endpoints verified.")
 
+
+def test_telemetry_endpoints():
+    from transcript_suite.web.app import add_log, add_trace_sample
+    client = TestClient(app)
+
+    # Add sample log and trace
+    add_log("test-telemetry-task", "INFO", "Sample task initialized.")
+    add_log("test-telemetry-task", "STAGE", "Stage 1: Speech Enhancer active.")
+    add_log("test-telemetry-task", "CHUNK", "Transcribed chunk 1/10: 'Hello world'")
+    add_trace_sample("test-telemetry-task")
+
+    # 1. Trace endpoint with cadence intervals (2s, 5s, 10s)
+    for interval in [2, 5, 10]:
+        res_trace = client.get(f"/api/telemetry/trace?interval={interval}&task_id=test-telemetry-task")
+        assert res_trace.status_code == 200
+        data = res_trace.json()
+        assert "samples" in data
+        assert "current" in data
+        assert data["interval_seconds"] == interval
+
+    print("✓ /api/telemetry/trace verified with 2s, 5s, and 10s intervals.")
+
+    # 2. Logs endpoint with level filter
+    res_logs = client.get("/api/telemetry/logs?level=ALL")
+    assert res_logs.status_code == 200
+    logs_data = res_logs.json()
+    assert len(logs_data["logs"]) > 0
+
+    res_logs_stage = client.get("/api/telemetry/logs?level=STAGE")
+    assert res_logs_stage.status_code == 200
+    for l in res_logs_stage.json()["logs"]:
+        assert l["level"] == "STAGE"
+
+    print("✓ /api/telemetry/logs verified with level filtering.")
+
+    # 3. Export Trace as CSV
+    res_csv = client.get("/api/telemetry/export/trace.csv")
+    assert res_csv.status_code == 200
+    assert res_csv.headers["content-type"].startswith("text/csv")
+    assert "Timestamp,Time,Elapsed_Sec" in res_csv.text
+    print("✓ /api/telemetry/export/trace.csv export verified.")
+
+    # 4. Export Logs as CSV
+    res_log_csv = client.get("/api/telemetry/export/logs.csv")
+    assert res_log_csv.status_code == 200
+    assert res_log_csv.headers["content-type"].startswith("text/csv")
+    assert "Timestamp,Time,Level" in res_log_csv.text
+    print("✓ /api/telemetry/export/logs.csv export verified.")
+
+    # 5. Export Logs as TXT
+    res_log_txt = client.get("/api/telemetry/export/logs.txt")
+    assert res_log_txt.status_code == 200
+    assert res_log_txt.headers["content-type"].startswith("text/plain")
+    assert "Transcript Suite Execution Log Report" in res_log_txt.text
+    print("✓ /api/telemetry/export/logs.txt report export verified.")
+
+    # 6. Clear Telemetry
+    res_clear = client.post("/api/telemetry/clear")
+    assert res_clear.status_code == 200
+    assert res_clear.json()["status"] == "cleared"
+    print("✓ /api/telemetry/clear verified.")
+
+
 if __name__ == "__main__":
     test_web_endpoints()
     test_task_control_endpoints()
     test_audio_stream_endpoints()
-    print("\nAll Web API and task control tests passed!")
+    test_telemetry_endpoints()
+    print("\nAll Web API and telemetry tests passed!")
+
 
 

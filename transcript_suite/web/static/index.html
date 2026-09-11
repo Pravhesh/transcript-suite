@@ -95,6 +95,120 @@
       </div>
     </div>
 
+    <!-- Live Memory Trace & Execution Log Console -->
+    <div class="telemetry-card" id="telemetryCard">
+      <div class="telemetry-header">
+        <div class="telemetry-tabs">
+          <button class="tab-btn active" id="tabBtnTrace">📈 Memory Trace</button>
+          <button class="tab-btn" id="tabBtnLogs">📜 Live Execution Logs</button>
+          <span class="pulse-indicator" id="telemetryPulse" title="Live telemetry active">● Live</span>
+        </div>
+
+        <div class="telemetry-controls">
+          <!-- Interval selector for memory trace: 2s, 5s, 10s -->
+          <div class="interval-selector" title="Telemetry sampling & update cadence">
+            <span class="interval-label">⏱ Cadence:</span>
+            <div class="interval-btn-group" id="cadenceBtnGroup">
+              <button class="btn-interval active" data-interval="2">2s</button>
+              <button class="btn-interval" data-interval="5">5s</button>
+              <button class="btn-interval" data-interval="10">10s</button>
+            </div>
+          </div>
+
+          <!-- Export & clear buttons -->
+          <div class="telemetry-actions">
+            <button class="btn-telemetry" id="btnExportTraceCsv" title="Export Memory Trace as CSV">📥 Trace CSV</button>
+            <button class="btn-telemetry" id="btnExportLogsCsv" title="Export Execution Logs as CSV">📥 Logs CSV</button>
+            <button class="btn-telemetry" id="btnExportLogsTxt" title="Export Execution Logs as TXT">📥 Logs TXT</button>
+            <button class="btn-telemetry btn-telemetry-clear" id="btnClearTelemetry" title="Clear telemetry buffer">🗑️ Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 1: Memory Trace Stream & Timeline -->
+      <div class="telemetry-tab-pane active" id="paneTrace">
+        <!-- Live summary metric chips -->
+        <div class="trace-summary-bar">
+          <div class="trace-chip">
+            <span class="chip-label">Active Task:</span>
+            <span class="chip-val" id="traceActiveTask">System Idle</span>
+          </div>
+          <div class="trace-chip">
+            <span class="chip-label">Stage:</span>
+            <span class="chip-val" id="traceCurrentStage">Ready</span>
+          </div>
+          <div class="trace-chip">
+            <span class="chip-label">System RAM:</span>
+            <span class="chip-val" id="traceLiveRam">-- / -- GB</span>
+          </div>
+          <div class="trace-chip">
+            <span class="chip-label">GPU VRAM:</span>
+            <span class="chip-val" id="traceLiveVram">-- / -- GB</span>
+          </div>
+          <div class="trace-chip">
+            <span class="chip-label">Peak VRAM / RAM:</span>
+            <span class="chip-val" id="tracePeakMem">-- / -- GB</span>
+          </div>
+        </div>
+
+        <!-- Real-time Memory Trace Table -->
+        <div class="trace-table-container" id="traceTableContainer">
+          <table class="trace-table">
+            <thead>
+              <tr>
+                <th style="width: 80px;">Time</th>
+                <th style="width: 75px;">Elapsed</th>
+                <th>Task / Audio File</th>
+                <th>Pipeline Stage</th>
+                <th style="width: 180px;">System RAM</th>
+                <th style="width: 180px;">GPU VRAM</th>
+                <th style="width: 95px;">Status</th>
+              </tr>
+            </thead>
+            <tbody id="traceTableBody">
+              <!-- Live trace rows stream here -->
+            </tbody>
+          </table>
+        </div>
+        <div class="telemetry-footer">
+          <label class="autoscroll-label">
+            <input type="checkbox" id="traceAutoScroll" checked>
+            <span>Auto-scroll to latest trace</span>
+          </label>
+          <span class="telemetry-count" id="traceCountText">0 trace samples recorded</span>
+        </div>
+      </div>
+
+      <!-- Tab 2: Live Execution Logs Terminal -->
+      <div class="telemetry-tab-pane" id="paneLogs">
+        <div class="log-filter-bar">
+          <div class="log-filters" id="logLevelFilters">
+            <button class="log-filter-btn active" data-level="ALL">All Events</button>
+            <button class="log-filter-btn" data-level="STAGE">Stages</button>
+            <button class="log-filter-btn" data-level="CHUNK">Chunks</button>
+            <button class="log-filter-btn" data-level="MEM">Memory</button>
+            <button class="log-filter-btn" data-level="ERROR">Errors</button>
+          </div>
+          <div class="log-search-box">
+            <input type="text" class="log-search-input" id="logSearchInput" placeholder="Search log entries...">
+          </div>
+        </div>
+
+        <div class="terminal-container" id="terminalContainer">
+          <div class="terminal-body" id="terminalBody">
+            <!-- Formatted log entries stream here -->
+          </div>
+        </div>
+        <div class="telemetry-footer">
+          <label class="autoscroll-label">
+            <input type="checkbox" id="logsAutoScroll" checked>
+            <span>Auto-scroll to latest log</span>
+          </label>
+          <span class="telemetry-count" id="logCountText">0 log entries</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Dual-Track Audio Studio Card -->
     <div class="player-card" id="playerCard">
       <!-- Studio Header & Mix Controls -->
