@@ -15,6 +15,9 @@ import torch
 class SuiteConfig:
     # Model configuration
     model_name: str = os.getenv("CANARY_MODEL", "nvidia/canary-qwen-2.5b")
+    whisper_model: str = os.getenv("COUNCIL_WHISPER_MODEL", "openai/whisper-large-v3")
+    conformer_model: str = os.getenv("COUNCIL_CONFORMER_MODEL", "nvidia/stt_en_conformer_ctc_xlarge")
+    parakeet_model: str = os.getenv("COUNCIL_PARAKEET_MODEL", "nvidia/parakeet-tdt-1.1b")
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     dtype: torch.dtype = torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else torch.float16
     

@@ -104,9 +104,9 @@ class ModelCouncil:
     def __init__(
         self,
         canary_transcriber=None,
-        whisper_model_id: str = "openai/whisper-small.en",
+        whisper_model_id: str = "openai/whisper-large-v3",
         parakeet_model_id: str = "nvidia/parakeet-tdt-1.1b",
-        conformer_model_id: str = "nvidia/stt_en_conformer_ctc_large",
+        conformer_model_id: str = "nvidia/stt_en_conformer_ctc_xlarge",
         device: Optional[str] = None,
         slowdown_factor: float = 0.75
     ):
@@ -203,13 +203,15 @@ class ModelCouncil:
             print(f"[Council Warning] Whisper transcription failed: {e}")
             return ""
 
-    def transcribe_batch_whisper(self, wav_paths: list[str | Path], batch_size: int = 8) -> list[str]:
+    def transcribe_batch_whisper(self, wav_paths: list[str | Path], batch_size: Optional[int] = None) -> list[str]:
         """Transcribes a batch of audio chunks using Whisper cross-examiner."""
         if not wav_paths:
             return []
         pipe = self._get_whisper_pipeline()
         if pipe is None:
             return [""] * len(wav_paths)
+        if batch_size is None:
+            batch_size = 4 if "large" in str(self.whisper_model_id).lower() else 8
         try:
             resolved_paths = [str(Path(p).resolve()) for p in wav_paths]
             kwargs = {}

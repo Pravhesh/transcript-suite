@@ -46,7 +46,13 @@ class TranscriptionPipeline:
             device=config.device,
             dtype=config.dtype
         )
-        self.council = ModelCouncil(canary_transcriber=self.transcriber, device=config.device)
+        self.council = ModelCouncil(
+            canary_transcriber=self.transcriber,
+            whisper_model_id=config.whisper_model,
+            parakeet_model_id=config.parakeet_model,
+            conformer_model_id=config.conformer_model,
+            device=config.device
+        )
         self.vram_manager = VRAMManager()
         
         # Select diarizer route
@@ -250,7 +256,8 @@ class TranscriptionPipeline:
                     report("Pass 2/3: Whisper Cross-Examination (Batched)...", 0.56)
                     check_stop()
                     try:
-                        whisper_hyps = self.council.transcribe_batch_whisper(chunk_wavs, batch_size=8)
+                        w_batch = 4 if "large" in str(self.council.whisper_model_id).lower() else 8
+                        whisper_hyps = self.council.transcribe_batch_whisper(chunk_wavs, batch_size=w_batch)
                     except Exception as e:
                         print(f"[Pipeline Warning] Batched Whisper error ({e}), falling back to sequential...")
                         whisper_hyps = []
