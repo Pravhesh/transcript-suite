@@ -89,18 +89,31 @@ def add_trace_sample(task_id: Optional[str] = None) -> Dict[str, Any]:
     start_time = active_task.get("start_ts") if active_task else None
     elapsed = round(now.timestamp() - start_time, 1) if start_time else 0.0
 
+    mins = int(elapsed // 60)
+    secs = int(elapsed % 60)
+    elapsed_str = f"{mins:02d}:{secs:02d}"
+
+    proc_ram = stats.get("proc_ram_used_gb", 0.0)
+    sys_ram = stats.get("sys_ram_used_gb", 0.0)
+    sys_ram_pct = stats.get("sys_ram_percent", 0.0)
+
     entry = {
         "timestamp": now.isoformat(),
         "time_str": now.strftime("%H:%M:%S"),
         "elapsed_s": elapsed,
+        "elapsed_str": elapsed_str,
         "task_id": task_id or "idle",
         "task_name": task_name,
         "status": task_status,
         "stage": stage,
-        "proc_ram_used_gb": stats.get("proc_ram_used_gb", 0.0),
-        "ram_used_gb": stats.get("sys_ram_used_gb", 0.0),
+        "proc_ram_used_gb": proc_ram,
+        "app_ram_gb": proc_ram,
+        "ram_used_gb": sys_ram,
+        "sys_ram_used_gb": sys_ram,
         "ram_total_gb": stats.get("sys_ram_total_gb", 0.0),
-        "ram_pct": stats.get("sys_ram_percent", 0.0),
+        "sys_ram_total_gb": stats.get("sys_ram_total_gb", 0.0),
+        "ram_pct": sys_ram_pct,
+        "sys_ram_pct": sys_ram_pct,
         "vram_alloc_gb": stats.get("allocated_gb", 0.0),
         "vram_reserved_gb": stats.get("reserved_gb", 0.0),
         "vram_total_gb": stats.get("total_gb", 0.0),
@@ -681,12 +694,30 @@ async def get_telemetry_trace(
             }
             break
 
+    peak_vram = max([s.get("vram_reserved_gb", 0.0) or s.get("vram_alloc_gb", 0.0) for s in tail], default=0.0)
+    peak_ram = max([s.get("ram_used_gb", 0.0) or s.get("sys_ram_used_gb", 0.0) for s in tail], default=0.0)
+    peak_proc_ram = max([s.get("proc_ram_used_gb", 0.0) or s.get("app_ram_gb", 0.0) for s in tail], default=0.0)
+
+    # Fallback to current stats if no samples yet
+    curr_stats = vram_manager.get_stats()
+    if peak_vram == 0.0:
+        peak_vram = curr_stats.get("reserved_gb", 0.0) or curr_stats.get("allocated_gb", 0.0)
+    if peak_ram == 0.0:
+        peak_ram = curr_stats.get("sys_ram_used_gb", 0.0)
+    if peak_proc_ram == 0.0:
+        peak_proc_ram = curr_stats.get("proc_ram_used_gb", 0.0)
+
     return {
         "samples": tail,
         "total_recorded": len(source),
         "interval_seconds": interval,
-        "current": vram_manager.get_stats(),
-        "active_task": active_task
+        "current": curr_stats,
+        "active_task": active_task,
+        "peak": {
+            "peak_vram_gb": round(peak_vram, 2),
+            "peak_ram_gb": round(peak_ram, 2),
+            "peak_proc_ram_gb": round(peak_proc_ram, 2)
+        }
     }
 
 

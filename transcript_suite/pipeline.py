@@ -246,49 +246,71 @@ class TranscriptionPipeline:
                         self.transcriber.unload_model()
                     self._reclaim_memory()
 
-                    # 2. Pass 2/3: Whisper Cross-Examination
-                    report("Pass 2/3: Whisper Cross-Examination Pass...", 0.56)
-                    whisper_hyps = []
-                    for idx, (seg, c_wav) in enumerate(zip(speech_segments, chunk_wavs)):
-                        check_stop()
-                        try:
-                            wh = self.council.transcribe_with_whisper(c_wav)
-                        except Exception as e:
-                            print(f"[Pipeline Warning] Whisper chunk {idx} error: {e}")
-                            wh = ""
-                        whisper_hyps.append(wh)
+                    # 2. Pass 2/3: Whisper Cross-Examination (Batched)
+                    report("Pass 2/3: Whisper Cross-Examination (Batched)...", 0.56)
+                    check_stop()
+                    try:
+                        whisper_hyps = self.council.transcribe_batch_whisper(chunk_wavs, batch_size=16)
+                    except Exception as e:
+                        print(f"[Pipeline Warning] Batched Whisper error ({e}), falling back to sequential...")
+                        whisper_hyps = []
+                        for idx, c_wav in enumerate(chunk_wavs):
+                            check_stop()
+                            try:
+                                wh = self.council.transcribe_with_whisper(c_wav)
+                            except Exception:
+                                wh = ""
+                            whisper_hyps.append(wh)
+                            frac = 0.56 + ((idx + 1) / total_chunks) * 0.18
+                            report(f"Pass 2/3 (Whisper): Chunk {idx + 1}/{total_chunks}", frac)
 
-                        frac = 0.56 + ((idx + 1) / total_chunks) * 0.18
-                        report(f"Pass 2/3 (Whisper): Chunk {idx + 1}/{total_chunks}", frac)
-
-                    # Unload Whisper
+                    # Unload Whisper & reclaim memory
                     self.council.unload_whisper()
                     self._reclaim_memory()
 
-                    # 3. Pass 3/3: Acoustic Anchor & Transducer Verification
-                    report("Pass 3/3: Acoustic Anchor & Transducer Verification...", 0.74)
-                    ctc_hyps = []
-                    parakeet_hyps = []
-                    for idx, (seg, c_wav) in enumerate(zip(speech_segments, chunk_wavs)):
-                        check_stop()
-                        try:
-                            ctc_h = self.council.transcribe_with_conformer(c_wav)
-                        except Exception as e:
-                            print(f"[Pipeline Warning] Conformer chunk {idx} error: {e}")
-                            ctc_h = ""
-                        ctc_hyps.append(ctc_h)
+                    # 3. Pass 3/3: Acoustic Anchor & Transducer Verification (Staged, Batched)
+                    # Phase 3A: Conformer-CTC Acoustic Anchor
+                    report("Pass 3/3 (Phase A): Conformer-CTC Acoustic Anchor (Batched)...", 0.74)
+                    check_stop()
+                    try:
+                        ctc_hyps = self.council.transcribe_batch_conformer(chunk_wavs, batch_size=16)
+                    except Exception as e:
+                        print(f"[Pipeline Warning] Batched Conformer error ({e}), falling back to sequential...")
+                        ctc_hyps = []
+                        for idx, c_wav in enumerate(chunk_wavs):
+                            check_stop()
+                            try:
+                                ctc_h = self.council.transcribe_with_conformer(c_wav)
+                            except Exception:
+                                ctc_h = ""
+                            ctc_hyps.append(ctc_h)
+                            frac = 0.74 + ((idx + 1) / total_chunks) * 0.07
+                            report(f"Pass 3/3 (Conformer): Chunk {idx + 1}/{total_chunks}", frac)
 
-                        try:
-                            pk_h = self.council.transcribe_with_parakeet(c_wav)
-                        except Exception:
-                            pk_h = ""
-                        parakeet_hyps.append(pk_h)
+                    # Immediately unload Conformer before loading Parakeet (prevents VRAM co-location)
+                    self.council.unload_conformer()
+                    self._reclaim_memory()
 
-                        frac = 0.74 + ((idx + 1) / total_chunks) * 0.14
-                        report(f"Pass 3/3 (Anchor): Chunk {idx + 1}/{total_chunks}", frac)
+                    # Phase 3B: Parakeet-TDT Transducer Verification
+                    report("Pass 3/3 (Phase B): Parakeet-TDT Transducer Verification (Batched)...", 0.81)
+                    check_stop()
+                    try:
+                        parakeet_hyps = self.council.transcribe_batch_parakeet(chunk_wavs, batch_size=16)
+                    except Exception as e:
+                        print(f"[Pipeline Warning] Batched Parakeet error ({e}), falling back to sequential...")
+                        parakeet_hyps = []
+                        for idx, c_wav in enumerate(chunk_wavs):
+                            check_stop()
+                            try:
+                                pk_h = self.council.transcribe_with_parakeet(c_wav)
+                            except Exception:
+                                pk_h = ""
+                            parakeet_hyps.append(pk_h)
+                            frac = 0.81 + ((idx + 1) / total_chunks) * 0.07
+                            report(f"Pass 3/3 (Parakeet): Chunk {idx + 1}/{total_chunks}", frac)
 
-                    # Unload Parakeet & CTC
-                    self.council.unload_parakeet_and_ctc()
+                    # Unload Parakeet transducer
+                    self.council.unload_parakeet()
                     self._reclaim_memory()
 
                     # 4. Adjudication & Consensus Synthesis

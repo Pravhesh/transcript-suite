@@ -248,8 +248,9 @@ async function fetchMemoryStats() {
     if (!res.ok) return;
     const data = await res.json();
 
-    if (appRamText && data.app_ram_rss_gb !== undefined) {
-      appRamText.innerText = `${data.app_ram_rss_gb.toFixed(2)} GB`;
+    const appRam = data.proc_ram_used_gb ?? data.app_ram_rss_gb;
+    if (appRamText && appRam !== undefined && appRam !== null) {
+      appRamText.innerText = `${appRam.toFixed(2)} GB`;
     }
 
     if (ramText && data.sys_ram_used_gb !== undefined && data.sys_ram_total_gb !== undefined) {
@@ -267,10 +268,12 @@ async function fetchMemoryStats() {
     }
 
     const alloc = data.allocated_gb || 0;
+    const reserved = data.reserved_gb || alloc;
     const total = data.total_gb || 7.6;
     const pct = data.percent_used || 0;
 
-    vramText.innerText = `${alloc.toFixed(2)} / ${total.toFixed(1)} GB`;
+    vramText.innerText = `${alloc.toFixed(2)}G (${reserved.toFixed(1)}G res) / ${total.toFixed(1)} GB`;
+    vramText.title = `Active Tensors: ${alloc.toFixed(2)} GB | Reserved by PyTorch: ${reserved.toFixed(2)} GB | Total: ${total.toFixed(1)} GB`;
     vramBarFill.style.width = `${Math.min(100, Math.max(0, pct))}%`;
 
     if (pct > 85) {
@@ -1340,8 +1343,8 @@ async function fetchTelemetryData() {
 
     if (resTrace.ok) {
       const traceData = await resTrace.json();
-      renderTraceSummary(traceData.current, traceData.peak);
-      if (traceData.samples && traceData.samples.length > cachedTraceSamples.length) {
+      renderTraceSummary(traceData.active_task, traceData.current, traceData.peak);
+      if (traceData.samples && (cachedTraceSamples.length === 0 || traceData.samples.length !== cachedTraceSamples.length)) {
         cachedTraceSamples = traceData.samples;
         renderTraceTable(cachedTraceSamples);
       }
@@ -1349,50 +1352,86 @@ async function fetchTelemetryData() {
 
     if (resLogs.ok) {
       const logsData = await resLogs.json();
-      if (logsData.logs && logsData.logs.length !== cachedLogEntries.length) {
+      if (logsData.logs && (cachedLogEntries.length === 0 || logsData.logs.length !== cachedLogEntries.length)) {
         cachedLogEntries = logsData.logs;
         renderTerminalLogs(cachedLogEntries);
       }
     }
-  } catch (err) {}
+  } catch (err) {
+    console.warn("Failed to fetch telemetry data:", err);
+  }
 }
 
-function renderTraceSummary(curr, peak) {
-  if (!curr) return;
+function renderTraceSummary(activeTask, curr, peak) {
   if (traceActiveTask) {
-    traceActiveTask.innerText = curr.task_id && curr.task_id !== "system" ? curr.task_id.substring(0, 8) + "..." : "System Idle";
+    if (activeTask && activeTask.filename) {
+      const fn = activeTask.filename.length > 20 ? activeTask.filename.substring(0, 17) + "..." : activeTask.filename;
+      traceActiveTask.innerText = fn;
+      traceActiveTask.title = `${activeTask.filename} (${activeTask.id || ''})`;
+    } else {
+      traceActiveTask.innerText = "System Idle";
+      traceActiveTask.title = "No active transcription";
+    }
   }
-  if (traceCurrentStage) traceCurrentStage.innerText = curr.stage || "Idle";
-  if (traceLiveAppRam) traceLiveAppRam.innerText = `${curr.app_ram_gb.toFixed(2)} GB`;
-  if (traceLiveRam) traceLiveRam.innerText = `${curr.sys_ram_used_gb.toFixed(1)} / ${curr.sys_ram_total_gb.toFixed(1)} GB`;
-  if (traceLiveVram) traceLiveVram.innerText = `${curr.vram_alloc_gb.toFixed(2)} / ${curr.vram_total_gb.toFixed(1)} GB`;
-  if (tracePeakMem && peak) {
-    tracePeakMem.innerText = `${peak.peak_vram_gb.toFixed(2)}G / ${peak.peak_ram_gb.toFixed(1)}G`;
+
+  if (traceCurrentStage) {
+    traceCurrentStage.innerText = (activeTask && activeTask.stage) ? activeTask.stage : "Idle";
+  }
+
+  if (curr) {
+    const appRam = curr.proc_ram_used_gb ?? curr.app_ram_gb ?? 0;
+    const sysUsed = curr.sys_ram_used_gb ?? curr.ram_used_gb ?? 0;
+    const sysTotal = curr.sys_ram_total_gb ?? curr.ram_total_gb ?? 15.3;
+    const vramAlloc = curr.allocated_gb ?? curr.vram_alloc_gb ?? 0;
+    const vramRes = curr.reserved_gb ?? curr.vram_reserved_gb ?? vramAlloc;
+    const vramTotal = curr.total_gb ?? curr.vram_total_gb ?? 7.6;
+
+    if (traceLiveAppRam) traceLiveAppRam.innerText = `${appRam.toFixed(2)} GB`;
+    if (traceLiveRam) traceLiveRam.innerText = `${sysUsed.toFixed(1)} / ${sysTotal.toFixed(1)} GB`;
+    if (traceLiveVram) traceLiveVram.innerText = `${vramAlloc.toFixed(2)}G (${vramRes.toFixed(1)}G res) / ${vramTotal.toFixed(1)} GB`;
+  }
+
+  if (tracePeakMem) {
+    if (peak && peak.peak_vram_gb !== undefined && peak.peak_ram_gb !== undefined) {
+      tracePeakMem.innerText = `${peak.peak_vram_gb.toFixed(2)}G / ${peak.peak_ram_gb.toFixed(1)}G`;
+    } else if (curr) {
+      const v = curr.reserved_gb ?? curr.vram_reserved_gb ?? 0;
+      const r = curr.sys_ram_used_gb ?? curr.ram_used_gb ?? 0;
+      tracePeakMem.innerText = `${v.toFixed(2)}G / ${r.toFixed(1)}G`;
+    }
   }
 }
 
 function renderTraceTable(samples) {
-  if (!traceTableBody) return;
+  if (!traceTableBody || !samples) return;
   traceTableBody.innerHTML = "";
   samples.forEach((s) => {
     const row = document.createElement("tr");
     let statusClass = "status-idle";
-    let statusLabel = s.status || "IDLE";
+    let statusLabel = (s.status || "IDLE").toUpperCase();
     if (statusLabel === "PROCESSING") statusClass = "status-processing";
     else if (statusLabel === "COMPLETED") statusClass = "status-completed";
     else if (statusLabel === "FAILED") statusClass = "status-failed";
 
+    const elapsedStr = s.elapsed_str || (s.elapsed_s !== undefined ? `${Math.round(s.elapsed_s)}s` : "--");
+    const taskIdDisplay = s.task_name || (s.task_id && s.task_id !== "idle" && s.task_id !== "system" ? s.task_id.substring(0, 8) + "..." : "system");
+    const appRam = s.proc_ram_used_gb ?? s.app_ram_gb ?? 0;
+    const sysRam = s.sys_ram_used_gb ?? s.ram_used_gb ?? 0;
+    const sysPct = s.sys_ram_pct ?? s.ram_pct ?? 0;
+    const vramAlloc = s.allocated_gb ?? s.vram_alloc_gb ?? 0;
+    const vramPct = s.percent_used ?? s.vram_pct ?? 0;
+
     row.innerHTML = `
-      <td style="font-family: monospace; font-size: 11px;">${s.time_str}</td>
-      <td style="font-family: monospace; font-size: 11px;">${s.elapsed_str}</td>
-      <td style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${s.task_id}">
-        ${s.task_id !== "system" ? s.task_id.substring(0, 8) + '...' : 'system'}
+      <td style="font-family: monospace; font-size: 11px;">${escapeHtml(s.time_str || "--")}</td>
+      <td style="font-family: monospace; font-size: 11px;">${escapeHtml(elapsedStr)}</td>
+      <td style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(s.task_name || s.task_id || '')}">
+        ${escapeHtml(taskIdDisplay)}
       </td>
-      <td style="color: var(--text-primary); font-weight: 500;">${s.stage}</td>
-      <td style="font-weight: 600; color: var(--accent-light);">${s.app_ram_gb.toFixed(2)} GB</td>
-      <td>${s.sys_ram_used_gb.toFixed(1)} GB (${Math.round(s.sys_ram_pct)}%)</td>
-      <td style="color: var(--accent-light); font-weight: 600;">${s.vram_alloc_gb.toFixed(2)} GB (${Math.round(s.vram_pct)}%)</td>
-      <td><span class="status-pill ${statusClass}">${statusLabel}</span></td>
+      <td style="color: var(--text-primary); font-weight: 500;">${escapeHtml(s.stage || "--")}</td>
+      <td style="font-weight: 600; color: var(--accent-light);">${appRam.toFixed(2)} GB</td>
+      <td>${sysRam.toFixed(1)} GB (${Math.round(sysPct)}%)</td>
+      <td style="color: var(--accent-light); font-weight: 600;">${vramAlloc.toFixed(2)} GB (${Math.round(vramPct)}%)</td>
+      <td><span class="status-pill ${statusClass}">${escapeHtml(statusLabel)}</span></td>
     `;
     traceTableBody.appendChild(row);
   });
@@ -1405,7 +1444,7 @@ function renderTraceTable(samples) {
 }
 
 function renderTerminalLogs(entries) {
-  if (!terminalBody) return;
+  if (!terminalBody || !entries) return;
   terminalBody.innerHTML = "";
   const query = logSearchInput ? logSearchInput.value.toLowerCase() : "";
 
@@ -1425,11 +1464,14 @@ function renderTerminalLogs(entries) {
     else if (e.level === "ERROR") badgeClass = "badge-error";
     else if (e.level === "SUCCESS") badgeClass = "badge-success";
 
+    const ramUsed = e.ram_used_gb ?? e.sys_ram_used_gb ?? 0;
+    const vramAlloc = e.vram_alloc_gb ?? e.allocated_gb ?? 0;
+
     row.innerHTML = `
-      <span class="log-time">${e.time_str}</span>
-      <span class="log-level-badge ${badgeClass}">${e.level}</span>
-      <span class="log-msg">${escapeHtml(e.message)}</span>
-      <span class="log-mem-tag">RAM: ${e.ram_used_gb.toFixed(2)}G | VRAM: ${e.vram_alloc_gb.toFixed(2)}G</span>
+      <span class="log-time">${escapeHtml(e.time_str || "--")}</span>
+      <span class="log-level-badge ${badgeClass}">${escapeHtml(e.level || "INFO")}</span>
+      <span class="log-msg">${escapeHtml(e.message || "")}</span>
+      <span class="log-mem-tag">RAM: ${ramUsed.toFixed(2)}G | VRAM: ${vramAlloc.toFixed(2)}G</span>
     `;
     terminalBody.appendChild(row);
   });

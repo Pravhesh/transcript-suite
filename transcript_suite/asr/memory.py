@@ -38,7 +38,9 @@ class VRAMManager:
         # Process RSS (actual RAM consumed by this process) and System RAM
         try:
             proc = psutil.Process()
-            stats["proc_ram_used_gb"] = round(proc.memory_info().rss / (1024 ** 3), 2)
+            rss_gb = round(proc.memory_info().rss / (1024 ** 3), 2)
+            stats["proc_ram_used_gb"] = rss_gb
+            stats["app_ram_rss_gb"] = rss_gb
         except Exception:
             pass
 

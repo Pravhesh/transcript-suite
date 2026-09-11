@@ -100,9 +100,25 @@ def test_sequential_synthesis_arbitration():
     print("✓ synthesize_deliberation trilateral & quadrilateral tests passed.")
 
 
+def test_batch_methods_and_staged_unloading():
+    council = ModelCouncil()
+    assert council.transcribe_batch_whisper([]) == []
+    assert council.transcribe_batch_conformer([]) == []
+    assert council.transcribe_batch_parakeet([]) == []
+
+    # Verify unloading functions execute cleanly
+    council.unload_conformer()
+    council.unload_parakeet()
+    council.unload_whisper()
+    council.unload_parakeet_and_ctc()
+    council.unload_members()
+    print("✓ Council batched signatures and staged unloads verified.")
+
+
 if __name__ == "__main__":
     test_prompt_leak_sanitization()
     test_similarity_and_consensus()
     test_sequential_synthesis_arbitration()
+    test_batch_methods_and_staged_unloading()
     print("\nAll Council & Sanitizer unit tests passed!")
 

@@ -133,9 +133,25 @@ def test_telemetry_endpoints():
         data = res_trace.json()
         assert "samples" in data
         assert "current" in data
+        assert "peak" in data
+        assert "peak_vram_gb" in data["peak"]
+        assert "peak_ram_gb" in data["peak"]
         assert data["interval_seconds"] == interval
 
-    print("✓ /api/telemetry/trace verified with 2s, 5s, and 10s intervals.")
+        if len(data["samples"]) > 0:
+            sample = data["samples"][-1]
+            assert "app_ram_gb" in sample
+            assert "proc_ram_used_gb" in sample
+            assert "elapsed_str" in sample
+
+    # Check /api/vram aliases
+    res_vram = client.get("/api/vram")
+    assert res_vram.status_code == 200
+    vram_data = res_vram.json()
+    assert "app_ram_rss_gb" in vram_data
+    assert "proc_ram_used_gb" in vram_data
+
+    print("✓ /api/telemetry/trace verified with 2s, 5s, and 10s intervals and peak stats.")
 
     # 2. Logs endpoint with level filter
     res_logs = client.get("/api/telemetry/logs?level=ALL")

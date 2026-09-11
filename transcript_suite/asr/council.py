@@ -201,6 +201,30 @@ class ModelCouncil:
             print(f"[Council Warning] Whisper transcription failed: {e}")
             return ""
 
+    def transcribe_batch_whisper(self, wav_paths: list[str | Path], batch_size: int = 16) -> list[str]:
+        """Transcribes a batch of audio chunks using Whisper cross-examiner."""
+        pipe = self._get_whisper_pipeline()
+        if pipe is None or not wav_paths:
+            return [""] * len(wav_paths)
+        try:
+            resolved_paths = [str(Path(p).resolve()) for p in wav_paths]
+            kwargs = {}
+            if hasattr(pipe.model, "generation_config") and getattr(pipe.model.generation_config, "is_multilingual", False):
+                kwargs["generate_kwargs"] = {"language": "en", "task": "transcribe"}
+
+            results = pipe(resolved_paths, batch_size=batch_size, **kwargs)
+            texts = []
+            for r in results:
+                t = r.get("text", "") if isinstance(r, dict) else str(r)
+                texts.append(t.strip())
+            return texts
+        except Exception as e:
+            print(f"[Council Warning] Whisper batch transcription failed: {e}")
+            fallback = []
+            for p in wav_paths:
+                fallback.append(self.transcribe_with_whisper(p))
+            return fallback
+
     def transcribe_with_conformer(self, wav_path: str | Path) -> str:
         """Transcribes audio chunk using Conformer-CTC acoustic anchor."""
         model = self._get_conformer_model()
@@ -219,6 +243,27 @@ class ModelCouncil:
             print(f"[Council Warning] Conformer-CTC transcription failed: {e}")
             return ""
 
+    def transcribe_batch_conformer(self, wav_paths: list[str | Path], batch_size: int = 16) -> list[str]:
+        """Transcribes a list of audio chunk paths using Conformer-CTC in parallel batches."""
+        model = self._get_conformer_model()
+        if model is None or not wav_paths:
+            return [""] * len(wav_paths)
+        try:
+            resolved_paths = [str(Path(p).resolve()) for p in wav_paths]
+            with torch.inference_mode():
+                results = model.transcribe(resolved_paths, batch_size=batch_size, return_hypotheses=False)
+            texts = []
+            for r in results:
+                t = getattr(r, "text", str(r))
+                texts.append(t.strip())
+            return texts
+        except Exception as e:
+            print(f"[Council Warning] Conformer batch transcription failed: {e}")
+            fallback = []
+            for p in wav_paths:
+                fallback.append(self.transcribe_with_conformer(p))
+            return fallback
+
     def transcribe_with_parakeet(self, wav_path: str | Path) -> str:
         """Transcribes audio chunk using Parakeet-TDT transducer."""
         model = self._get_parakeet_model()
@@ -236,6 +281,27 @@ class ModelCouncil:
         except Exception as e:
             print(f"[Council Warning] Parakeet transcription failed: {e}")
             return ""
+
+    def transcribe_batch_parakeet(self, wav_paths: list[str | Path], batch_size: int = 16) -> list[str]:
+        """Transcribes a list of audio chunk paths using Parakeet-TDT in parallel batches."""
+        model = self._get_parakeet_model()
+        if model is None or not wav_paths:
+            return [""] * len(wav_paths)
+        try:
+            resolved_paths = [str(Path(p).resolve()) for p in wav_paths]
+            with torch.inference_mode():
+                results = model.transcribe(resolved_paths, batch_size=batch_size, return_hypotheses=False)
+            texts = []
+            for r in results:
+                t = getattr(r, "text", str(r))
+                texts.append(t.strip())
+            return texts
+        except Exception as e:
+            print(f"[Council Warning] Parakeet batch transcription failed: {e}")
+            fallback = []
+            for p in wav_paths:
+                fallback.append(self.transcribe_with_parakeet(p))
+            return fallback
 
     def synthesize_deliberation(
         self,
@@ -559,18 +625,28 @@ class ModelCouncil:
         self._clean_memory()
         print("[Council] Whisper model unloaded from VRAM.")
 
-    def unload_parakeet_and_ctc(self):
-        """Unloads Parakeet and Conformer models and frees VRAM."""
-        if self._parakeet_model is not None:
-            del self._parakeet_model
-            self._parakeet_model = None
-            self._is_parakeet_loaded = False
+    def unload_conformer(self):
+        """Unloads Conformer model and frees VRAM."""
         if self._conformer_model is not None:
             del self._conformer_model
             self._conformer_model = None
             self._is_conformer_loaded = False
         self._clean_memory()
-        print("[Council] Parakeet and Conformer-CTC models unloaded from VRAM.")
+        print("[Council] Conformer-CTC model unloaded from VRAM.")
+
+    def unload_parakeet(self):
+        """Unloads Parakeet model and frees VRAM."""
+        if self._parakeet_model is not None:
+            del self._parakeet_model
+            self._parakeet_model = None
+            self._is_parakeet_loaded = False
+        self._clean_memory()
+        print("[Council] Parakeet transducer unloaded from VRAM.")
+
+    def unload_parakeet_and_ctc(self):
+        """Unloads Parakeet and Conformer models and frees VRAM."""
+        self.unload_conformer()
+        self.unload_parakeet()
 
     def unload_members(self):
         """Unloads all models to free VRAM."""
