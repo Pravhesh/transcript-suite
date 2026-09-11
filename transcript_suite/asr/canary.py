@@ -177,6 +177,50 @@ class CanaryQwenTranscriber:
 
         raise RuntimeError("Loaded model does not support transcription generation.")
 
+    def transcribe_waveform_chunk(self, chunk_waveform: torch.Tensor, sr: int = 16000) -> str:
+        """
+        Transcribes an audio chunk directly from a PyTorch tensor in memory.
+        Bypasses disk I/O, temporary WAV files, and Lhotse audio reloading.
+        """
+        if not self._is_loaded:
+            self.load_model()
+
+        if hasattr(self.model, "audio_locator_tag"):
+            prompt = [[{
+                "role": "user",
+                "content": f"Transcribe the following: {self.model.audio_locator_tag}"
+            }]]
+            # Audio input for perception: float32 on target device
+            if chunk_waveform.ndim == 1:
+                audio_tensor = chunk_waveform.unsqueeze(0).to(device=self.device, dtype=torch.float32)
+            else:
+                audio_tensor = chunk_waveform.to(device=self.device, dtype=torch.float32)
+            audio_lens = torch.tensor([audio_tensor.shape[1]], dtype=torch.int64, device=self.device)
+
+            autocast_device = "cuda" if self.device.startswith("cuda") and torch.cuda.is_available() else "cpu"
+            with torch.inference_mode(), torch.autocast(device_type=autocast_device, dtype=self.dtype if autocast_device == "cuda" else torch.float32):
+                answer_ids = self.model.generate(
+                    prompts=prompt,
+                    audios=audio_tensor,
+                    audio_lens=audio_lens,
+                    max_new_tokens=256
+                )
+                if hasattr(self.model, "tokenizer"):
+                    text = self.model.tokenizer.ids_to_text(answer_ids[0].cpu())
+                else:
+                    text = str(answer_ids)
+            return text.strip()
+
+        # Fallback if model doesn't support audio tensor input directly
+        import tempfile
+        import soundfile as sf
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+            wav_data = chunk_waveform.squeeze(0).cpu().numpy()
+            sf.write(tf.name, wav_data, sr, subtype="PCM_16")
+            res = self.transcribe_chunk(tf.name)
+            Path(tf.name).unlink(missing_ok=True)
+            return res
+
     def unload_model(self):
         """
         Unloads Canary-Qwen model and releases all VRAM and system RAM.
@@ -198,7 +242,8 @@ class CanaryQwenTranscriber:
         stop_event: Optional[any] = None
     ) -> List[dict]:
         """
-        Transcribes audio segments sequentially with VRAM cache flushing and pause/stop support.
+        Transcribes audio segments sequentially with in-memory tensor slices,
+        VRAM cache flushing, and pause/stop support.
         """
         if not self._is_loaded:
             self.load_model()
@@ -206,57 +251,58 @@ class CanaryQwenTranscriber:
         results = []
         import time
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
+        for idx, seg in enumerate(segments):
+            # 1. Check for Stop / Cancel
+            if stop_event and stop_event.is_set():
+                raise InterruptedError("Transcription stopped by user.")
 
-            for idx, seg in enumerate(segments):
-                # 1. Check for Stop / Cancel
-                if stop_event and stop_event.is_set():
-                    raise InterruptedError("Transcription stopped by user.")
+            # 2. Check for Pause
+            if pause_event:
+                while not pause_event.is_set():
+                    if stop_event and stop_event.is_set():
+                        raise InterruptedError("Transcription stopped by user.")
+                    time.sleep(0.2)
 
-                # 2. Check for Pause
-                if pause_event:
-                    while not pause_event.is_set():
-                        if stop_event and stop_event.is_set():
-                            raise InterruptedError("Transcription stopped by user.")
-                        time.sleep(0.2)
+            # In-memory slice — NO DISK WRITE
+            start_sample = max(0, int(seg.start * sr))
+            end_sample = min(waveform.shape[1], int(seg.end * sr))
+            chunk_slice = waveform[:, start_sample:end_sample]
 
-                # Save slice to temporary wav
-                start_sample = max(0, int(seg.start * sr))
-                end_sample = min(waveform.shape[1], int(seg.end * sr))
-                slice_data = waveform[:, start_sample:end_sample].squeeze(0).cpu().numpy()
-
-                chunk_file = tmp_path / f"chunk_{idx:05d}.wav"
-                sf.write(str(chunk_file), slice_data, sr, subtype="PCM_16")
-
-                # Transcribe
-                self.vram_manager.assert_safe_headroom()
+            # Transcribe directly in memory
+            try:
+                text = self.transcribe_waveform_chunk(chunk_slice, sr=sr)
+            except Exception as e:
+                # Fallback to disk WAV slice only if direct tensor generation encounters an issue
                 try:
-                    text = self.transcribe_chunk(chunk_file)
-                except Exception as e:
-                    print(f"[Canary-Qwen Warning] Chunk {idx} transcription error: {e}")
+                    import tempfile
+                    import soundfile as sf
+                    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+                        sf.write(tf.name, chunk_slice.squeeze(0).cpu().numpy(), sr, subtype="PCM_16")
+                        text = self.transcribe_chunk(tf.name)
+                        Path(tf.name).unlink(missing_ok=True)
+                except Exception as e2:
+                    print(f"[Canary-Qwen Warning] Chunk {idx} error: {e2}")
                     text = ""
 
-                seg.text = text
+            seg.text = text
 
-                # Clean temporary file
-                chunk_file.unlink(missing_ok=True)
-
-                # Memory cleanup interval (aggressive)
+            # Memory cleanup every 10 chunks to prevent memory buildup
+            if (idx + 1) % 10 == 0:
                 self.vram_manager.clear_cache()
 
-                seg_dict = seg.to_dict() if hasattr(seg, "to_dict") else {
-                    "start": seg.start,
-                    "end": seg.end,
-                    "duration": seg.duration,
-                    "speaker": getattr(seg, "speaker", "Speaker 0"),
-                    "text": text
-                }
-                results.append(seg_dict)
+            seg_dict = seg.to_dict() if hasattr(seg, "to_dict") else {
+                "start": seg.start,
+                "end": seg.end,
+                "duration": seg.duration,
+                "speaker": getattr(seg, "speaker", "Speaker 0"),
+                "text": text
+            }
+            results.append(seg_dict)
 
-                if progress_callback:
-                    progress_callback(idx + 1, len(segments), seg_dict)
+            if progress_callback:
+                progress_callback(idx + 1, len(segments), seg_dict)
 
         self.vram_manager.clear_cache()
         return results
+
 

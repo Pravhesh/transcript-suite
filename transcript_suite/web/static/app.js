@@ -22,6 +22,7 @@ const vramBarFill = document.getElementById("vramBarFill");
 const vramText = document.getElementById("vramText");
 const ramBarFill = document.getElementById("ramBarFill");
 const ramText = document.getElementById("ramText");
+const appRamText = document.getElementById("appRamText");
 
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
@@ -96,10 +97,15 @@ async function fetchMemoryStats() {
     if (!res.ok) return;
     const data = await res.json();
     
+    // App RAM (Process RSS)
+    if (appRamText && data.proc_ram_used_gb !== undefined) {
+      appRamText.innerText = `${data.proc_ram_used_gb.toFixed(2)} GB`;
+    }
+
     // System RAM
     if (data.sys_ram_total_gb > 0) {
       ramBarFill.style.width = `${data.sys_ram_percent}%`;
-      ramText.innerText = `${data.sys_ram_used_gb} / ${data.sys_ram_total_gb} GB (${data.sys_ram_percent}%)`;
+      ramText.innerText = `${data.sys_ram_used_gb} / ${data.sys_ram_total_gb} GB`;
     }
 
     // GPU VRAM
@@ -804,6 +810,7 @@ const btnClearTelemetry = document.getElementById("btnClearTelemetry");
 
 const traceActiveTask = document.getElementById("traceActiveTask");
 const traceCurrentStage = document.getElementById("traceCurrentStage");
+const traceLiveAppRam = document.getElementById("traceLiveAppRam");
 const traceLiveRam = document.getElementById("traceLiveRam");
 const traceLiveVram = document.getElementById("traceLiveVram");
 const tracePeakMem = document.getElementById("tracePeakMem");
@@ -914,6 +921,9 @@ function renderTrace(data) {
     traceCurrentStage.innerText = activeTask ? (activeTask.stage || "In progress") : "Ready";
   }
 
+  if (traceLiveAppRam) {
+    traceLiveAppRam.innerText = `${(current.proc_ram_used_gb || 0).toFixed(2)} GB`;
+  }
   if (traceLiveRam && current.sys_ram_total_gb > 0) {
     traceLiveRam.innerText = `${current.sys_ram_used_gb} / ${current.sys_ram_total_gb} GB (${current.sys_ram_percent}%)`;
   }
@@ -926,15 +936,17 @@ function renderTrace(data) {
   }
 
   // Calculate Peaks
+  let peakAppRam = 0;
   let peakRam = 0;
   let peakVram = 0;
   cachedTraceSamples.forEach(s => {
+    if ((s.proc_ram_used_gb || 0) > peakAppRam) peakAppRam = s.proc_ram_used_gb;
     if (s.ram_used_gb > peakRam) peakRam = s.ram_used_gb;
     if (s.vram_alloc_gb > peakVram) peakVram = s.vram_alloc_gb;
     if (s.vram_reserved_gb > peakVram) peakVram = s.vram_reserved_gb;
   });
   if (tracePeakMem) {
-    tracePeakMem.innerText = `${peakVram.toFixed(2)} GB VRAM / ${peakRam.toFixed(2)} GB RAM`;
+    tracePeakMem.innerText = `${peakVram.toFixed(2)} GB VRAM / ${peakAppRam.toFixed(2)} GB App (${peakRam.toFixed(1)} GB Sys)`;
   }
 
   // Render Table Rows
@@ -959,9 +971,10 @@ function renderTrace(data) {
           <td style="color: var(--text-muted);">${s.time_str || (s.timestamp ? s.timestamp.slice(11, 19) : '')}</td>
           <td style="color: var(--text-secondary); font-weight: 500;">${elapsedFmt}</td>
           <td title="${s.task_id || ''}" style="max-width: 160px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(taskDisplay)}</td>
-          <td style="max-width: 240px; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary);">${escapeHtml(s.stage || '')}</td>
-          <td><strong>${s.ram_used_gb.toFixed(2)}</strong> / ${s.ram_total_gb.toFixed(1)} GB (${s.ram_pct}%)</td>
-          <td><strong>${s.vram_alloc_gb.toFixed(2)}</strong> / ${s.vram_total_gb.toFixed(1)} GB (${s.vram_pct}%)</td>
+          <td style="max-width: 220px; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary);">${escapeHtml(s.stage || '')}</td>
+          <td style="color: var(--accent-light); font-weight: 600;">${(s.proc_ram_used_gb || 0).toFixed(2)} GB</td>
+          <td><strong>${s.ram_used_gb.toFixed(2)}</strong> / ${s.ram_total_gb.toFixed(1)} GB</td>
+          <td><strong>${s.vram_alloc_gb.toFixed(2)}</strong> / ${s.vram_total_gb.toFixed(1)} GB</td>
           <td><span class="trace-status-pill ${statusClass}">${escapeHtml(s.status || 'idle')}</span></td>
         </tr>
       `;

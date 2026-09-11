@@ -28,13 +28,20 @@ class VRAMManager:
             "free_gb": 0.0,
             "percent_used": 0.0,
             "device_name": "CPU",
+            "proc_ram_used_gb": 0.0,
             "sys_ram_total_gb": 0.0,
             "sys_ram_used_gb": 0.0,
             "sys_ram_free_gb": 0.0,
             "sys_ram_percent": 0.0
         }
 
-        # System RAM via psutil
+        # Process RSS (actual RAM consumed by this process) and System RAM
+        try:
+            proc = psutil.Process()
+            stats["proc_ram_used_gb"] = round(proc.memory_info().rss / (1024 ** 3), 2)
+        except Exception:
+            pass
+
         try:
             mem = psutil.virtual_memory()
             stats["sys_ram_total_gb"] = round(mem.total / (1024 ** 3), 2)
