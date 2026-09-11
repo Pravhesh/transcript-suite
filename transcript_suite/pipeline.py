@@ -53,6 +53,22 @@ class TranscriptionPipeline:
 
 
 
+
+    def _reclaim_memory(self):
+        """
+        Aggressively reclaims memory between pipeline stages.
+        Runs double gc pass, empties CUDA cache, and forces glibc to return pages to OS.
+        """
+        import gc
+        gc.collect()
+        gc.collect()  # Second pass catches ref cycles freed by first pass
+        self.vram_manager.clear_cache()
+        try:
+            import ctypes
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:
+            pass
+
     def _assign_speaker_to_segment(self, seg_start: float, seg_end: float, speaker_turns: List[SpeakerTurn]) -> str:
         """
         Determines the dominant speaker in a speech interval based on overlap duration.
@@ -115,6 +131,7 @@ class TranscriptionPipeline:
                 report("Applying GPU speech noise filter & vocal amplifier...", 0.08)
                 waveform = self.enhancer.enhance(waveform)
                 check_stop()
+            self._reclaim_memory()
 
             # Save processed waveform for UI playback and synchronization
             saved_processed_path = None
@@ -124,10 +141,14 @@ class TranscriptionPipeline:
                 import soundfile as sf
                 sf.write(str(out_p), waveform.squeeze(0).cpu().numpy(), sr, subtype="PCM_16")
                 saved_processed_path = str(out_p)
+            self._reclaim_memory()
 
             # 3. VAD speech segmentation
             report("Performing Voice Activity Detection (VAD)...", 0.16)
             speech_segments = self.vad.segment(waveform, duration)
+            # Unload VAD immediately — it's no longer needed
+            self.vad.unload_model()
+            self._reclaim_memory()
             check_stop()
 
             if not speech_segments:
@@ -157,7 +178,7 @@ class TranscriptionPipeline:
                     # Crucial RAM optimization: unload diarizer model immediately
                     if hasattr(self.diarizer, "unload_model"):
                         self.diarizer.unload_model()
-                    self.vram_manager.clear_cache()
+                    self._reclaim_memory()
             else:
                 speaker_turns = [SpeakerTurn(start=0.0, end=duration, speaker="Speaker 0")]
 

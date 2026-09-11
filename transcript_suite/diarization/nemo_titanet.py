@@ -46,18 +46,40 @@ class NeMoTitaNetDiarizer(BaseDiarizer):
 
     def unload_model(self):
         """
-        Unloads TitaNet model and trims memory.
+        Unloads TitaNet model and aggressively reclaims all memory.
+        Clears NeMo's internal model registry and Python JIT caches.
         """
         if self.model is not None:
+            # Move model to CPU first to free VRAM immediately
+            try:
+                self.model.cpu()
+            except Exception:
+                pass
             del self.model
             self.model = None
         self._is_loaded = False
+
+        # Clear NeMo's internal model registry (holds strong refs to all loaded models)
+        try:
+            from nemo.utils import model_utils
+            if hasattr(model_utils, '_MODEL_RESTORE_REGISTRY'):
+                model_utils._MODEL_RESTORE_REGISTRY.clear()
+        except Exception:
+            pass
+
+        # Clear PyTorch JIT caches
+        try:
+            torch.jit._state._python_cu.clear()
+        except Exception:
+            pass
+
         import gc
-        import ctypes
         gc.collect()
+        gc.collect()  # Second pass catches ref cycles freed by first pass
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         try:
+            import ctypes
             ctypes.CDLL("libc.so.6").malloc_trim(0)
         except Exception:
             pass

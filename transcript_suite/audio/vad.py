@@ -108,3 +108,17 @@ class SileroVADSegmenter:
                     sub_start = sub_end
 
         return refined_segments
+
+    def unload_model(self):
+        """Unloads Silero VAD model and frees associated memory."""
+        if self._model is not None:
+            del self._model
+            self._model = None
+        if self._utils is not None:
+            del self._utils
+            self._utils = None
+        import gc
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
