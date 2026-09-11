@@ -64,22 +64,20 @@ class GPUSpeechEnhancer:
         except Exception as e:
             print(f"[GPUSpeechEnhancer Warning] Spectral denoise fallback: {e}")
 
-        # 4. Smooth Automatic Gain Control (AGC) & Soft-Knee Limiter
+        # 4. Smooth Automatic Gain Control (AGC) & Linear Peak Normalization
         try:
             rms = torch.sqrt(torch.mean(audio.pow(2)) + 1e-8)
             if rms > 1e-4:
-                gain = torch.clamp(self.target_rms / rms, min=0.8, max=2.5)
+                gain = torch.clamp(0.06 / rms, min=0.8, max=2.0)
                 audio = audio * gain
 
-            # Soft-knee saturation (tanh above 0.80) to eliminate any harsh digital clipping
+            # Linear peak normalization: scales loud peaks cleanly without square-wave distortion
             peak = audio.abs().max()
-            if peak > 0.80:
-                scale = 0.80 + 0.15 * torch.tanh((audio.abs() - 0.80) / 0.15)
-                audio = torch.sign(audio) * scale
+            if peak > 0.90:
+                audio = audio * (0.90 / peak)
         except Exception:
             pass
 
-        audio = torch.clamp(audio, min=-0.98, max=0.98)
         return audio.to(orig_device)
 
     def _spectral_denoise(self, audio: torch.Tensor) -> torch.Tensor:

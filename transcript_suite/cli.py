@@ -130,7 +130,8 @@ def process(
 @app.command()
 def serve(
     host: str = typer.Option("127.0.0.1", "--host", "-h", help="Host address to bind"),
-    port: int = typer.Option(8000, "--port", "-p", help="Port to listen on")
+    port: int = typer.Option(8000, "--port", "-p", help="Port to listen on"),
+    reload: bool = typer.Option(False, "--reload", "-r", help="Enable auto-reload on code change")
 ):
     """Launches the nature-themed Web UI and FastAPI server."""
     import uvicorn
@@ -140,7 +141,7 @@ def serve(
         f"[dim]Theme: Foggy Woodland (Cloudy Day Forest)[/dim]",
         border_style="green"
     ))
-    uvicorn.run("transcript_suite.web.app:app", host=host, port=port, reload=False)
+    uvicorn.run("transcript_suite.web.app:app", host=host, port=port, reload=reload)
 
 
 if __name__ == "__main__":
