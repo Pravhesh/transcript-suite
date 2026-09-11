@@ -10,7 +10,7 @@ from typing import Optional
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 import typer
-from rich.console import Console
+from rich.console import Console, Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
@@ -146,6 +146,110 @@ def serve(
         border_style="green"
     ))
     uvicorn.run("transcript_suite.web.app:app", host=host, port=port, reload=reload)
+
+
+@app.command(name="monitor")
+def monitor(
+    host: str = typer.Option("127.0.0.1", "--host", "-h", help="Server host"),
+    port: int = typer.Option(8000, "--port", "-p", help="Server port"),
+    interval: float = typer.Option(1.0, "--interval", "-i", help="Refresh interval in seconds")
+):
+    """Live terminal tracker for running transcriptions, memory telemetry, and logs."""
+    import time
+    import urllib.request
+    import json
+    from rich.live import Live
+    from rich.text import Text
+
+    base_url = f"http://{host}:{port}"
+    console.print(f"[bold green]Connecting live monitor to {base_url}...[/bold green] [dim](Press Ctrl+C to exit)[/dim]\n")
+
+    def fetch_data():
+        try:
+            with urllib.request.urlopen(f"{base_url}/api/telemetry/trace?interval=1", timeout=2) as r:
+                trace = json.loads(r.read().decode())
+            with urllib.request.urlopen(f"{base_url}/api/telemetry/logs?limit=8", timeout=2) as r:
+                logs = json.loads(r.read().decode())
+            return trace, logs
+        except Exception:
+            return None, None
+
+    try:
+        with Live(console=console, screen=False, refresh_per_second=2) as live:
+            while True:
+                trace, logs = fetch_data()
+                if not trace:
+                    live.update(Panel(
+                        f"[yellow]Waiting for Transcript Suite server at {base_url}...[/yellow]\n[dim]Start server via: transcript-suite serve --port {port}[/dim]",
+                        title="[bold yellow]Server Offline[/bold yellow]",
+                        border_style="yellow"
+                    ))
+                    time.sleep(interval)
+                    continue
+
+                active = trace.get("active_task")
+                curr = trace.get("current", {})
+
+                # Main Task & Hardware Stats Table
+                table = Table(show_header=False, box=None, expand=True)
+                table.add_column("Key", style="bold cyan", width=18)
+                table.add_column("Value")
+
+                if active:
+                    prog = int((active.get("progress") or 0.0) * 100)
+                    filename = active.get("filename", "Unknown")
+                    stage = active.get("stage", "Processing")
+                    table.add_row("Active Task:", f"[bold white]{filename}[/bold white] [dim]({active.get('id', '')[:8]}...)[/dim]")
+                    table.add_row("Pipeline Stage:", f"[bold yellow]{stage}[/bold yellow] ({prog}%)")
+                    filled = int(prog / 5)
+                    bar = "█" * filled + "░" * (20 - filled)
+                    table.add_row("Stage Progress:", f"[bold green]{bar}[/bold green] {prog}%")
+                else:
+                    table.add_row("Pipeline Status:", "[dim green]● System Idle (No active transcription running)[/dim green]")
+
+                app_ram = curr.get("proc_ram_used_gb", 0.0)
+                sys_ram = curr.get("sys_ram_used_gb", 0.0)
+                sys_total = curr.get("sys_ram_total_gb", 15.3)
+                sys_pct = curr.get("sys_ram_percent", 0.0)
+                vram_alloc = curr.get("allocated_gb", 0.0)
+                vram_res = curr.get("reserved_gb", 0.0)
+                vram_total = curr.get("total_gb", 7.6)
+
+                table.add_row("App RAM (RSS):", f"[bold green]{app_ram:.2f} GB[/bold green]")
+                table.add_row("System RAM:", f"{sys_ram:.1f} / {sys_total:.1f} GB ({sys_pct}%)")
+                table.add_row("GPU VRAM:", f"[bold cyan]{vram_alloc:.2f}G[/bold cyan] ({vram_res:.1f}G reserved) / {vram_total:.1f} GB")
+
+                # Recent Logs Table
+                log_table = Table(title="Live Execution Logs", show_header=True, header_style="bold dim", box=None, expand=True)
+                log_table.add_column("Time", width=10, style="dim")
+                log_table.add_column("Level", width=8)
+                log_table.add_column("Message")
+
+                if logs and "logs" in logs:
+                    for entry in logs["logs"][-6:]:
+                        lvl = entry.get("level", "INFO")
+                        lvl_style = "green" if lvl == "STAGE" else "cyan" if lvl == "CHUNK" else "yellow" if lvl == "WARN" else "red" if lvl == "ERROR" else "white"
+                        log_table.add_row(entry.get("time_str", "--"), f"[{lvl_style}]{lvl}[/{lvl_style}]", entry.get("message", ""))
+
+                panel = Panel(
+                    Group(table, Text(""), log_table),
+                    title="[bold green]Transcript Suite - Live Terminal Monitor[/bold green]",
+                    border_style="green"
+                )
+                live.update(panel)
+                time.sleep(interval)
+    except KeyboardInterrupt:
+        console.print("\n[dim]Monitor stopped.[/dim]")
+
+
+@app.command(name="track")
+def track(
+    host: str = typer.Option("127.0.0.1", "--host", "-h", help="Server host"),
+    port: int = typer.Option(8000, "--port", "-p", help="Server port"),
+    interval: float = typer.Option(1.0, "--interval", "-i", help="Refresh interval in seconds")
+):
+    """Alias for monitor: live terminal tracker for transcriptions."""
+    monitor(host=host, port=port, interval=interval)
 
 
 if __name__ == "__main__":
