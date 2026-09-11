@@ -61,15 +61,16 @@ def transcribe(
     speaker_labels: bool = typer.Option(True, "--speaker-labels/--no-speaker-labels", help="Enable speaker diarization"),
     enhancer: bool = typer.Option(True, "--enhancer/--no-enhancer", help="Enable GPU speech noise filter & vocal amplifier"),
     ambiguity_resolver: bool = typer.Option(True, "--ambiguity-resolver/--no-ambiguity-resolver", help="Enable auto-slowdown for ambiguous audio frames"),
+    council: bool = typer.Option(True, "--council/--no-council", help="Enable Multi-Model Inference Council (Canary + Whisper + Conformer)"),
     hf_token: Optional[str] = typer.Option(None, "--hf-token", help="Hugging Face token (required if using pyannote)"),
     timestamps: bool = typer.Option(True, "--timestamps/--no-timestamps", help="Include timestamps in output")
 ):
-    """Transcribes an audio file with speaker diarization, GPU speech enhancement, and ambiguity resolution."""
+    """Transcribes an audio file with speaker diarization, GPU speech enhancement, and Multi-Model Council."""
     if not audio_file.exists():
         console.print(f"[bold red]Error:[/bold red] Audio file not found: {audio_file}")
         raise typer.Exit(1)
 
-    console.print(Panel(f"[bold cyan]Transcribing:[/bold cyan] {audio_file.name}\n[dim]Diarizer: {diarizer} | Enhancer: {enhancer} | Ambiguity Resolver: {ambiguity_resolver}[/dim]", border_style="cyan"))
+    console.print(Panel(f"[bold cyan]Transcribing:[/bold cyan] {audio_file.name}\n[dim]Diarizer: {diarizer} | Enhancer: {enhancer} | Council: {council}[/dim]", border_style="cyan"))
 
     from .pipeline import TranscriptionPipeline
     pipeline = TranscriptionPipeline(diarizer_type=diarizer, hf_token=hf_token)
@@ -93,6 +94,7 @@ def transcribe(
             enable_diarization=speaker_labels,
             enable_enhancer=enhancer,
             enable_ambiguity_resolver=ambiguity_resolver,
+            enable_council=council,
             progress_callback=on_progress
         )
 
