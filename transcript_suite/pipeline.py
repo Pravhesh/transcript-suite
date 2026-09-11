@@ -15,6 +15,7 @@ from .audio.enhancer import GPUSpeechEnhancer
 from .asr.canary import CanaryQwenTranscriber
 from .asr.memory import VRAMManager
 from .asr.ambiguity import AmbiguityResolver
+from .asr.council import ModelCouncil
 from .diarization.nemo_titanet import NeMoTitaNetDiarizer
 from .diarization.pyannote import PyAnnoteDiarizer
 from .diarization.base import SpeakerTurn
@@ -43,6 +44,7 @@ class TranscriptionPipeline:
             device=config.device,
             dtype=config.dtype
         )
+        self.council = ModelCouncil(canary_transcriber=self.transcriber, device=config.device)
         self.vram_manager = VRAMManager()
         
         # Select diarizer route
@@ -97,6 +99,7 @@ class TranscriptionPipeline:
         enable_diarization: bool = True,
         enable_enhancer: bool = True,
         enable_ambiguity_resolver: bool = True,
+        enable_council: bool = True,
         speaker_aliases: Optional[Dict[str, str]] = None,
         progress_callback: Optional[Callable[[str, float, Optional[Dict[str, Any]]], None]] = None,
         pause_event: Optional[any] = None,
@@ -198,43 +201,96 @@ class TranscriptionPipeline:
             for seg in speech_segments:
                 seg.speaker = self._assign_speaker_to_segment(seg.start, seg.end, speaker_turns)
 
-            # 5. Canary-Qwen ASR Transcription
-            report("Transcribing speech chunks with Canary-Qwen-2.5B...", 0.38)
+            # 5. Multi-Model Inference Council Transcription
             total_chunks = len(speech_segments)
+            transcribed_segments = []
 
-            def asr_progress(current_idx: int, total_idx: int, seg_dict: Dict[str, Any]):
-                check_stop()
-                frac = 0.38 + (current_idx / total_idx) * 0.50
-                report(f"Transcribed chunk {current_idx}/{total_idx}", frac, seg_dict)
-
-            transcribed_segments = self.transcriber.transcribe_waveform_segments(
-                waveform=waveform,
-                segments=speech_segments,
-                sr=sr,
-                progress_callback=asr_progress,
-                pause_event=pause_event,
-                stop_event=stop_event
-            )
-
-            check_stop()
-
-            # 6. Adaptive Ambiguity Resolution (Auto-slow tricky frames & flag unresolved for human review)
-            if enable_ambiguity_resolver:
-                report("Evaluating ambiguity & auto-slowing tricky audio frames...", 0.90)
-                for idx, seg in enumerate(transcribed_segments):
+            if enable_council:
+                report("Deliberating with Multi-Model Council (Canary + Whisper-Small + Conformer)...", 0.38)
+                for idx, seg in enumerate(speech_segments):
                     check_stop()
-                    seg = self.ambiguity_resolver.evaluate_and_resolve(
-                        waveform=waveform,
-                        seg=seg,
-                        transcribe_fn=self.transcriber.transcribe_chunk,
+                    if pause_event:
+                        while not pause_event.is_set():
+                            if stop_event and stop_event.is_set():
+                                raise InterruptedError("Transcription stopped by user.")
+                            time.sleep(0.2)
+
+                    start_sample = max(0, int(seg.start * sr))
+                    end_sample = min(waveform.shape[1], int(seg.end * sr))
+                    chunk_slice = waveform[:, start_sample:end_sample]
+
+                    # Juror 1: Canary-Qwen
+                    try:
+                        canary_h = self.transcriber.transcribe_waveform_chunk(chunk_slice, sr=sr)
+                    except Exception as e:
+                        print(f"[Pipeline Warning] Canary chunk {idx} error: {e}")
+                        canary_h = ""
+
+                    # Council Deliberation (Whisper-Small + Conformer-CTC + Auditor)
+                    delib = self.council.deliberate_waveform_segment(
+                        waveform_slice=chunk_slice,
                         sr=sr,
-                        output_chunks_dir=chunks_dir,
-                        seg_idx=idx
+                        canary_text=canary_h,
+                        seg_idx=idx,
+                        chunks_dir=Path(chunks_dir) if chunks_dir else None
                     )
 
+                    seg_dict = {
+                        "start": round(seg.start, 2),
+                        "end": round(seg.end, 2),
+                        "duration": round(seg.duration, 2),
+                        "speaker": getattr(seg, "speaker", "Speaker 0"),
+                        "text": delib.verdict,
+                        "council": delib.to_dict(),
+                        "needs_review": delib.needs_human_review,
+                        "ambiguity_score": round(1.0 - delib.consensus_score, 3)
+                    }
+                    transcribed_segments.append(seg_dict)
+
+                    if (idx + 1) % 5 == 0:
+                        self.vram_manager.clear_cache()
+
+                    frac = 0.38 + ((idx + 1) / total_chunks) * 0.55
+                    report(f"Council deliberated chunk {idx + 1}/{total_chunks}: {delib.agreement_type}", frac, seg_dict)
+
+            else:
+                # Fallback: Canary-Qwen solo transcription
+                report("Transcribing speech chunks with Canary-Qwen-2.5B...", 0.38)
+
+                def asr_progress(current_idx: int, total_idx: int, seg_dict: Dict[str, Any]):
+                    check_stop()
+                    frac = 0.38 + (current_idx / total_idx) * 0.50
+                    report(f"Transcribed chunk {current_idx}/{total_idx}", frac, seg_dict)
+
+                transcribed_segments = self.transcriber.transcribe_waveform_segments(
+                    waveform=waveform,
+                    segments=speech_segments,
+                    sr=sr,
+                    progress_callback=asr_progress,
+                    pause_event=pause_event,
+                    stop_event=stop_event
+                )
+
+                check_stop()
+
+                if enable_ambiguity_resolver:
+                    report("Evaluating ambiguity & auto-slowing tricky audio frames...", 0.90)
+                    for idx, seg in enumerate(transcribed_segments):
+                        check_stop()
+                        seg = self.ambiguity_resolver.evaluate_and_resolve(
+                            waveform=waveform,
+                            seg=seg,
+                            transcribe_fn=self.transcriber.transcribe_chunk,
+                            sr=sr,
+                            output_chunks_dir=chunks_dir,
+                            seg_idx=idx
+                        )
+
             check_stop()
 
-            # Unload Canary-Qwen model right after transcription & ambiguity resolution are done
+            # Unload models after transcription is complete to free VRAM
+            if hasattr(self, "council") and hasattr(self.council, "unload_members"):
+                self.council.unload_members()
             if hasattr(self.transcriber, "unload_model"):
                 self.transcriber.unload_model()
             self.vram_manager.clear_cache()
@@ -265,6 +321,8 @@ class TranscriptionPipeline:
                 "elapsed_seconds": elapsed
             }
         finally:
+            if hasattr(self, "council") and hasattr(self.council, "unload_members"):
+                self.council.unload_members()
             if hasattr(self.transcriber, "unload_model"):
                 self.transcriber.unload_model()
             self.vram_manager.clear_cache()

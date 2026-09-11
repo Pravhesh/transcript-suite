@@ -1333,3 +1333,222 @@ main {
   flex-shrink: 0;
 }
 
+/* ==========================================================================
+   Clear Cache Header & Council Deliberation Styles
+   ========================================================================== */
+
+.btn-clear-cache-header {
+  background-color: rgba(87, 70, 58, 0.35);
+  border: 1px solid rgba(171, 151, 138, 0.35);
+  color: #d1c2b8;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-clear-cache-header:hover {
+  background-color: rgba(87, 70, 58, 0.6);
+  border-color: rgba(171, 151, 138, 0.6);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.btn-clear-cache-header:active {
+  transform: translateY(0);
+}
+
+/* Council Badges */
+.badge-council {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
+}
+
+.badge-council-unanimous {
+  background-color: rgba(60, 115, 75, 0.25);
+  border: 1px solid rgba(60, 115, 75, 0.45);
+  color: #8ce2a3;
+}
+
+.badge-council-majority {
+  background-color: rgba(68, 89, 107, 0.25);
+  border: 1px solid rgba(68, 89, 107, 0.45);
+  color: #9ec5e6;
+}
+
+.badge-council-ctc {
+  background-color: rgba(20, 184, 166, 0.2);
+  border: 1px solid rgba(20, 184, 166, 0.4);
+  color: #5eead4;
+}
+
+.badge-council-split {
+  background-color: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  color: #fcd34d;
+}
+
+.btn-council-toggle {
+  background: none;
+  border: 1px solid var(--border-dim);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-council-toggle:hover {
+  background-color: var(--bg-surface-hover);
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+
+.btn-council-toggle.active {
+  background-color: rgba(77, 102, 85, 0.3);
+  border-color: var(--accent-pine);
+  color: #8ce2a3;
+}
+
+/* Council Deliberation Drawer */
+.council-drawer {
+  margin-top: 10px;
+  background-color: rgba(10, 13, 11, 0.85);
+  border: 1px solid var(--border-dim);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.council-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-dim);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.council-votes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.council-vote-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background-color: rgba(21, 27, 23, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.council-vote-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 170px;
+  flex-shrink: 0;
+}
+
+.council-vote-member {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.council-vote-role {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.council-vote-text {
+  flex-grow: 1;
+  color: var(--text-secondary);
+  font-style: italic;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-adopt-hyp {
+  background-color: rgba(77, 102, 85, 0.3);
+  border: 1px solid rgba(77, 102, 85, 0.5);
+  color: #a3d9b1;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.btn-adopt-hyp:hover {
+  background-color: rgba(77, 102, 85, 0.6);
+  color: #fff;
+}
+
+.council-disputed-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border-dim);
+}
+
+.council-disputed-label {
+  color: #fcd34d;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.council-token-chip {
+  background-color: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fde68a;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.council-notes-text {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.filter-disputed {
+  border-color: rgba(245, 158, 11, 0.4) !important;
+  color: #fcd34d !important;
+}
+
+.filter-disputed.active {
+  background-color: rgba(245, 158, 11, 0.25) !important;
+  border-color: #f59e0b !important;
+  color: #fff !important;
+}
+
+

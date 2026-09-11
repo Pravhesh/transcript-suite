@@ -8,6 +8,8 @@ import asyncio
 import io
 import csv
 import time
+import gc
+import torch
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, Response, Query
@@ -149,6 +151,31 @@ async def get_vram():
     return vram_manager.get_stats()
 
 
+@app.post("/api/memory/clear")
+async def clear_system_memory():
+    """
+    Manually triggers proactive memory cleanup:
+    - Runs 2 gc collection passes
+    - Clears PyTorch CUDA cached memory and IPC memory
+    - Calls malloc_trim(0) to release glibc heap pages directly back to Linux OS
+    """
+    import gc
+    gc.collect()
+    gc.collect()
+    vram_manager.clear_cache()
+    if torch.cuda.is_available():
+        torch.cuda.ipc_collect()
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
+    stats = vram_manager.get_stats()
+    add_log(None, "MEM", f"Proactive memory trim: Cache flushed, heap trimmed back to OS. Free VRAM: {stats.get('free_gb', 0)} GB, System RAM used: {stats.get('sys_ram_used_gb', 0)} GB.", stats)
+    add_trace_sample()
+    return {"status": "cleared", "stats": stats}
+
+
 @app.post("/api/transcribe")
 async def create_transcription_task(
     background_tasks: BackgroundTasks,
@@ -157,6 +184,7 @@ async def create_transcription_task(
     speaker_labels: bool = Form(True),
     enable_enhancer: bool = Form(True),
     enable_ambiguity: bool = Form(True),
+    enable_council: bool = Form(True),
     hf_token: Optional[str] = Form(None)
 ):
     """
@@ -208,6 +236,7 @@ async def create_transcription_task(
         speaker_labels=speaker_labels,
         enable_enhancer=enable_enhancer,
         enable_ambiguity=enable_ambiguity,
+        enable_council=enable_council,
         hf_token=hf_token
     )
 
@@ -254,6 +283,8 @@ async def stop_task(task_id: str):
         ctrl["pause_event"].set()  # Unblock if currently paused
         if ctrl.get("pipeline") and hasattr(ctrl["pipeline"].transcriber, "unload_model"):
             ctrl["pipeline"].transcriber.unload_model()
+        if ctrl.get("pipeline") and hasattr(ctrl["pipeline"], "council") and hasattr(ctrl["pipeline"].council, "unload_members"):
+            ctrl["pipeline"].council.unload_members()
 
     vram_manager.clear_cache()
 
@@ -272,13 +303,14 @@ def run_transcription_worker(
     speaker_labels: bool,
     enable_enhancer: bool,
     enable_ambiguity: bool,
+    enable_council: bool,
     hf_token: Optional[str]
 ):
     ctrl = TASK_CONTROLS.get(task_id)
     pause_evt = ctrl["pause_event"] if ctrl else None
     stop_evt = ctrl["stop_event"] if ctrl else None
 
-    add_log(task_id, "INFO", f"Pipeline starting: Diarizer={diarizer}, GPU Enhancer={enable_enhancer}, Ambiguity Resolver={enable_ambiguity}")
+    add_log(task_id, "INFO", f"Pipeline starting: Diarizer={diarizer}, GPU Enhancer={enable_enhancer}, Ambiguity Resolver={enable_ambiguity}, Council={enable_council}")
     pipeline = TranscriptionPipeline(diarizer_type=diarizer, hf_token=hf_token)
     if ctrl:
         ctrl["pipeline"] = pipeline
@@ -296,7 +328,7 @@ def run_transcription_worker(
             
             # Identify log level
             stage_l = stage.lower()
-            lvl = "CHUNK" if ("chunk" in stage_l and "transcribed" in stage_l) else "STAGE"
+            lvl = "CHUNK" if ("chunk" in stage_l and ("transcribed" in stage_l or "council" in stage_l)) else "STAGE"
             add_log(task_id, lvl, f"{stage} [{round(frac * 100, 1)}%]", stats)
             add_trace_sample(task_id)
 
@@ -313,6 +345,7 @@ def run_transcription_worker(
             enable_diarization=speaker_labels,
             enable_enhancer=enable_enhancer,
             enable_ambiguity_resolver=enable_ambiguity,
+            enable_council=enable_council,
             progress_callback=on_progress,
             pause_event=pause_evt,
             stop_event=stop_evt,
@@ -350,8 +383,11 @@ def run_transcription_worker(
         add_trace_sample(task_id)
     finally:
         # Aggressive memory cleanup when worker finishes or stops
-        if ctrl and ctrl.get("pipeline") and hasattr(ctrl["pipeline"].transcriber, "unload_model"):
-            ctrl["pipeline"].transcriber.unload_model()
+        if ctrl and ctrl.get("pipeline"):
+            if hasattr(ctrl["pipeline"].transcriber, "unload_model"):
+                ctrl["pipeline"].transcriber.unload_model()
+            if hasattr(ctrl["pipeline"], "council") and hasattr(ctrl["pipeline"].council, "unload_members"):
+                ctrl["pipeline"].council.unload_members()
         vram_manager.clear_cache()
         add_log(task_id, "MEM", "Task worker terminated: models unloaded, caches cleared, heap trimmed.")
         add_trace_sample(task_id)

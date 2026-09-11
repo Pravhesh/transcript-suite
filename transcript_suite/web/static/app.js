@@ -173,6 +173,8 @@ btnStart.addEventListener("click", async () => {
   formData.append("speaker_labels", speakerLabelsCheckbox.checked);
   formData.append("enable_enhancer", voiceEnhancerCheckbox ? voiceEnhancerCheckbox.checked : true);
   formData.append("enable_ambiguity", ambiguityCheckbox ? ambiguityCheckbox.checked : true);
+  const councilCheckbox = document.getElementById("councilCheckbox");
+  formData.append("enable_council", councilCheckbox ? councilCheckbox.checked : true);
 
   try {
     const res = await fetch("/api/transcribe", { method: "POST", body: formData });
@@ -245,6 +247,16 @@ async function pollTaskStatus(taskId) {
 
       progressFill.style.width = `${data.progress}%`;
       progressPercentage.innerText = `${Math.round(data.progress)}%`;
+
+      // Live online per-segment rendering as chunks complete
+      if (data.segments && data.segments.length > 0) {
+        if (currentSegments.length !== data.segments.length) {
+          currentSegments = data.segments;
+          transcriptCard.style.display = "block";
+          renderSpeakerFilters();
+          renderTranscriptFeed();
+        }
+      }
 
       if (data.status === "completed") {
         clearInterval(pollTimer);
@@ -567,6 +579,8 @@ function getSpeakerClass(speaker) {
   return `spk-${num}`;
 }
 
+const expandedCouncilSet = new Set();
+
 function renderTranscriptFeed() {
   transcriptFeed.innerHTML = "";
   const query = searchInput.value.toLowerCase();
@@ -577,6 +591,8 @@ function renderTranscriptFeed() {
 
     if (activeSpeakerFilter === "REVIEW") {
       if (!seg.needs_review) return;
+    } else if (activeSpeakerFilter === "DISPUTED") {
+      if (!seg.council || seg.council.agreement_type !== "SPLIT_DECISION") return;
     } else if (activeSpeakerFilter !== "ALL" && rawSpeaker !== activeSpeakerFilter) {
       return;
     }
@@ -601,6 +617,78 @@ function renderTranscriptFeed() {
       badgeExtras += `<span class="badge-review" title="High ambiguity persisted after slowdown. Review recommended.">⚠️ Needs Review</span>`;
     }
 
+    // Council deliberation badge & drawer
+    let councilBadge = "";
+    let councilToggleBtn = "";
+    let councilDrawerHtml = "";
+
+    if (seg.council) {
+      const agreeType = seg.council.agreement_type || "MAJORITY";
+      const scorePct = Math.round((seg.council.consensus_score || 0.85) * 100);
+      const isExpanded = expandedCouncilSet.has(index);
+
+      if (agreeType === "UNANIMOUS") {
+        councilBadge = `<span class="badge-council badge-council-unanimous" title="${seg.council.deliberation_notes || 'All models agreed'}">⚖️ 100% Unanimous</span>`;
+      } else if (agreeType === "CTC_ANCHORED") {
+        councilBadge = `<span class="badge-council badge-council-ctc" title="${seg.council.deliberation_notes || 'Non-speech verified by CTC'}">⚓ CTC Anchored</span>`;
+      } else if (agreeType === "MAJORITY") {
+        councilBadge = `<span class="badge-council badge-council-majority" title="${seg.council.deliberation_notes || 'Majority consensus'}">⚖️ Majority (${scorePct}%)</span>`;
+      } else {
+        councilBadge = `<span class="badge-council badge-council-split" title="${seg.council.deliberation_notes || 'Split decision across jurors'}">⚖️ Split Decision</span>`;
+      }
+
+      councilToggleBtn = `<button class="btn-council-toggle ${isExpanded ? 'active' : ''}" data-index="${index}">🏛️ Jury (${seg.council.votes ? seg.council.votes.length : 3}) ${isExpanded ? '▴' : '▾'}</button>`;
+
+      if (isExpanded) {
+        let votesHtml = "";
+        (seg.council.votes || []).forEach((v) => {
+          let roleIcon = "🤖";
+          if (v.role && v.role.includes("Lead")) roleIcon = "🏛️";
+          else if (v.role && v.role.includes("Anchor")) roleIcon = "⚓";
+          else if (v.role && v.role.includes("Auditor")) roleIcon = "🐢";
+
+          const confPct = Math.round((v.confidence || 0.8) * 100);
+          votesHtml += `
+            <div class="council-vote-row">
+              <div class="council-vote-meta">
+                <span>${roleIcon}</span>
+                <span class="council-vote-member">${v.member}</span>
+                <span class="council-vote-role">(${v.role})</span>
+                <span class="badge-stage" style="font-size: 10px;">${confPct}%</span>
+              </div>
+              <div class="council-vote-text" title="${v.hypothesis}">"${v.hypothesis || '— [silence] —'}"</div>
+              ${v.hypothesis ? `<button class="btn-adopt-hyp" data-seg="${index}" data-text="${encodeURIComponent(v.hypothesis)}" title="Adopt this juror's hypothesis for this segment">Adopt</button>` : ''}
+            </div>
+          `;
+        });
+
+        let disputedHtml = "";
+        if (seg.council.disputed_tokens && seg.council.disputed_tokens.length > 0) {
+          const chips = seg.council.disputed_tokens.map(t => `<span class="council-token-chip">${t}</span>`).join(" ");
+          disputedHtml = `
+            <div class="council-disputed-bar">
+              <span class="council-disputed-label">Disputed Words:</span>
+              ${chips}
+            </div>
+          `;
+        }
+
+        councilDrawerHtml = `
+          <div class="council-drawer">
+            <div class="council-drawer-header">
+              <span>🏛️ Council Deliberation (${agreeType})</span>
+              <span style="font-size: 11px; color: var(--text-muted);">${seg.council.consensus_score ? `Consensus: ${scorePct}%` : ''}</span>
+            </div>
+            <div class="council-votes-list">
+              ${votesHtml}
+            </div>
+            ${disputedHtml}
+            <div class="council-notes-text">📝 ${seg.council.deliberation_notes || ''}</div>
+          </div>
+        `;
+      }
+    }
+
     // Audition button for chunk classification sample
     let auditionBtn = "";
     if (seg.slowed_audio_used) {
@@ -614,10 +702,41 @@ function renderTranscriptFeed() {
         <span class="speaker-badge ${spkClass}">${displayName}</span>
         <span class="timestamp-pill">[${formatSeconds(seg.start)} - ${formatSeconds(seg.end)}]</span>
         ${badgeExtras}
+        ${councilBadge}
+        ${councilToggleBtn}
         ${auditionBtn}
       </div>
       <div class="segment-text" contenteditable="true" spellcheck="false">${seg.text}</div>
+      ${councilDrawerHtml}
     `;
+
+    // Toggle Council Drawer button
+    const cToggle = block.querySelector(".btn-council-toggle");
+    if (cToggle) {
+      cToggle.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const segIdx = parseInt(cToggle.dataset.index, 10);
+        if (expandedCouncilSet.has(segIdx)) {
+          expandedCouncilSet.delete(segIdx);
+        } else {
+          expandedCouncilSet.add(segIdx);
+        }
+        renderTranscriptFeed();
+      });
+    }
+
+    // Adopt Juror Hypothesis buttons
+    block.querySelectorAll(".btn-adopt-hyp").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const segIdx = parseInt(btn.dataset.seg, 10);
+        const adoptedText = decodeURIComponent(btn.dataset.text);
+        if (currentSegments[segIdx]) {
+          currentSegments[segIdx].text = adoptedText;
+          renderTranscriptFeed();
+        }
+      });
+    });
 
     // Audition chunk button logic
     const audBtn = block.querySelector(".btn-audition");
@@ -648,7 +767,7 @@ function renderTranscriptFeed() {
 
     // Click block or timestamp to jump both players
     block.addEventListener("click", (e) => {
-      if (e.target.classList.contains("segment-text") || e.target.classList.contains("btn-audition")) return;
+      if (e.target.classList.contains("segment-text") || e.target.classList.contains("btn-audition") || e.target.classList.contains("btn-council-toggle") || e.target.classList.contains("btn-adopt-hyp")) return;
       if (wavesurferOrig) {
         wavesurferOrig.setTime(seg.start);
         if (wavesurferModel) wavesurferModel.setTime(seg.start);
@@ -714,6 +833,20 @@ function renderSpeakerFilters() {
       renderTranscriptFeed();
     });
     speakerFilters.appendChild(reviewPill);
+  }
+
+  // Council Disputed Filter Pill
+  const disputedCount = currentSegments.filter(s => s.council && s.council.agreement_type === 'SPLIT_DECISION').length;
+  if (disputedCount > 0) {
+    const dispPill = document.createElement("div");
+    dispPill.className = `filter-pill filter-disputed ${activeSpeakerFilter === 'DISPUTED' ? 'active' : ''}`;
+    dispPill.innerText = `⚖️ Council Disputed (${disputedCount})`;
+    dispPill.addEventListener("click", () => {
+      activeSpeakerFilter = "DISPUTED";
+      renderSpeakerFilters();
+      renderTranscriptFeed();
+    });
+    speakerFilters.appendChild(dispPill);
   }
 
   speakerFilters.querySelector('[data-speaker="ALL"]').addEventListener("click", () => {
@@ -1175,8 +1308,51 @@ if (btnClearTelemetry) {
   });
 }
 
+// Proactive RAM & GPU Memory Cache Trimming
+async function triggerMemoryClear(btnElement) {
+  if (!btnElement) return;
+  const origText = btnElement.innerText;
+  btnElement.innerText = "🧹 Trimming...";
+  btnElement.disabled = true;
+  try {
+    const res = await fetch("/api/memory/clear", { method: "POST" });
+    if (res.ok) {
+      btnElement.innerText = "✨ Memory Cleaned!";
+      setTimeout(() => {
+        btnElement.innerText = origText;
+        btnElement.disabled = false;
+      }, 1500);
+      updateVRAM();
+      fetchTelemetryData();
+    } else {
+      btnElement.innerText = "⚠️ Trim Failed";
+      setTimeout(() => {
+        btnElement.innerText = origText;
+        btnElement.disabled = false;
+      }, 1500);
+    }
+  } catch (e) {
+    btnElement.innerText = "⚠️ Error";
+    setTimeout(() => {
+      btnElement.innerText = origText;
+      btnElement.disabled = false;
+    }, 1500);
+  }
+}
+
+const btnClearMemHeader = document.getElementById("btnClearMemHeader");
+if (btnClearMemHeader) {
+  btnClearMemHeader.addEventListener("click", () => triggerMemoryClear(btnClearMemHeader));
+}
+
+const btnClearMemTelemetry = document.getElementById("btnClearMemTelemetry");
+if (btnClearMemTelemetry) {
+  btnClearMemTelemetry.addEventListener("click", () => triggerMemoryClear(btnClearMemTelemetry));
+}
+
 // Start Telemetry on Load
 startTelemetryPolling();
 fetchTelemetryData();
 
 initTheme();
+

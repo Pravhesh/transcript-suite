@@ -177,6 +177,15 @@ def test_telemetry_endpoints():
     assert res_clear.json()["status"] == "cleared"
     print("✓ /api/telemetry/clear verified.")
 
+    # 7. Proactive RAM & GPU Clear Cache Endpoint
+    res_mem = client.post("/api/memory/clear")
+    assert res_mem.status_code == 200
+    mem_data = res_mem.json()
+    assert mem_data["status"] == "cleared"
+    assert "stats" in mem_data
+    assert "free_gb" in mem_data["stats"]
+    print("✓ /api/memory/clear proactive cache flush verified.")
+
 
 if __name__ == "__main__":
     test_web_endpoints()
@@ -184,6 +193,7 @@ if __name__ == "__main__":
     test_audio_stream_endpoints()
     test_telemetry_endpoints()
     print("\nAll Web API and telemetry tests passed!")
+
 
 
 

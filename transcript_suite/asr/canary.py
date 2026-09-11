@@ -10,6 +10,72 @@ import torch
 import soundfile as sf
 from .memory import VRAMManager
 from ..config import config
+import re
+
+PROMPT_LEAK_PATTERNS = [
+    r"^\s*transcri(pt|be|ption)(\s+(the\s+following.*|text.*|all.*|into.*|and.*|in.*|this.*|what.*))?\.?\s*$",
+    r"^\s*put it in the box.*$",
+    r"^\s*transcribe\s*:?\s*$",
+    r"^\s*transcript\s*:?\s*$",
+    r"^\s*transcription\s*:?\s*$",
+    r"^\s*please transcribe.*$",
+    r"^\s*transcribe the following.*$",
+    r"^\s*<\|.*?\|>\s*$",
+    r"^\s*thank you for watching.*$",
+    r"^\s*we('ll| will) be right back.*$"
+]
+_PROMPT_REGEXES = [re.compile(p, re.IGNORECASE) for p in PROMPT_LEAK_PATTERNS]
+
+
+def sanitize_canary_output(text: str, chunk_waveform: Optional[torch.Tensor] = None) -> str:
+    """
+    Sanitizes Canary-Qwen output by detecting and neutralizing:
+    1. Conditioning prompt leakage (e.g. 'Transcript the following text and put it in the box').
+    2. Silence/noise hallucinations when RMS energy is near zero.
+    3. Severe single-word or short-phrase repetition loops.
+    """
+    if not text:
+        return ""
+    cleaned = text.strip()
+
+    # 1. Prompt Leak Match
+    for rx in _PROMPT_REGEXES:
+        if rx.match(cleaned):
+            return ""
+
+    # 2. Check for severe repetition loops (e.g. 'will be will be will be')
+    words = cleaned.split()
+    if len(words) >= 4:
+        word_counts = {}
+        for w in words:
+            w_l = w.lower().strip(".,!?")
+            word_counts[w_l] = word_counts.get(w_l, 0) + 1
+        max_rep = max(word_counts.values())
+        if max_rep / len(words) > 0.45:
+            return ""
+
+        # Check 2-word bigram loops
+        if len(words) >= 6:
+            bigrams = [f"{words[i].lower().strip('.,!?')} {words[i+1].lower().strip('.,!?')}" for i in range(len(words) - 1)]
+            bg_counts = {}
+            for bg in bigrams:
+                bg_counts[bg] = bg_counts.get(bg, 0) + 1
+            if max(bg_counts.values()) >= 3:
+                return ""
+
+    # 3. RMS energy threshold check on silence/background flutter
+    if chunk_waveform is not None:
+        try:
+            rms = torch.sqrt(torch.mean(chunk_waveform.float() ** 2)).item()
+            if rms < 0.003 and len(words) <= 2:
+                # Digital silence or extremely faint room tone with stray filler token
+                if cleaned.lower().strip(".,!?") in {"you", "yeah", "transcript", "transcribe", "we", "the", "a", "it"}:
+                    return ""
+        except Exception:
+            pass
+
+    return cleaned
+
 
 
 class CanaryQwenTranscriber:
@@ -165,15 +231,15 @@ class CanaryQwenTranscriber:
                     text = self.model.tokenizer.ids_to_text(answer_ids[0].cpu())
                 else:
                     text = str(answer_ids)
-            return text.strip()
+            return sanitize_canary_output(text)
 
         # Fallback for standard NeMo ASR transcribe
         if hasattr(self.model, "transcribe"):
             with torch.inference_mode():
                 results = self.model.transcribe([wav_path_str])
                 if isinstance(results, list) and len(results) > 0:
-                    return str(results[0]).strip()
-                return str(results).strip()
+                    return sanitize_canary_output(str(results[0]))
+                return sanitize_canary_output(str(results))
 
         raise RuntimeError("Loaded model does not support transcription generation.")
 
@@ -209,7 +275,7 @@ class CanaryQwenTranscriber:
                     text = self.model.tokenizer.ids_to_text(answer_ids[0].cpu())
                 else:
                     text = str(answer_ids)
-            return text.strip()
+            return sanitize_canary_output(text, chunk_waveform=chunk_waveform)
 
         # Fallback if model doesn't support audio tensor input directly
         import tempfile
@@ -219,7 +285,7 @@ class CanaryQwenTranscriber:
             sf.write(tf.name, wav_data, sr, subtype="PCM_16")
             res = self.transcribe_chunk(tf.name)
             Path(tf.name).unlink(missing_ok=True)
-            return res
+            return sanitize_canary_output(res, chunk_waveform=chunk_waveform)
 
     def unload_model(self):
         """

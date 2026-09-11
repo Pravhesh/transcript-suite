@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import torch
 import soundfile as sf
+from .canary import sanitize_canary_output, _PROMPT_REGEXES
 
 
 class AmbiguityResolver:
@@ -30,8 +31,13 @@ class AmbiguityResolver:
         """
         text = text.strip()
         if not text:
-            # Silence or inaudible utterance for non-trivial duration
-            return 0.8 if duration > 1.2 else 0.2
+            # Silence/inaudible: do not mark ambiguous to avoid hallucinations on quiet chunks
+            return 0.1
+
+        # Check prompt leak signature - assign maximum ambiguity
+        for rx in _PROMPT_REGEXES:
+            if rx.match(text):
+                return 1.0
 
         score = 0.0
         words = text.split()
@@ -115,8 +121,8 @@ class AmbiguityResolver:
         seg["needs_review"] = False
         seg["slowed_audio_used"] = False
 
-        # If clarity is good, accept without human or slowdown intervention
-        if initial_ambiguity < self.ambiguity_threshold:
+        # If clarity is good or text is empty silence, accept without slowdown
+        if not orig_text.strip() or initial_ambiguity < self.ambiguity_threshold:
             return seg
 
         print(f"[Ambiguity Resolver] Segment ({seg['start']}s-{seg['end']}s) has ambiguity {initial_ambiguity}. Applying 0.75x slowdown...")
@@ -137,7 +143,8 @@ class AmbiguityResolver:
 
             # 3. Re-transcribe slowed audio
             try:
-                slowed_text = transcribe_fn(slow_wav)
+                raw_slowed = transcribe_fn(slow_wav)
+                slowed_text = sanitize_canary_output(raw_slowed)
             except Exception as e:
                 print(f"[Ambiguity Resolver Warning] Slowed re-transcription failed: {e}")
                 slowed_text = orig_text

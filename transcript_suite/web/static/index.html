@@ -33,6 +33,7 @@
         </div>
         <span id="vramText">-- / 7.6 GB</span>
       </div>
+      <button class="btn-clear-cache-header" id="btnClearMemHeader" title="Proactively flush PyTorch CUDA cache, glibc heap, and Python garbage collector">🧹 Clear Cache</button>
       <select class="theme-select" id="themeSelect">
         <option value="foggy-woodland">🌲 Foggy Woodland</option>
         <option value="forest-sage">🌿 Forest Sage</option>
@@ -66,6 +67,11 @@
         <label class="checkbox-label" title="Auto-slows tricky audio frames to 0.75x and re-evaluates before asking for human review">
           <input type="checkbox" id="ambiguityCheckbox" checked>
           <span>Ambiguity Resolver (Auto-slow)</span>
+        </label>
+
+        <label class="checkbox-label" title="4-Juror Multi-Model Council: Canary-Qwen-2.5B + Whisper-Small + Standard Conformer-CTC + 0.75x Auditor to eliminate hallucinations">
+          <input type="checkbox" id="councilCheckbox" checked>
+          <span>⚖️ Multi-Model Council (Canary + Whisper + Conformer)</span>
         </label>
 
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -120,6 +126,7 @@
 
           <!-- Export & clear buttons -->
           <div class="telemetry-actions">
+            <button class="btn-telemetry" id="btnClearMemTelemetry" title="Flush VRAM & trim glibc memory">🧹 Clear Cache</button>
             <button class="btn-telemetry" id="btnExportTraceCsv" title="Export Memory Trace as CSV">📥 Trace CSV</button>
             <button class="btn-telemetry" id="btnExportLogsCsv" title="Export Execution Logs as CSV">📥 Logs CSV</button>
             <button class="btn-telemetry" id="btnExportLogsTxt" title="Export Execution Logs as TXT">📥 Logs TXT</button>
@@ -294,6 +301,7 @@
         <div class="speaker-filters" id="speakerFilters">
           <div class="filter-pill active" data-speaker="ALL">All Speakers</div>
           <div class="filter-pill filter-review" id="reviewFilterPill" style="display: none;">⚠️ Needs Review (0)</div>
+          <div class="filter-pill filter-disputed" id="disputedFilterPill" style="display: none;">⚖️ Council Disputed (0)</div>
         </div>
         <div class="actions">
           <input type="text" class="text-input" id="searchInput" placeholder="Search transcript...">
