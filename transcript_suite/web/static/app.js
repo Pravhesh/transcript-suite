@@ -153,6 +153,12 @@ function switchTab(tabId) {
     if (item.btn) item.btn.classList.toggle("active", item.id === tabId);
     if (item.pane) item.pane.classList.toggle("active", item.id === tabId);
   });
+
+  if (tabId === "paneTelemetry") {
+    setTimeout(() => {
+      if (cachedTraceSamples && cachedTraceSamples.length > 0) renderTraceGraph(cachedTraceSamples);
+    }, 60);
+  }
 }
 
 if (tabBtnStudio) tabBtnStudio.addEventListener("click", () => switchTab("paneStudio"));
@@ -1285,6 +1291,7 @@ const tracePeakMem = document.getElementById("tracePeakMem");
 const traceTableBody = document.getElementById("traceTableBody");
 const traceAutoScroll = document.getElementById("traceAutoScroll");
 const traceCountText = document.getElementById("traceCountText");
+const memoryTraceCanvas = document.getElementById("memoryTraceCanvas");
 
 const terminalBody = document.getElementById("terminalBody");
 const logsAutoScroll = document.getElementById("logsAutoScroll");
@@ -1306,6 +1313,9 @@ function initTelemetryTabs() {
     tabBtnLogs.classList.remove("active");
     paneTrace.classList.add("active");
     paneLogs.classList.remove("active");
+    setTimeout(() => {
+      if (cachedTraceSamples && cachedTraceSamples.length > 0) renderTraceGraph(cachedTraceSamples);
+    }, 50);
   });
   tabBtnLogs.addEventListener("click", () => {
     tabBtnLogs.classList.add("active");
@@ -1347,6 +1357,7 @@ async function fetchTelemetryData() {
       if (traceData.samples && (cachedTraceSamples.length === 0 || traceData.samples.length !== cachedTraceSamples.length)) {
         cachedTraceSamples = traceData.samples;
         renderTraceTable(cachedTraceSamples);
+        renderTraceGraph(cachedTraceSamples);
       }
     }
 
@@ -1442,6 +1453,148 @@ function renderTraceTable(samples) {
     if (container) container.scrollTop = container.scrollHeight;
   }
 }
+
+function renderTraceGraph(samples) {
+  if (!memoryTraceCanvas || !samples || samples.length === 0) return;
+  const ctx = memoryTraceCanvas.getContext("2d");
+  if (!ctx) return;
+
+  const parent = memoryTraceCanvas.parentElement;
+  if (!parent) return;
+  const rect = parent.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = rect.width || 600;
+  const h = rect.height || 150;
+
+  if (w <= 0 || h <= 0) return;
+
+  if (memoryTraceCanvas.width !== Math.round(w * dpr) || memoryTraceCanvas.height !== Math.round(h * dpr)) {
+    memoryTraceCanvas.width = Math.round(w * dpr);
+    memoryTraceCanvas.height = Math.round(h * dpr);
+  }
+
+  ctx.save();
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  // Canvas background
+  ctx.fillStyle = "#0c1410";
+  ctx.fillRect(0, 0, w, h);
+
+  const padLeft = 40;
+  const padRight = 14;
+  const padTop = 14;
+  const padBottom = 22;
+  const plotW = w - padLeft - padRight;
+  const plotH = h - padTop - padBottom;
+
+  if (plotW <= 0 || plotH <= 0) {
+    ctx.restore();
+    return;
+  }
+
+  // Find max value across all series (min scale 16 GB)
+  let maxGB = 16.0;
+  samples.forEach((s) => {
+    const sys = s.sys_ram_used_gb ?? s.ram_used_gb ?? 0;
+    const vres = s.vram_reserved_gb ?? 0;
+    if (sys > maxGB) maxGB = Math.ceil(sys);
+    if (vres > maxGB) maxGB = Math.ceil(vres);
+  });
+
+  // Draw horizontal grid lines and Y-axis labels
+  ctx.font = "10px ui-monospace, monospace";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  const ySteps = 4;
+  for (let i = 0; i <= ySteps; i++) {
+    const yVal = (maxGB / ySteps) * i;
+    const yPos = padTop + plotH - (i / ySteps) * plotH;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padLeft, yPos);
+    ctx.lineTo(w - padRight, yPos);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+    ctx.fillText(`${yVal.toFixed(0)}G`, padLeft - 6, yPos);
+  }
+
+  const count = samples.length;
+
+  function drawSeries(getValue, strokeColor, fillColor = null, lineWidth = 2) {
+    if (count < 1) return;
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = lineWidth;
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+
+    for (let i = 0; i < count; i++) {
+      const s = samples[i];
+      const val = Math.max(0, Math.min(maxGB, getValue(s)));
+      const x = padLeft + (count === 1 ? plotW / 2 : (i / (count - 1)) * plotW);
+      const y = padTop + plotH - (val / maxGB) * plotH;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    if (fillColor && count > 1) {
+      ctx.lineTo(padLeft + plotW, padTop + plotH);
+      ctx.lineTo(padLeft, padTop + plotH);
+      ctx.closePath();
+      ctx.fillStyle = fillColor;
+      ctx.fill();
+    }
+
+    // Glow dot on latest point
+    const last = samples[count - 1];
+    const lastVal = Math.max(0, Math.min(maxGB, getValue(last)));
+    const lx = padLeft + (count === 1 ? plotW / 2 : plotW);
+    const ly = padTop + plotH - (lastVal / maxGB) * plotH;
+    ctx.fillStyle = strokeColor;
+    ctx.beginPath();
+    ctx.arc(lx, ly, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 1. System RAM (Amber)
+  drawSeries((s) => s.sys_ram_used_gb ?? s.ram_used_gb ?? 0, "#f59e0b", "rgba(245, 158, 11, 0.06)", 2);
+
+  // 2. VRAM Reserved (Sky Blue)
+  drawSeries((s) => s.vram_reserved_gb ?? 0, "#38bdf8", "rgba(56, 189, 248, 0.08)", 2);
+
+  // 3. VRAM Allocated (Violet)
+  drawSeries((s) => s.allocated_gb ?? s.vram_alloc_gb ?? 0, "#a855f7", null, 1.5);
+
+  // 4. App RAM RSS (Emerald / Green)
+  drawSeries((s) => s.proc_ram_used_gb ?? s.app_ram_gb ?? 0, "#10b981", "rgba(16, 185, 129, 0.12)", 2.5);
+
+  // Time labels on X-axis
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+  if (count > 0) {
+    ctx.textAlign = "left";
+    ctx.fillText(samples[0].time_str || "", padLeft, padTop + plotH + 5);
+    if (count > 12) {
+      ctx.textAlign = "center";
+      const mid = samples[Math.floor(count / 2)];
+      ctx.fillText(mid.time_str || "", padLeft + plotW / 2, padTop + plotH + 5);
+    }
+    ctx.textAlign = "right";
+    ctx.fillText(samples[count - 1].time_str || "", padLeft + plotW, padTop + plotH + 5);
+  }
+
+  ctx.restore();
+}
+
+window.addEventListener("resize", () => {
+  if (cachedTraceSamples && cachedTraceSamples.length > 0) {
+    renderTraceGraph(cachedTraceSamples);
+  }
+});
 
 function renderTerminalLogs(entries) {
   if (!terminalBody || !entries) return;

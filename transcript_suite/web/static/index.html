@@ -403,6 +403,22 @@
             </div>
           </div>
 
+          <!-- Live Visual Memory Graph -->
+          <div class="trace-graph-card">
+            <div class="trace-graph-header">
+              <span class="trace-graph-title">📈 Memory & VRAM Timeline (Live Graph)</span>
+              <div class="trace-graph-legend">
+                <span class="legend-item"><span class="legend-dot" style="background:#10b981;"></span> App RAM</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#f59e0b;"></span> System RAM</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#38bdf8;"></span> VRAM Reserved</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#a855f7;"></span> VRAM Allocated</span>
+              </div>
+            </div>
+            <div class="trace-graph-canvas-wrap">
+              <canvas id="memoryTraceCanvas" height="150"></canvas>
+            </div>
+          </div>
+
           <div class="trace-table-container" id="traceTableContainer">
             <table class="trace-table">
               <thead>

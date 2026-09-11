@@ -1084,6 +1084,68 @@ main {
   font-family: ui-monospace, monospace;
 }
 
+/* Live Memory Trace Graph Card */
+.trace-graph-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-dim);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.trace-graph-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trace-graph-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.trace-graph-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.trace-graph-canvas-wrap {
+  width: 100%;
+  height: 150px;
+  position: relative;
+  background-color: var(--bg-primary);
+  border-radius: 6px;
+  border: 1px solid var(--border-dim);
+  overflow: hidden;
+}
+
+.trace-graph-canvas-wrap canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
 /* Real-time Trace Table */
 .trace-table-container {
   max-height: 280px;
