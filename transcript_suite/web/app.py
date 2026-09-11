@@ -12,7 +12,7 @@ import gc
 import torch
 from datetime import datetime
 from typing import Dict, Any, Optional, List
-from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, Response, Query
+from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, Response, Query, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
@@ -226,12 +226,12 @@ def get_cache_breakdown() -> Dict[str, Any]:
 
     return {
         "memory": {
-            "vram_allocated_mb": mem_stats.get("allocated_mb", 0),
-            "vram_reserved_mb": mem_stats.get("reserved_mb", 0),
-            "vram_total_mb": mem_stats.get("total_mb", 0),
-            "app_ram_rss_mb": mem_stats.get("app_ram_rss_mb", 0),
-            "sys_ram_used_gb": mem_stats.get("sys_ram_used_gb", 0),
-            "sys_ram_total_gb": mem_stats.get("sys_ram_total_gb", 0),
+            "vram_allocated_mb": round(mem_stats.get("allocated_gb", 0.0) * 1024, 1),
+            "vram_reserved_mb": round(mem_stats.get("reserved_gb", 0.0) * 1024, 1),
+            "vram_total_mb": round(mem_stats.get("total_gb", 0.0) * 1024, 1),
+            "app_ram_rss_mb": round(mem_stats.get("app_ram_rss_gb", 0.0) * 1024, 1),
+            "sys_ram_used_gb": mem_stats.get("sys_ram_used_gb", 0.0),
+            "sys_ram_total_gb": mem_stats.get("sys_ram_total_gb", 0.0),
         },
         "storage": {
             "hf_total_bytes": hf_total,
@@ -263,56 +263,68 @@ async def get_cache_stats_endpoint():
 
 
 @app.post("/api/cache/clear")
-async def clear_cache_endpoint(payload: Optional[Dict[str, Any]] = None):
+async def clear_cache_endpoint(request: Request):
     """
     Granular cache clear endpoint:
     - target: 'vram' | 'ram' | 'temp_audio' | 'all'
     """
-    target = (payload or {}).get("target", "all")
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    target = data.get("target", "all") if isinstance(data, dict) else "all"
     import ctypes
     
     cleared = []
-    if target in ("vram", "all"):
-        vram_manager.clear_cache()
-        if torch.cuda.is_available():
-            torch.cuda.ipc_collect()
-        cleared.append("GPU VRAM Cache")
-        
-    if target in ("ram", "all"):
-        gc.collect()
-        gc.collect()
-        try:
-            ctypes.CDLL("libc.so.6").malloc_trim(0)
-        except Exception:
-            pass
-        cleared.append("Process Heap (RAM)")
-        
-    if target in ("temp_audio", "all"):
-        # Clean stale /tmp audio files
-        temp_dir = Path("/tmp")
-        if temp_dir.exists():
-            for f in temp_dir.glob("transcript_suite*"):
+    try:
+        if target in ("vram", "all"):
+            vram_manager.clear_cache()
+            if torch.cuda.is_available():
                 try:
-                    if f.is_file():
-                        f.unlink()
-                    elif f.is_dir():
-                        import shutil
-                        shutil.rmtree(f, ignore_errors=True)
+                    torch.cuda.ipc_collect()
                 except Exception:
                     pass
-        cleared.append("Temporary Audio Files")
-        
-    stats = vram_manager.get_stats()
-    breakdown = get_cache_breakdown()
-    add_log(None, "MEM", f"Cache cleared ({', '.join(cleared)}). Free VRAM: {stats.get('free_gb', 0)} GB, App RAM: {stats.get('app_ram_rss_gb', 0)} GB.", stats)
-    add_trace_sample()
-    return {"status": "cleared", "targets": cleared, "stats": stats, "breakdown": breakdown}
+            cleared.append("GPU VRAM Cache")
+            
+        if target in ("ram", "all"):
+            gc.collect()
+            gc.collect()
+            try:
+                libc = ctypes.CDLL("libc.so.6")
+                libc.malloc_trim(0)
+            except Exception:
+                pass
+            cleared.append("Process Heap (RAM)")
+            
+        if target in ("temp_audio", "all"):
+            # Clean stale /tmp audio files safely
+            temp_dir = Path("/tmp")
+            if temp_dir.exists():
+                for f in temp_dir.glob("transcript_suite*"):
+                    try:
+                        if f.is_file():
+                            f.unlink()
+                        elif f.is_dir():
+                            import shutil
+                            shutil.rmtree(f, ignore_errors=True)
+                    except Exception:
+                        pass
+            cleared.append("Temporary Audio Files")
+            
+        stats = vram_manager.get_stats()
+        breakdown = get_cache_breakdown()
+        add_log(None, "MEM", f"Cache cleared ({', '.join(cleared)}). Free VRAM: {stats.get('free_gb', 0)} GB, App RAM: {stats.get('app_ram_rss_gb', 0)} GB.", stats)
+        add_trace_sample()
+        return {"status": "cleared", "targets": cleared, "stats": stats, "breakdown": breakdown}
+    except Exception as exc:
+        add_log(None, "ERROR", f"Memory flush encountered error: {exc}")
+        return {"status": "error", "message": str(exc), "targets": cleared}
 
 
 @app.post("/api/memory/clear")
-async def clear_system_memory():
+async def clear_system_memory(request: Request):
     """Backwards-compatible endpoint for proactive memory cleanup."""
-    return await clear_cache_endpoint({"target": "all"})
+    return await clear_cache_endpoint(request)
 
 
 @app.post("/api/transcribe")

@@ -196,7 +196,8 @@ function initCacheDropdown() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ target })
         });
-        if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.status !== "error") {
           btn.innerText = "✓ Cleared";
           setTimeout(() => {
             btn.innerText = origText;
@@ -206,18 +207,20 @@ function initCacheDropdown() {
           fetchMemoryStats();
           fetchTelemetryData();
         } else {
+          console.warn("Cache clear failed:", res.status, data);
           btn.innerText = "⚠️ Failed";
           setTimeout(() => {
             btn.innerText = origText;
             btn.disabled = false;
-          }, 1200);
+          }, 1500);
         }
       } catch (err) {
+        console.error("Cache clear error:", err);
         btn.innerText = "⚠️ Error";
         setTimeout(() => {
           btn.innerText = origText;
           btn.disabled = false;
-        }, 1200);
+        }, 1500);
       }
     });
   };
@@ -1686,17 +1689,27 @@ function initTelemetryExports() {
       const orig = btnClearMemTelemetry.innerText;
       btnClearMemTelemetry.innerText = "🧹 Trimming...";
       try {
-        await fetch("/api/cache/clear", {
+        const res = await fetch("/api/cache/clear", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ target: "all" })
         });
-        btnClearMemTelemetry.innerText = "✨ Cleaned!";
-        setTimeout(() => { btnClearMemTelemetry.innerText = orig; }, 1200);
-        fetchMemoryStats();
-        fetchTelemetryData();
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.status !== "error") {
+          btnClearMemTelemetry.innerText = "✨ Cleaned!";
+          setTimeout(() => { btnClearMemTelemetry.innerText = orig; }, 1200);
+          fetchMemoryStats();
+          fetchTelemetryData();
+          fetchCacheBreakdown();
+        } else {
+          console.warn("Telemetry clear failed:", res.status, data);
+          btnClearMemTelemetry.innerText = "⚠️ Failed";
+          setTimeout(() => { btnClearMemTelemetry.innerText = orig; }, 1500);
+        }
       } catch (e) {
-        btnClearMemTelemetry.innerText = orig;
+        console.error("Telemetry clear error:", e);
+        btnClearMemTelemetry.innerText = "⚠️ Error";
+        setTimeout(() => { btnClearMemTelemetry.innerText = orig; }, 1500);
       }
     });
   }
