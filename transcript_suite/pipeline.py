@@ -101,6 +101,7 @@ class TranscriptionPipeline:
         progress_callback: Optional[Callable[[str, float, Optional[Dict[str, Any]]], None]] = None,
         pause_event: Optional[any] = None,
         stop_event: Optional[any] = None,
+        output_orig_path: Optional[str | Path] = None,
         output_processed_path: Optional[str | Path] = None,
         chunks_dir: Optional[str | Path] = None
     ) -> Dict[str, Any]:
@@ -125,6 +126,15 @@ class TranscriptionPipeline:
             report("Loading audio & converting to 16kHz mono...", 0.04)
             waveform, sr, duration = self.audio_loader.load_audio(file_path)
             check_stop()
+
+            # Save synchronized original 16kHz waveform for Track 1 playback if requested
+            saved_orig_path = None
+            if output_orig_path:
+                out_orig_p = Path(output_orig_path).resolve()
+                out_orig_p.parent.mkdir(parents=True, exist_ok=True)
+                import soundfile as sf
+                sf.write(str(out_orig_p), waveform.squeeze(0).cpu().numpy(), sr, subtype="PCM_16")
+                saved_orig_path = str(out_orig_p)
 
             # 2. GPU Speech Enhancer & Noise Filter
             if enable_enhancer:
@@ -248,6 +258,7 @@ class TranscriptionPipeline:
                 "duration": round(duration, 2),
                 "segments": transcribed_segments,
                 "full_text": formatted_text,
+                "orig_audio_path": saved_orig_path,
                 "processed_audio_path": saved_processed_path,
                 "chunks_dir": str(chunks_dir) if chunks_dir else None,
                 "vram_stats": vram_stats,

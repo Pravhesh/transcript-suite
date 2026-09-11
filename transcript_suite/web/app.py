@@ -300,9 +300,12 @@ def run_transcription_worker(
             add_log(task_id, lvl, f"{stage} [{round(frac * 100, 1)}%]", stats)
             add_trace_sample(task_id)
 
+    orig_wav_path = config.upload_dir / f"{task_id}_orig.wav"
     processed_wav_path = config.upload_dir / f"{task_id}_processed.wav"
     chunks_dir = config.upload_dir / f"{task_id}_chunks"
     chunks_dir.mkdir(parents=True, exist_ok=True)
+    TASKS[task_id]["orig_file_path"] = str(orig_wav_path)
+    TASKS[task_id]["processed_file_path"] = str(processed_wav_path)
 
     try:
         result = pipeline.process_file(
@@ -313,6 +316,7 @@ def run_transcription_worker(
             progress_callback=on_progress,
             pause_event=pause_evt,
             stop_event=stop_evt,
+            output_orig_path=orig_wav_path,
             output_processed_path=processed_wav_path,
             chunks_dir=chunks_dir
         )
@@ -364,9 +368,12 @@ async def get_task_status(task_id: str):
 
 @app.get("/api/audio/{task_id}")
 async def get_audio_stream(task_id: str):
-    """Streams the uploaded original audio for playback."""
+    """Streams the original audio for playback (serves 16kHz aligned WAV if processed, else source file)."""
     if task_id not in TASKS:
         raise HTTPException(status_code=404, detail="Task not found")
+    orig_wav = TASKS[task_id].get("orig_file_path")
+    if orig_wav and Path(orig_wav).exists():
+        return FileResponse(Path(orig_wav), media_type="audio/wav")
     audio_path = Path(TASKS[task_id]["file_path"])
     if not audio_path.exists():
         raise HTTPException(status_code=404, detail="Audio file on disk missing")

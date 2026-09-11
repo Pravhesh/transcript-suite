@@ -336,12 +336,12 @@ function initAudioPlayer(taskId) {
     url: `/api/audio/${taskId}/processed`
   });
 
-  // Lockstep seeking synchronization
+  // Lockstep seeking synchronization with async debounce guard
   wavesurferOrig.on('seeking', (time) => {
     if (!isSeekingSync && wavesurferModel) {
       isSeekingSync = true;
       wavesurferModel.setTime(time);
-      isSeekingSync = false;
+      setTimeout(() => { isSeekingSync = false; }, 50);
     }
   });
 
@@ -349,7 +349,7 @@ function initAudioPlayer(taskId) {
     if (!isSeekingSync && wavesurferOrig) {
       isSeekingSync = true;
       wavesurferOrig.setTime(time);
-      isSeekingSync = false;
+      setTimeout(() => { isSeekingSync = false; }, 50);
     }
   });
 
@@ -358,19 +358,30 @@ function initAudioPlayer(taskId) {
     updatePlaybackTime(currentTime, wavesurferOrig.getDuration());
     syncActiveSegment(currentTime);
 
-    if (wavesurferModel && wavesurferOrig.isPlaying()) {
+    // Only re-align if significant drift occurs (>0.35s) to avoid buffer stutter
+    if (wavesurferModel && wavesurferOrig.isPlaying() && !isSeekingSync) {
       const diff = Math.abs(currentTime - wavesurferModel.getCurrentTime());
-      if (diff > 0.06) {
+      if (diff > 0.35) {
+        isSeekingSync = true;
         wavesurferModel.setTime(currentTime);
+        setTimeout(() => { isSeekingSync = false; }, 60);
       }
     }
   });
 
-  // Play / Pause event handlers
+  // Play / Pause event handlers with initial lockstep alignment
   wavesurferOrig.on('play', () => {
     btnPlayPause.innerText = "⏸ Pause";
-    if (wavesurferModel && !wavesurferModel.isPlaying()) {
-      wavesurferModel.play();
+    if (wavesurferModel) {
+      const t = wavesurferOrig.getCurrentTime();
+      if (Math.abs(wavesurferModel.getCurrentTime() - t) > 0.06 && !isSeekingSync) {
+        isSeekingSync = true;
+        wavesurferModel.setTime(t);
+        setTimeout(() => { isSeekingSync = false; }, 40);
+      }
+      if (!wavesurferModel.isPlaying()) {
+        wavesurferModel.play();
+      }
     }
   });
 
@@ -382,8 +393,16 @@ function initAudioPlayer(taskId) {
   });
 
   wavesurferModel.on('play', () => {
-    if (wavesurferOrig && !wavesurferOrig.isPlaying()) {
-      wavesurferOrig.play();
+    if (wavesurferOrig) {
+      const t = wavesurferModel.getCurrentTime();
+      if (Math.abs(wavesurferOrig.getCurrentTime() - t) > 0.06 && !isSeekingSync) {
+        isSeekingSync = true;
+        wavesurferOrig.setTime(t);
+        setTimeout(() => { isSeekingSync = false; }, 40);
+      }
+      if (!wavesurferOrig.isPlaying()) {
+        wavesurferOrig.play();
+      }
     }
   });
 
