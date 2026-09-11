@@ -198,11 +198,15 @@ function initCacheDropdown() {
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.status !== "error") {
-          btn.innerText = "✓ Cleared";
+          if (target === "ram" && (data.breakdown?.memory?.app_ram_rss_mb || 0) <= 750) {
+            btn.innerText = "✓ At Baseline";
+          } else {
+            btn.innerText = "✓ Cleared";
+          }
           setTimeout(() => {
             btn.innerText = origText;
             btn.disabled = false;
-          }, 1200);
+          }, 1400);
           fetchCacheBreakdown();
           fetchMemoryStats();
           fetchTelemetryData();
@@ -240,7 +244,14 @@ async function fetchCacheBreakdown() {
     const storage = data.storage || {};
 
     if (cacheVramVal) cacheVramVal.innerText = `${mem.vram_reserved_mb || 0} MB reserved`;
-    if (cacheRamVal) cacheRamVal.innerText = `${mem.app_ram_rss_mb || 0} MB RSS`;
+    const rssMb = Math.round(mem.app_ram_rss_mb || 0);
+    if (cacheRamVal) {
+      if (rssMb <= 750) {
+        cacheRamVal.innerText = `${rssMb} MB (Base Engine)`;
+      } else {
+        cacheRamVal.innerText = `${rssMb} MB (+${rssMb - 650} MB Heap)`;
+      }
+    }
     if (cacheTempAudioVal) cacheTempAudioVal.innerText = `${storage.temp_audio_mb || 0} MB`;
     if (cacheHfVal) cacheHfVal.innerText = `${storage.hf_total_gb || 0} GB`;
     if (cacheNemoVal) cacheNemoVal.innerText = `${storage.nemo_total_gb || 0} GB`;

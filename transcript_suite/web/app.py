@@ -297,19 +297,36 @@ async def clear_cache_endpoint(request: Request):
             cleared.append("Process Heap (RAM)")
             
         if target in ("temp_audio", "all"):
-            # Clean stale /tmp audio files safely
+            # 1. Clean stale /tmp audio files safely
             temp_dir = Path("/tmp")
             if temp_dir.exists():
-                for f in temp_dir.glob("transcript_suite*"):
+                for f in temp_dir.glob("*"):
                     try:
-                        if f.is_file():
-                            f.unlink()
-                        elif f.is_dir():
-                            import shutil
-                            shutil.rmtree(f, ignore_errors=True)
+                        if "transcript_suite" in f.name or (f.is_file() and f.suffix.lower() in [".wav", ".aac", ".mp3", ".flac"]):
+                            if time.time() - f.stat().st_mtime > 10:
+                                if f.is_file():
+                                    f.unlink()
+                                elif f.is_dir():
+                                    import shutil
+                                    shutil.rmtree(f, ignore_errors=True)
                     except Exception:
                         pass
-            cleared.append("Temporary Audio Files")
+
+            # 2. Clean stale uploads and chunks in config.upload_dir (preserving only currently active tasks)
+            active_tids = {tid for tid, t in TASKS.items() if t.get("status") in ("processing", "queued", "paused")}
+            if config.upload_dir.exists():
+                for item in config.upload_dir.iterdir():
+                    try:
+                        is_active = any(item.name.startswith(tid) for tid in active_tids)
+                        if not is_active:
+                            if item.is_file():
+                                item.unlink()
+                            elif item.is_dir():
+                                import shutil
+                                shutil.rmtree(item, ignore_errors=True)
+                    except Exception:
+                        pass
+            cleared.append("Temporary Audio & Chunks")
             
         stats = vram_manager.get_stats()
         breakdown = get_cache_breakdown()
