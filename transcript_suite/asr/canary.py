@@ -201,7 +201,8 @@ class CanaryQwenTranscriber:
                         fallback_kwargs["map_location"] = torch.device(self.device)
                     self.model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=self.model_name, **fallback_kwargs)
                     if self.device.startswith("cuda") and torch.cuda.is_available():
-                        self.model = self.model.to(device=self.device)
+                        dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+                        self.model = self.model.to(device=self.device, dtype=dtype)
                     self.model.eval()
                     self._is_loaded = True
                     self.vram_manager.clear_cache()

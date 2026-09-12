@@ -149,20 +149,22 @@ class ModelCouncil:
         return self._whisper_pipeline
 
     def _get_conformer_model(self):
-        """Lazy loader for Conformer-CTC acoustic anchor with NGC name resolution."""
+        """Lazy loader for Conformer-CTC acoustic anchor with NGC name resolution and 16-bit precision."""
         if self._conformer_model is None:
             try:
                 import nemo.collections.asr as nemo_asr
                 m_id = self.conformer_model_id
                 if m_id.startswith("nvidia/"):
                     m_id = m_id[len("nvidia/"):]
-                print(f"[Council] Loading Acoustic Anchor ({m_id}) onto {self.device}...")
+                target_device = self.device if (self.device.startswith("cuda") and torch.cuda.is_available()) else "cpu"
+                print(f"[Council] Loading Acoustic Anchor ({m_id}) onto {target_device} in 16-bit precision...")
                 self._conformer_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(
                     model_name=m_id,
                     map_location="cpu"
                 )
-                if self.device.startswith("cuda") and torch.cuda.is_available():
-                    self._conformer_model = self._conformer_model.to(self.device)
+                if target_device.startswith("cuda"):
+                    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+                    self._conformer_model = self._conformer_model.to(device=target_device, dtype=dtype)
                 self._conformer_model.eval()
                 self._is_conformer_loaded = True
             except Exception as e:
@@ -283,6 +285,9 @@ class ModelCouncil:
         except Exception as e:
             print(f"[Council Warning] Conformer-CTC transcription failed: {e}")
             return ""
+        finally:
+            if self.device.startswith("cuda"):
+                torch.cuda.empty_cache()
 
     def transcribe_batch_conformer(
         self,
@@ -309,6 +314,8 @@ class ModelCouncil:
                     texts.append(t.strip())
                 if progress_cb:
                     progress_cb(len(texts), total_items, len(texts) / total_items)
+                if self.device.startswith("cuda"):
+                    torch.cuda.empty_cache()
             return texts
         except Exception as e:
             print(f"[Council Warning] Conformer batch transcription failed: {e}")

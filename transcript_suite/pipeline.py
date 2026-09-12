@@ -470,7 +470,7 @@ class TranscriptionPipeline:
                     report("Pass 3/3 (Phase A): Conformer-CTC Acoustic Anchor (Batched)...", 0.74)
                     check_stop()
                     try:
-                        base_c = 4 if "xlarge" in str(self.council.conformer_model_id).lower() else 8
+                        base_c = 2 if "xlarge" in str(self.council.conformer_model_id).lower() else 4
                         c_batch = self.supervisor.get_suggested_batch_size("conformer", base_c)
                         def on_conformer_prog(completed: int, total: int, ratio: float):
                             check_stop()
