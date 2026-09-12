@@ -103,6 +103,7 @@ def add_trace_sample(task_id: Optional[str] = None) -> Dict[str, Any]:
     proc_ram = stats.get("proc_ram_used_gb", 0.0)
     sys_ram = stats.get("sys_ram_used_gb", 0.0)
     sys_ram_pct = stats.get("sys_ram_percent", 0.0)
+    sys_without_suite = stats.get("sys_ram_without_suite_gb", max(0.0, round(sys_ram - proc_ram, 2)))
 
     entry = {
         "timestamp": now.isoformat(),
@@ -117,6 +118,7 @@ def add_trace_sample(task_id: Optional[str] = None) -> Dict[str, Any]:
         "app_ram_gb": proc_ram,
         "ram_used_gb": sys_ram,
         "sys_ram_used_gb": sys_ram,
+        "sys_ram_without_suite_gb": sys_without_suite,
         "ram_total_gb": stats.get("sys_ram_total_gb", 0.0),
         "sys_ram_total_gb": stats.get("sys_ram_total_gb", 0.0),
         "ram_pct": sys_ram_pct,

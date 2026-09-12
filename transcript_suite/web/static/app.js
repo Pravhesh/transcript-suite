@@ -23,6 +23,7 @@ const vramText = document.getElementById("vramText");
 const ramBarFill = document.getElementById("ramBarFill");
 const ramText = document.getElementById("ramText");
 const appRamText = document.getElementById("appRamText");
+const sysWithoutSuiteText = document.getElementById("sysWithoutSuiteText");
 
 // Primary Tab Navigation
 const tabBtnStudio = document.getElementById("tabBtnStudio");
@@ -283,13 +284,20 @@ async function fetchMemoryStats() {
     if (!res.ok) return;
     const data = await res.json();
 
-    const appRam = data.proc_ram_used_gb ?? data.app_ram_rss_gb;
+    const appRam = data.proc_ram_used_gb ?? data.app_ram_rss_gb ?? 0;
+    const sysUsed = data.sys_ram_used_gb ?? 0;
+    const sysTotal = data.sys_ram_total_gb ?? 15.3;
+    const withoutSuite = data.sys_ram_without_suite_gb ?? Math.max(0, sysUsed - appRam);
+
     if (appRamText && appRam !== undefined && appRam !== null) {
       appRamText.innerText = `${appRam.toFixed(2)} GB`;
     }
+    if (sysWithoutSuiteText) {
+      sysWithoutSuiteText.innerText = `${withoutSuite.toFixed(2)} GB`;
+    }
 
     if (ramText && data.sys_ram_used_gb !== undefined && data.sys_ram_total_gb !== undefined) {
-      ramText.innerText = `${data.sys_ram_used_gb.toFixed(1)} / ${data.sys_ram_total_gb.toFixed(1)} GB`;
+      ramText.innerText = `${sysUsed.toFixed(1)} / ${sysTotal.toFixed(1)} GB`;
     }
     if (ramBarFill && data.sys_ram_percent !== undefined) {
       ramBarFill.style.width = `${Math.min(100, Math.max(0, data.sys_ram_percent))}%`;
@@ -1324,6 +1332,7 @@ const telemetryPulse = document.getElementById("telemetryPulse");
 const traceActiveTask = document.getElementById("traceActiveTask");
 const traceCurrentStage = document.getElementById("traceCurrentStage");
 const traceLiveAppRam = document.getElementById("traceLiveAppRam");
+const traceLiveWithoutSuiteRam = document.getElementById("traceLiveWithoutSuiteRam");
 const traceLiveRam = document.getElementById("traceLiveRam");
 const traceLiveVram = document.getElementById("traceLiveVram");
 const tracePeakMem = document.getElementById("tracePeakMem");
@@ -1479,11 +1488,13 @@ function renderTraceSummary(activeTask, curr, peak) {
     const appRam = curr.proc_ram_used_gb ?? curr.app_ram_gb ?? 0;
     const sysUsed = curr.sys_ram_used_gb ?? curr.ram_used_gb ?? 0;
     const sysTotal = curr.sys_ram_total_gb ?? curr.ram_total_gb ?? 15.3;
+    const withoutSuite = curr.sys_ram_without_suite_gb ?? Math.max(0, sysUsed - appRam);
     const vramAlloc = curr.allocated_gb ?? curr.vram_alloc_gb ?? 0;
     const vramRes = curr.reserved_gb ?? curr.vram_reserved_gb ?? vramAlloc;
     const vramTotal = curr.total_gb ?? curr.vram_total_gb ?? 7.6;
 
     if (traceLiveAppRam) traceLiveAppRam.innerText = `${appRam.toFixed(2)} GB`;
+    if (traceLiveWithoutSuiteRam) traceLiveWithoutSuiteRam.innerText = `${withoutSuite.toFixed(2)} GB`;
     if (traceLiveRam) traceLiveRam.innerText = `${sysUsed.toFixed(1)} / ${sysTotal.toFixed(1)} GB`;
     if (traceLiveVram) traceLiveVram.innerText = `${vramAlloc.toFixed(2)}G (${vramRes.toFixed(1)}G res) / ${vramTotal.toFixed(1)} GB`;
   }
@@ -1515,6 +1526,7 @@ function renderTraceTable(samples) {
     const appRam = s.proc_ram_used_gb ?? s.app_ram_gb ?? 0;
     const sysRam = s.sys_ram_used_gb ?? s.ram_used_gb ?? 0;
     const sysPct = s.sys_ram_pct ?? s.ram_pct ?? 0;
+    const withoutSuite = s.sys_ram_without_suite_gb ?? Math.max(0, sysRam - appRam);
     const vramAlloc = s.allocated_gb ?? s.vram_alloc_gb ?? 0;
     const vramPct = s.percent_used ?? s.vram_pct ?? 0;
 
@@ -1525,7 +1537,8 @@ function renderTraceTable(samples) {
         ${escapeHtml(taskIdDisplay)}
       </td>
       <td style="color: var(--text-primary); font-weight: 500;">${escapeHtml(s.stage || "--")}</td>
-      <td style="font-weight: 600; color: var(--accent-light);">${appRam.toFixed(2)} GB</td>
+      <td style="font-weight: 600; color: #10b981;">${appRam.toFixed(2)} GB</td>
+      <td style="font-weight: 600; color: #38bdf8;">${withoutSuite.toFixed(2)} GB</td>
       <td>${sysRam.toFixed(1)} GB (${Math.round(sysPct)}%)</td>
       <td style="color: var(--accent-light); font-weight: 600;">${vramAlloc.toFixed(2)} GB (${Math.round(vramPct)}%)</td>
       <td><span class="status-pill ${statusClass}">${escapeHtml(statusLabel)}</span></td>
@@ -1779,9 +1792,16 @@ function renderRamGraph(samples) {
   }
 
   // 1. Total System RAM (Amber)
-  drawSeries((s) => s.sys_ram_used_gb ?? s.ram_used_gb ?? 0, "#f59e0b", "rgba(245, 158, 11, 0.06)", 2);
+  drawSeries((s) => s.sys_ram_used_gb ?? s.ram_used_gb ?? 0, "#f59e0b", "rgba(245, 158, 11, 0.05)", 2);
 
-  // 2. App RSS Process RAM (Emerald)
+  // 2. RAM Without Suite (Sky Blue)
+  drawSeries((s) => {
+    const total = s.sys_ram_used_gb ?? s.ram_used_gb ?? 0;
+    const app = s.proc_ram_used_gb ?? s.app_ram_gb ?? 0;
+    return s.sys_ram_without_suite_gb ?? Math.max(0, total - app);
+  }, "#38bdf8", "rgba(56, 189, 248, 0.08)", 2);
+
+  // 3. Suite Memory Only (Emerald)
   drawSeries((s) => s.proc_ram_used_gb ?? s.app_ram_gb ?? 0, "#10b981", "rgba(16, 185, 129, 0.20)", 2.5);
 
   // Time labels on X-axis
@@ -1969,7 +1989,7 @@ async function fetchDeepMemoryTrace() {
     const deepSysTotal = document.getElementById("deepSysTotal");
     const deepSysUsed = document.getElementById("deepSysUsed");
     const deepSysAppRss = document.getElementById("deepSysAppRss");
-    const deepSysOtherRss = document.getElementById("deepSysOtherRss");
+    const deepSysWithoutSuite = document.getElementById("deepSysWithoutSuite") || document.getElementById("deepSysOtherRss");
     const deepSysKernelZswap = document.getElementById("deepSysKernelZswap");
     const deepSysFree = document.getElementById("deepSysFree");
     const deepSysPct = document.getElementById("deepSysPct");
@@ -1978,7 +1998,8 @@ async function fetchDeepMemoryTrace() {
     if (deepSysTotal) deepSysTotal.innerText = `${sys.total_gb || 0} GB`;
     if (deepSysUsed) deepSysUsed.innerText = `${sys.used_gb || 0} GB`;
     if (deepSysAppRss) deepSysAppRss.innerText = `${sys.app_rss_gb || proc.rss_gb || 0} GB (${proc.rss_mb || 0} MB)`;
-    if (deepSysOtherRss) deepSysOtherRss.innerText = `${sys.other_procs_gb || 0} GB (across other apps)`;
+    const withoutSuiteGb = sys.sys_ram_without_suite_gb ?? ((sys.used_gb !== undefined && sys.app_rss_gb !== undefined) ? Math.max(0, sys.used_gb - sys.app_rss_gb).toFixed(2) : (sys.other_procs_gb || 0));
+    if (deepSysWithoutSuite) deepSysWithoutSuite.innerText = `${withoutSuiteGb} GB (external OS & apps)`;
     if (deepSysKernelZswap) {
       const parts = [];
       if (sys.zswap_gb) parts.push(`zswap: ${sys.zswap_gb} GB`);

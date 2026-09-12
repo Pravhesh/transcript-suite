@@ -34,10 +34,12 @@ class VRAMManager:
             "sys_ram_total_gb": 0.0,
             "sys_ram_used_gb": 0.0,
             "sys_ram_free_gb": 0.0,
-            "sys_ram_percent": 0.0
+            "sys_ram_percent": 0.0,
+            "sys_ram_without_suite_gb": 0.0
         }
 
         # Process RSS (actual RAM consumed by this process) and System RAM
+        rss_gb = 0.0
         try:
             proc = psutil.Process()
             rss_gb = round(proc.memory_info().rss / (1024 ** 3), 2)
@@ -48,10 +50,12 @@ class VRAMManager:
 
         try:
             mem = psutil.virtual_memory()
+            sys_used = round(mem.used / (1024 ** 3), 2)
             stats["sys_ram_total_gb"] = round(mem.total / (1024 ** 3), 2)
-            stats["sys_ram_used_gb"] = round(mem.used / (1024 ** 3), 2)
+            stats["sys_ram_used_gb"] = sys_used
             stats["sys_ram_free_gb"] = round(mem.available / (1024 ** 3), 2)
             stats["sys_ram_percent"] = round(mem.percent, 1)
+            stats["sys_ram_without_suite_gb"] = max(0.0, round(sys_used - rss_gb, 2))
         except Exception:
             pass
 
@@ -203,12 +207,16 @@ class VRAMManager:
             cached_gb = round(getattr(mem, "cached", 0) / (1024 ** 3), 2)
             zswap_gb = round(zswap_mb / 1024, 2)
 
+            used_gb = round(mem.used / (1024 ** 3), 2)
+            sys_without_suite_gb = max(0.0, round(used_gb - app_rss_gb, 2))
+
             trace["system_ram"] = {
                 "total_gb": round(mem.total / (1024 ** 3), 2),
-                "used_gb": round(mem.used / (1024 ** 3), 2),
+                "used_gb": used_gb,
                 "free_gb": round(mem.available / (1024 ** 3), 2),
                 "percent": round(mem.percent, 1),
                 "app_rss_gb": app_rss_gb,
+                "sys_ram_without_suite_gb": sys_without_suite_gb,
                 "all_procs_gb": all_procs_gb,
                 "other_procs_gb": other_procs_gb,
                 "shared_gb": shared_gb,

@@ -17,12 +17,15 @@
       <div class="brand-badge">Canary-Qwen-2.5B Supreme Council</div>
     </div>
     <div class="nav-controls">
-      <div class="vram-meter" id="sysRamMeter" title="App RAM (Process RSS) & Total System RAM">
-        <span title="Transcript Suite Process Memory (RSS)">App RAM:</span>
-        <span id="appRamText" style="font-weight: 700; color: var(--accent-light);">-- GB</span>
-        <span style="color: var(--text-muted); margin: 0 4px;">|</span>
-        <span title="Total Operating System RAM Usage">Sys:</span>
-        <div class="vram-bar" style="width: 44px;">
+      <div class="vram-meter" id="sysRamMeter" title="Total RAM breakdown: Suite Only vs. External System vs. Total Machine RAM">
+        <span title="Transcript Suite Process Memory (RSS Only)">Suite:</span>
+        <span id="appRamText" style="font-weight: 700; color: #10b981;">-- GB</span>
+        <span style="color: var(--border-focus); margin: 0 3px;">|</span>
+        <span title="System RAM used by other applications and OS (excluding Suite)">w/o Suite:</span>
+        <span id="sysWithoutSuiteText" style="font-weight: 600; color: #38bdf8;">-- GB</span>
+        <span style="color: var(--border-focus); margin: 0 3px;">|</span>
+        <span title="Total Active Operating System RAM (Suite + OS)">Total:</span>
+        <div class="vram-bar" style="width: 36px;">
           <div class="vram-bar-fill" id="ramBarFill" style="background-color: var(--accent-bark);"></div>
         </div>
         <span id="ramText">-- / -- GB</span>
@@ -641,11 +644,15 @@
               <span class="chip-val" id="traceCurrentStage">Ready</span>
             </div>
             <div class="trace-chip">
-              <span class="chip-label">App RAM (RSS):</span>
-              <span class="chip-val" id="traceLiveAppRam">-- GB</span>
+              <span class="chip-label">Suite RAM (Only):</span>
+              <span class="chip-val" id="traceLiveAppRam" style="color: #10b981;">-- GB</span>
             </div>
             <div class="trace-chip">
-              <span class="chip-label">System RAM:</span>
+              <span class="chip-label">RAM w/o Suite:</span>
+              <span class="chip-val" id="traceLiveWithoutSuiteRam" style="color: #38bdf8;">-- GB</span>
+            </div>
+            <div class="trace-chip">
+              <span class="chip-label">Total System RAM:</span>
               <span class="chip-val" id="traceLiveRam">-- / -- GB</span>
             </div>
             <div class="trace-chip">
@@ -678,9 +685,10 @@
             <!-- Graph 2: Host & Process RAM Timeline -->
             <div class="trace-graph-card">
               <div class="trace-graph-header">
-                <span class="trace-graph-title">🧠 Host & Process RAM Timeline (Live)</span>
+                <span class="trace-graph-title">🧠 Host &amp; Process RAM Timeline (Live)</span>
                 <div class="trace-graph-legend">
-                  <span class="legend-item"><span class="legend-dot" style="background:#10b981;"></span> App RSS (Process)</span>
+                  <span class="legend-item"><span class="legend-dot" style="background:#10b981;"></span> Suite RAM Only</span>
+                  <span class="legend-item"><span class="legend-dot" style="background:#38bdf8;"></span> RAM w/o Suite</span>
                   <span class="legend-item"><span class="legend-dot" style="background:#f59e0b;"></span> Total System RAM</span>
                 </div>
               </div>
@@ -698,9 +706,10 @@
                   <th style="width: 75px;">Elapsed</th>
                   <th>Task / Audio File</th>
                   <th>Pipeline Stage</th>
-                  <th style="width: 110px;">App RAM</th>
-                  <th style="width: 150px;">System RAM</th>
-                  <th style="width: 150px;">GPU VRAM</th>
+                  <th style="width: 95px;">Suite RAM</th>
+                  <th style="width: 95px;">w/o Suite</th>
+                  <th style="width: 140px;">Total Sys RAM</th>
+                  <th style="width: 140px;">GPU VRAM</th>
                   <th style="width: 95px;">Status</th>
                 </tr>
               </thead>
@@ -797,16 +806,16 @@
                 <span class="deep-val" id="deepSysTotal">-- GB</span>
               </div>
               <div class="deep-stat-row">
-                <span>Used RAM (OS + Apps):</span>
+                <span>Total Used RAM (OS + Apps):</span>
                 <span class="deep-val" id="deepSysUsed" style="color: #f59e0b;">-- GB</span>
               </div>
               <div class="deep-stat-row">
-                <span>↳ Suite App RAM (RSS):</span>
+                <span>↳ Suite Memory Only (App RSS):</span>
                 <span class="deep-val" id="deepSysAppRss" style="color: #10b981;">-- GB</span>
               </div>
               <div class="deep-stat-row">
-                <span>↳ Other Apps &amp; Daemons:</span>
-                <span class="deep-val" id="deepSysOtherRss" style="color: #38bdf8;">-- GB</span>
+                <span>↳ RAM Without Suite (OS &amp; Apps):</span>
+                <span class="deep-val" id="deepSysWithoutSuite" style="color: #38bdf8;">-- GB</span>
               </div>
               <div class="deep-stat-row">
                 <span>↳ Kernel Zswap &amp; Shared:</span>

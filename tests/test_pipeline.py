@@ -58,7 +58,11 @@ def test_vram_manager():
     stats = mgr.get_stats()
     assert "total_gb" in stats
     assert "reserved_gb" in stats
-    print(f"✓ VRAMManager test passed (Device: {stats.get('device_name')}, Total: {stats.get('total_gb')} GB).")
+    assert "sys_ram_used_gb" in stats
+    assert "proc_ram_used_gb" in stats
+    assert "sys_ram_without_suite_gb" in stats
+    assert stats["sys_ram_without_suite_gb"] >= 0.0
+    print(f"✓ VRAMManager test passed (Device: {stats.get('device_name')}, Total: {stats.get('total_gb')} GB, Suite: {stats.get('proc_ram_used_gb')} GB, w/o Suite: {stats.get('sys_ram_without_suite_gb')} GB).")
 
 def test_processed_audio_export():
     from transcript_suite.audio.loader import AudioLoader
