@@ -2045,6 +2045,78 @@ async function fetchDeepMemoryTrace() {
   }
 }
 
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      console.warn("navigator.clipboard failed, falling back to textarea execCommand:", e);
+    }
+  }
+  try {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.top = "-9999px";
+    textArea.style.left = "-9999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const success = document.execCommand("copy");
+    document.body.removeChild(textArea);
+    return success;
+  } catch (err) {
+    console.error("execCommand copy failed:", err);
+    return false;
+  }
+}
+
+async function copyProcessAndMemoryToClipboard(triggerBtn) {
+  const btn = triggerBtn || document.getElementById("btnCopyProcessesMem") || document.getElementById("btnCopyMemoryAudit");
+  const origText = btn ? btn.innerHTML : "📋 Copy All Processes & RAM Info";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = "⏳ Generating Audit...";
+  }
+
+  try {
+    const res = await fetch("/api/telemetry/deep-memory/export?format=txt");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+
+    const ok = await copyTextToClipboard(text);
+    if (ok) {
+      if (btn) {
+        btn.innerHTML = "✅ Copied to Clipboard!";
+        btn.style.borderColor = "#10b981";
+        btn.style.color = "#10b981";
+      }
+      addNotification("Audit Copied", "Entire process list and memory usage copied to clipboard.", "success");
+      setTimeout(() => {
+        if (btn) {
+          btn.innerHTML = origText;
+          btn.disabled = false;
+          btn.style.borderColor = "";
+          btn.style.color = "";
+        }
+      }, 2500);
+    } else {
+      throw new Error("Clipboard copy permission denied");
+    }
+  } catch (err) {
+    console.error("Failed to copy memory audit:", err);
+    if (btn) {
+      btn.innerHTML = "❌ Copy Failed";
+      btn.disabled = false;
+      setTimeout(() => {
+        btn.innerHTML = origText;
+      }, 2000);
+    }
+    addNotification("Copy Error", "Could not copy process list to clipboard.", "error");
+  }
+}
+
 // ==========================================================================
 // 9. Model Manager & Checkpoints Client
 // ==========================================================================
@@ -2056,6 +2128,8 @@ async function initModelManager() {
   const btnInstallCustomModel = document.getElementById("btnInstallCustomModel");
   const btnGoToModels = document.getElementById("btnGoToModels");
   const btnRefreshDeepMem = document.getElementById("btnRefreshDeepMem");
+  const btnCopyProcessesMem = document.getElementById("btnCopyProcessesMem");
+  const btnCopyMemoryAudit = document.getElementById("btnCopyMemoryAudit");
 
   if (btnGoToModels) {
     btnGoToModels.addEventListener("click", () => switchTab("paneModels"));
@@ -2080,6 +2154,14 @@ async function initModelManager() {
 
   if (btnRefreshDeepMem) {
     btnRefreshDeepMem.addEventListener("click", fetchDeepMemoryTrace);
+  }
+
+  if (btnCopyProcessesMem) {
+    btnCopyProcessesMem.addEventListener("click", (e) => copyProcessAndMemoryToClipboard(e.currentTarget));
+  }
+
+  if (btnCopyMemoryAudit) {
+    btnCopyMemoryAudit.addEventListener("click", (e) => copyProcessAndMemoryToClipboard(e.currentTarget));
   }
 
   await fetchModelData();
@@ -2504,6 +2586,8 @@ const pyannoteStatusPill = document.getElementById("pyannoteStatusPill");
 const hfTokenInput = document.getElementById("hfTokenInput");
 const btnToggleTokenVisibility = document.getElementById("btnToggleTokenVisibility");
 const btnVerifyHfToken = document.getElementById("btnVerifyHfToken");
+const btnClearHfToken = document.getElementById("btnClearHfToken");
+const hfTokenPersistBadge = document.getElementById("hfTokenPersistBadge");
 const pyannoteFeedbackText = document.getElementById("pyannoteFeedbackText");
 
 async function fetchPyAnnoteStatus() {
@@ -2513,6 +2597,15 @@ async function fetchPyAnnoteStatus() {
     if (!res.ok) return;
     const data = await res.json();
     updatePyAnnoteUI(data);
+
+    // Auto-populate token from backend settings or client storage
+    const savedToken = data.token || localStorage.getItem("ts_hf_token") || "";
+    if (hfTokenInput && savedToken && !hfTokenInput.value) {
+      hfTokenInput.value = savedToken;
+    }
+    if (savedToken) {
+      localStorage.setItem("ts_hf_token", savedToken);
+    }
   } catch (err) {
     console.warn("PyAnnote status check error:", err);
   }
@@ -2521,12 +2614,21 @@ async function fetchPyAnnoteStatus() {
 function updatePyAnnoteUI(data) {
   if (!pyannoteStatusPill) return;
   pyannoteStatusPill.className = "pyannote-status-pill";
+  const hasToken = Boolean(data.token_provided || (data.token && data.token.length > 0));
+
+  if (hfTokenPersistBadge) {
+    hfTokenPersistBadge.style.display = hasToken ? "inline" : "none";
+  }
+  if (btnClearHfToken) {
+    btnClearHfToken.style.display = hasToken ? "inline-flex" : "none";
+  }
+
   if (data.ready) {
     pyannoteStatusPill.classList.add("ready");
     pyannoteStatusPill.textContent = `✅ Ready (@${data.username || "User"})`;
     if (pyannoteFeedbackText) {
       pyannoteFeedbackText.style.color = "#10b981";
-      pyannoteFeedbackText.textContent = `Verified! PyAnnote Audio 3.1 is authenticated and ready for speaker diarization.`;
+      pyannoteFeedbackText.textContent = `Verified! PyAnnote Audio 3.1 is authenticated and ready for speaker diarization. Token is persisted in settings.json.`;
     }
   } else if (data.token_valid && (!data.diarization_access || !data.segmentation_access)) {
     pyannoteStatusPill.classList.add("warning");
@@ -2552,10 +2654,36 @@ function updatePyAnnoteUI(data) {
 }
 
 function initPyAnnoteVerifier() {
+  // Pre-load from localStorage if available
+  const localTok = localStorage.getItem("ts_hf_token");
+  if (localTok && hfTokenInput && !hfTokenInput.value) {
+    hfTokenInput.value = localTok;
+  }
+
   if (btnToggleTokenVisibility && hfTokenInput) {
     btnToggleTokenVisibility.addEventListener("click", () => {
       hfTokenInput.type = hfTokenInput.type === "password" ? "text" : "password";
       btnToggleTokenVisibility.textContent = hfTokenInput.type === "password" ? "👁️" : "🙈";
+    });
+  }
+
+  if (btnClearHfToken && hfTokenInput) {
+    btnClearHfToken.addEventListener("click", async () => {
+      if (!confirm("Are you sure you want to remove the saved Hugging Face token?")) return;
+      hfTokenInput.value = "";
+      localStorage.removeItem("ts_hf_token");
+      try {
+        const res = await fetch("/api/pyannote/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: "" })
+        });
+        const data = await res.json();
+        updatePyAnnoteUI(data);
+        addNotification("Token Removed", "Hugging Face token cleared from settings.", "info");
+      } catch (err) {
+        console.warn("Failed to clear token:", err);
+      }
     });
   }
 
@@ -2572,8 +2700,13 @@ function initPyAnnoteVerifier() {
         });
         const data = await res.json();
         updatePyAnnoteUI(data);
+        if (token && data.token_valid) {
+          localStorage.setItem("ts_hf_token", token);
+        } else if (!token) {
+          localStorage.removeItem("ts_hf_token");
+        }
         if (data.ready) {
-          addNotification("PyAnnote Verified", `PyAnnote Audio 3.1 verified for @${data.username}`, "success");
+          addNotification("PyAnnote Verified", `PyAnnote Audio 3.1 verified for @${data.username} and saved to settings.json`, "success");
         } else {
           addNotification("PyAnnote Notice", data.message, data.token_valid ? "warning" : "error");
         }

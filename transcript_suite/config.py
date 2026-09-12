@@ -96,6 +96,23 @@ class SuiteConfig:
                 for k, v in data.items():
                     if k in allowed_keys and v is not None:
                         setattr(self, k, v)
+
+                # Export persistent Hugging Face token to environment if present
+                if getattr(self, "hf_token", None):
+                    os.environ["HF_TOKEN"] = self.hf_token
+                    os.environ["HUGGING_FACE_HUB_TOKEN"] = self.hf_token
+                else:
+                    # Check standard Hugging Face cache token file
+                    hf_cache_file = Path.home() / ".cache" / "huggingface" / "token"
+                    if hf_cache_file.exists():
+                        try:
+                            cached_tok = hf_cache_file.read_text(encoding="utf-8").strip()
+                            if cached_tok:
+                                self.hf_token = cached_tok
+                                os.environ["HF_TOKEN"] = cached_tok
+                                os.environ["HUGGING_FACE_HUB_TOKEN"] = cached_tok
+                        except Exception:
+                            pass
                 return data
         except Exception as e:
             print(f"[Config Warning] Failed to load {self.settings_file}: {e}")
@@ -120,9 +137,19 @@ class SuiteConfig:
             "audex_model_id"
         }
         for k, v in updates.items():
-            if k in allowed_keys and v is not None:
-                current[k] = v
-                setattr(self, k, v)
+            if k in allowed_keys:
+                if v is None or (isinstance(v, str) and not v.strip()):
+                    current.pop(k, None)
+                    setattr(self, k, None)
+                    if k == "hf_token":
+                        os.environ.pop("HF_TOKEN", None)
+                        os.environ.pop("HUGGING_FACE_HUB_TOKEN", None)
+                else:
+                    current[k] = v
+                    setattr(self, k, v)
+                    if k == "hf_token":
+                        os.environ["HF_TOKEN"] = str(v)
+                        os.environ["HUGGING_FACE_HUB_TOKEN"] = str(v)
         try:
             with open(self.settings_file, "w", encoding="utf-8") as f:
                 json.dump(current, f, indent=2)

@@ -68,6 +68,8 @@ def verify_pyannote_access(token: Optional[str] = None) -> Dict[str, Any]:
     result: Dict[str, Any] = {
         "installed": True,
         "token_provided": bool(token),
+        "token": token or "",
+        "masked_token": f"{token[:4]}...{token[-4:]}" if token and len(token) > 8 else ("****" if token else ""),
         "token_valid": False,
         "username": None,
         "diarization_access": False,
@@ -123,7 +125,14 @@ def verify_pyannote_access(token: Optional[str] = None) -> Dict[str, Any]:
 
 class PyAnnoteDiarizer(BaseDiarizer):
     def __init__(self, hf_token: Optional[str] = None, device: str = "cuda" if torch.cuda.is_available() else "cpu"):
-        self.hf_token = hf_token or os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
+        tok = hf_token or os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
+        if not tok:
+            try:
+                from ..config import config
+                tok = getattr(config, "hf_token", None)
+            except Exception:
+                pass
+        self.hf_token = tok
         self.device = device
         self.pipeline = None
         self._is_loaded = False

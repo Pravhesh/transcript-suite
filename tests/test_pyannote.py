@@ -27,8 +27,10 @@ def test_ensure_pyannote_compatibility():
     assert len(backends) > 0
 
 
-def test_verify_pyannote_access_no_token():
+def test_verify_pyannote_access_no_token(monkeypatch):
     """Verify status report when no Hugging Face token is provided."""
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    monkeypatch.delenv("HUGGING_FACE_HUB_TOKEN", raising=False)
     res = verify_pyannote_access(token=None)
     assert res["installed"] is True
     assert res["token_provided"] is False

@@ -50,6 +50,11 @@ def test_deep_memory_trace_structure():
         for i in range(len(top) - 1):
             assert top[i]["rss_mb"] >= top[i + 1]["rss_mb"]
 
+    # All processes
+    assert "all_processes" in trace
+    assert isinstance(trace["all_processes"], list)
+    assert len(trace["all_processes"]) >= len(top)
+
     # GPU stats
     gpu = trace["gpu"]
     assert "available" in gpu
@@ -63,3 +68,14 @@ def test_top_level_helper():
     trace = get_deep_memory_trace()
     assert isinstance(trace, dict)
     assert "top_processes" in trace
+    assert "all_processes" in trace
+
+
+def test_format_memory_audit_text():
+    from transcript_suite.asr.memory import format_memory_audit_text
+    text = format_memory_audit_text()
+    assert isinstance(text, str)
+    assert "TRANSCRIPT SUITE - SYSTEM MEMORY & PROCESS AUDIT" in text
+    assert "HOST SYSTEM RAM BREAKDOWN" in text
+    assert "COMPLETE SYSTEM PROCESS LIST" in text
+    assert "Total Process Count:" in text

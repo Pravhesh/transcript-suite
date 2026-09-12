@@ -184,6 +184,7 @@ class VRAMManager:
                     continue
             procs.sort(key=lambda x: x["rss_mb"], reverse=True)
             trace["top_processes"] = procs[:10]
+            trace["all_processes"] = procs
         except Exception:
             pass
 
@@ -256,6 +257,93 @@ class VRAMManager:
 def get_deep_memory_trace() -> Dict[str, Any]:
     """Top-level helper to obtain deep memory trace."""
     return VRAMManager().get_deep_memory_trace()
+
+
+def format_memory_audit_text(trace: Optional[Dict[str, Any]] = None) -> str:
+    """
+    Formats complete system memory, GPU VRAM, Suite process heap, and full process list
+    into a clean, aligned, human-readable ASCII text audit suitable for clipboard or logs.
+    """
+    if trace is None:
+        trace = get_deep_memory_trace()
+
+    lines = []
+    lines.append("=" * 80)
+    lines.append("TRANSCRIPT SUITE - SYSTEM MEMORY & PROCESS AUDIT")
+    lines.append(f"Timestamp: {trace.get('timestamp', 'N/A')}")
+    lines.append("=" * 80)
+    lines.append("")
+
+    # 1. Host System RAM
+    sys = trace.get("system_ram", {})
+    lines.append("1. HOST SYSTEM RAM BREAKDOWN")
+    lines.append("-" * 80)
+    total_ram = sys.get("total_gb", 0.0)
+    used_ram = sys.get("used_gb", 0.0)
+    pct_ram = sys.get("percent", 0.0)
+    app_rss = sys.get("app_rss_gb", 0.0)
+    without_suite = sys.get("sys_ram_without_suite_gb", max(0.0, round(used_ram - app_rss, 2)))
+    free_ram = sys.get("free_gb", 0.0)
+
+    lines.append(f"Total Physical RAM:       {total_ram:.2f} GB")
+    lines.append(f"Total Machine RAM Used:   {used_ram:.2f} GB ({pct_ram:.1f}%)")
+    lines.append(f"↳ Suite Memory Only (RSS): {app_rss:.2f} GB (Process RSS)")
+    lines.append(f"↳ RAM Without Suite:       {without_suite:.2f} GB (OS daemons & other apps)")
+    zswap = sys.get("zswap_gb", 0.0)
+    shm = sys.get("shared_gb", 0.0)
+    cache = sys.get("cached_gb", 0.0)
+    lines.append(f"↳ Kernel Zswap & Shared:   zswap: {zswap:.2f} GB | shm: {shm:.2f} GB | cache: {cache:.2f} GB")
+    lines.append(f"Free / Available RAM:      {free_ram:.2f} GB")
+    lines.append("")
+
+    # 2. GPU VRAM
+    gpu = trace.get("gpu", {})
+    if gpu.get("available"):
+        lines.append(f"2. GPU VRAM BREAKDOWN - {gpu.get('device_name', 'CUDA Device')}")
+        lines.append("-" * 80)
+        lines.append(f"Total GPU VRAM:           {gpu.get('total_gb', 0.0):.2f} GB")
+        lines.append(f"Allocated (PyTorch):      {gpu.get('allocated_gb', 0.0):.2f} GB")
+        lines.append(f"Reserved CUDA Pool:       {gpu.get('reserved_gb', 0.0):.2f} GB")
+        lines.append(f"External OS / Display:    {gpu.get('external_os_gb', 0.0):.2f} GB")
+        lines.append(f"Free Device VRAM:         {gpu.get('free_gb', 0.0):.2f} GB ({gpu.get('utilization_percent', 0.0):.1f}% utilized)")
+    else:
+        lines.append("2. GPU VRAM: GPU acceleration not active / running on CPU")
+    lines.append("")
+
+    # 3. Transcript Suite Process Details
+    proc = trace.get("process", {})
+    suite_pid = proc.get("pid")
+    lines.append(f"3. TRANSCRIPT SUITE PROCESS DETAILS (PID: {suite_pid})")
+    lines.append("-" * 80)
+    lines.append(f"Process Name:             {proc.get('name', 'python')}")
+    lines.append(f"Resident Memory (RSS):    {proc.get('rss_mb', 0.0):.1f} MB ({proc.get('rss_gb', 0.0):.2f} GB)")
+    lines.append(f"Virtual Memory (VMS):     {proc.get('vms_mb', 0.0):.1f} MB")
+    lines.append(f"Shared Libraries:         {proc.get('shared_mb', 0.0):.1f} MB")
+    lines.append(f"Heap / Data Segments:     {proc.get('data_mb', 0.0):.1f} MB")
+    lines.append("")
+
+    # 4. Entire Process List
+    all_procs = trace.get("all_processes") or trace.get("top_processes") or []
+    lines.append(f"4. COMPLETE SYSTEM PROCESS LIST ({len(all_procs)} Active Processes)")
+    lines.append("-" * 80)
+    lines.append(f"{'PID':<8} | {'USER':<16} | {'RAM (MB)':>10} | {'RAM (GB)':>9} | {'% MEM':>6} | {'PROCESS NAME'}")
+    lines.append("-" * 80)
+
+    for p in all_procs:
+        p_pid = p.get("pid", 0)
+        p_name = p.get("name", "unknown")
+        if p_pid == suite_pid:
+            p_name = f"{p_name} [This Suite]"
+        p_user = str(p.get("user", "unknown"))[:16]
+        p_rss_mb = p.get("rss_mb", 0.0)
+        p_rss_gb = p.get("rss_gb", 0.0)
+        p_pct = p.get("percent", 0.0)
+        lines.append(f"{p_pid:<8} | {p_user:<16} | {p_rss_mb:>9.1f}M | {p_rss_gb:>8.2f}G | {p_pct:>5.1f}% | {p_name}")
+
+    lines.append("-" * 80)
+    lines.append(f"Total Process Count: {len(all_procs)} | Aggregated Process RSS: {sys.get('all_procs_gb', 0.0):.2f} GB")
+    lines.append("=" * 80)
+    return "\n".join(lines)
 
 
 class SubsystemSupervisor:

@@ -273,16 +273,24 @@ def test_models_and_deep_memory_api():
     # Reset back to adaptive
     client.post("/api/models/roster", json={"vocal_boost_level": "adaptive"})
 
-    # 3. Test /api/telemetry/deep-memory
+    # 3. Test /api/telemetry/deep-memory and export
     res_deep = client.get("/api/telemetry/deep-memory")
     assert res_deep.status_code == 200
     deep_data = res_deep.json()
     assert "process" in deep_data
     assert "system_ram" in deep_data
     assert "top_processes" in deep_data
+    assert "all_processes" in deep_data
     assert "gpu" in deep_data
     assert deep_data["process"]["rss_mb"] > 0
     assert len(deep_data["top_processes"]) <= 10
+    assert len(deep_data["all_processes"]) >= len(deep_data["top_processes"])
+
+    res_export_txt = client.get("/api/telemetry/deep-memory/export?format=txt")
+    assert res_export_txt.status_code == 200
+    assert "text/plain" in res_export_txt.headers["content-type"]
+    assert "TRANSCRIPT SUITE - SYSTEM MEMORY & PROCESS AUDIT" in res_export_txt.text
+    assert "COMPLETE SYSTEM PROCESS LIST" in res_export_txt.text
 
     # 4. Test /api/models/checkpoints delete security rejection
     res_del_bad = client.request("DELETE", "/api/models/checkpoints", json={"id": "/etc/passwd"})
@@ -297,8 +305,20 @@ def test_pyannote_and_supervisor_api():
     assert res_py_status.status_code == 200
     assert "installed" in res_py_status.json()
 
+    # Test saving a persistent token
+    res_py_set = client.post("/api/pyannote/token", json={"token": "hf_persistent_test_token"})
+    assert res_py_set.status_code == 200
+    assert res_py_set.json()["token_provided"] is True
+    assert res_py_set.json()["token"] == "hf_persistent_test_token"
+
+    res_py_check = client.get("/api/pyannote/status")
+    assert res_py_check.status_code == 200
+    assert res_py_check.json()["token"] == "hf_persistent_test_token"
+
+    # Reset token back to None
     res_py_token = client.post("/api/pyannote/token", json={"token": None})
     assert res_py_token.status_code == 200
+    assert res_py_token.json()["token_provided"] is False
 
     # 2. Supervisor Subsystems
     res_subsystems = client.get("/api/supervisor/subsystems")

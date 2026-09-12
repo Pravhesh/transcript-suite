@@ -2,6 +2,7 @@
 FastAPI Backend Application for Transcript Suite.
 """
 
+import os
 from pathlib import Path
 import uuid
 import asyncio
@@ -19,7 +20,7 @@ from pydantic import BaseModel
 
 from ..config import config
 from ..pipeline import TranscriptionPipeline, get_active_pipeline
-from ..asr.memory import VRAMManager, get_subsystem_supervisor
+from ..asr.memory import VRAMManager, get_subsystem_supervisor, format_memory_audit_text
 from ..asr.model_manager import model_manager
 from ..diarization.pyannote import verify_pyannote_access
 from ..export import TranscriptExporter
@@ -359,6 +360,16 @@ async def get_deep_memory():
     return vram_manager.get_deep_memory_trace()
 
 
+@app.get("/api/telemetry/deep-memory/export")
+async def export_deep_memory_trace(format: str = Query("txt")):
+    """Exports complete process list and memory breakdown as formatted text or JSON."""
+    trace = vram_manager.get_deep_memory_trace()
+    if format.lower() == "json":
+        return trace
+    text = format_memory_audit_text(trace)
+    return PlainTextResponse(text, media_type="text/plain; charset=utf-8")
+
+
 @app.get("/api/models")
 async def get_models_overview():
     """Returns active council roster, discovered local checkpoints, curated presets, and download state."""
@@ -444,27 +455,49 @@ async def delete_model_checkpoint(request: Request):
 @app.get("/api/pyannote/status")
 async def get_pyannote_status():
     """Returns PyAnnote installation status and Hugging Face token verification details."""
-    return verify_pyannote_access(config.hf_token)
+    tok = getattr(config, "hf_token", None) or os.getenv("HF_TOKEN")
+    return verify_pyannote_access(tok)
 
 
 @app.post("/api/pyannote/token")
 async def configure_pyannote_token(request: Request):
-    """Saves Hugging Face token and tests access against gated PyAnnote models."""
+    """Saves Hugging Face token persistently and tests access against gated PyAnnote models."""
     try:
         payload = await request.json()
     except Exception:
         payload = {}
     raw_tok = payload.get("token")
     token = raw_tok.strip() if isinstance(raw_tok, str) and raw_tok.strip() else None
+
+    # Save to persistent settings (settings.json) and config
     config.save_persistent_settings({"hf_token": token})
+    if token:
+        os.environ["HF_TOKEN"] = token
+        os.environ["HUGGING_FACE_HUB_TOKEN"] = token
+        try:
+            hf_cache_dir = Path.home() / ".cache" / "huggingface"
+            hf_cache_dir.mkdir(parents=True, exist_ok=True)
+            (hf_cache_dir / "token").write_text(token, encoding="utf-8")
+        except Exception:
+            pass
+    else:
+        os.environ.pop("HF_TOKEN", None)
+        os.environ.pop("HUGGING_FACE_HUB_TOKEN", None)
+        try:
+            hf_cache_token = Path.home() / ".cache" / "huggingface" / "token"
+            if hf_cache_token.exists():
+                hf_cache_token.unlink()
+        except Exception:
+            pass
+
     status = verify_pyannote_access(token)
     supervisor = get_subsystem_supervisor()
     supervisor.log_journal(
-        severity="INFO" if status.get("ready") else "WARNING",
+        severity="INFO" if status.get("ready") else ("WARNING" if status.get("token_provided") else "INFO"),
         subsystem="diarizer",
         event_type="PYANNOTE_TOKEN_UPDATE",
         message=f"PyAnnote token updated. Status: {status.get('message')}",
-        details={"ready": status.get("ready"), "username": status.get("username")}
+        details={"ready": status.get("ready"), "username": status.get("username"), "token_provided": bool(token)}
     )
     return status
 
