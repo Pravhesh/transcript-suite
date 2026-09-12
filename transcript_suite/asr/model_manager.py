@@ -486,11 +486,34 @@ class ModelManager:
             self.install_state["progress"] = 25.0
 
             if framework == "huggingface" or "/" in model_id:
-                from huggingface_hub import snapshot_download
+                from huggingface_hub import snapshot_download, list_repo_files
+                
+                # Smart pattern filter: Avoid downloading multi-gigabyte duplicates
+                ignore_patterns = [
+                    "*.msgpack",   # Flax / JAX
+                    "*.h5",        # TensorFlow / Keras
+                    "*.ot",        # Rust LibTorch
+                    "*.onnx*",     # ONNX Runtime
+                    "*openvino*",  # OpenVINO
+                    "*.tflite",    # TFLite
+                    "*.coreml*",   # Apple CoreML
+                    "*flax*",
+                    "*tf_*"
+                ]
+                try:
+                    repo_files = list_repo_files(repo_id=model_id, token=config.hf_token)
+                    has_safetensors = any(f.endswith(".safetensors") for f in repo_files)
+                    if has_safetensors:
+                        # Safetensors is preferred by Transformers: ignore duplicate .bin and sharded fp32
+                        ignore_patterns.extend(["*.bin", "*.pt", "*fp32*"])
+                except Exception:
+                    pass
+
                 snapshot_download(
                     repo_id=model_id,
                     token=config.hf_token,
-                    local_files_only=False
+                    local_files_only=False,
+                    ignore_patterns=ignore_patterns
                 )
             elif framework == "nemo":
                 import nemo.collections.asr as nemo_asr
