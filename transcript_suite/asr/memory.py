@@ -99,3 +99,122 @@ class VRAMManager:
             if stats["reserved_gb"] >= self.warning_threshold_gb:
                 print(f"[VRAM Warning] VRAM usage is high: {stats['reserved_gb']} GB / {stats['total_gb']} GB")
 
+    def get_deep_memory_trace(self) -> Dict[str, Any]:
+        """
+        Deep memory usage trace:
+        1. Process internal memory sections (RSS, VMS, Shared, Data/Heap).
+        2. Top 10 memory-consuming system processes (PID, Name, User, RAM MB/GB, % RAM).
+        3. Detailed GPU VRAM breakdown (Allocated, Reserved, OS/External, Free Headroom).
+        """
+        trace: Dict[str, Any] = {
+            "process": {
+                "pid": os.getpid(),
+                "name": "transcript-suite",
+                "rss_mb": 0.0,
+                "rss_gb": 0.0,
+                "vms_mb": 0.0,
+                "shared_mb": 0.0,
+                "data_mb": 0.0,
+            },
+            "system_ram": {
+                "total_gb": 0.0,
+                "used_gb": 0.0,
+                "free_gb": 0.0,
+                "percent": 0.0
+            },
+            "top_processes": [],
+            "gpu": {
+                "available": self.device_available,
+                "device_name": "CPU",
+                "total_gb": 0.0,
+                "allocated_gb": 0.0,
+                "reserved_gb": 0.0,
+                "external_os_gb": 0.0,
+                "free_gb": 0.0,
+                "utilization_percent": 0.0
+            }
+        }
+
+        # 1. Current process memory
+        try:
+            p = psutil.Process()
+            minfo = p.memory_info()
+            rss_mb = round(minfo.rss / (1024 * 1024), 1)
+            trace["process"] = {
+                "pid": p.pid,
+                "name": p.name(),
+                "rss_mb": rss_mb,
+                "rss_gb": round(rss_mb / 1024, 2),
+                "vms_mb": round(minfo.vms / (1024 * 1024), 1),
+                "shared_mb": round(getattr(minfo, "shared", 0) / (1024 * 1024), 1),
+                "data_mb": round(getattr(minfo, "data", 0) / (1024 * 1024), 1),
+            }
+        except Exception:
+            pass
+
+        # 2. Host system memory
+        try:
+            mem = psutil.virtual_memory()
+            trace["system_ram"] = {
+                "total_gb": round(mem.total / (1024 ** 3), 2),
+                "used_gb": round(mem.used / (1024 ** 3), 2),
+                "free_gb": round(mem.available / (1024 ** 3), 2),
+                "percent": round(mem.percent, 1)
+            }
+        except Exception:
+            pass
+
+        # 3. Top system processes by RAM
+        try:
+            procs = []
+            for proc in psutil.process_iter(["pid", "name", "username", "memory_info", "memory_percent"]):
+                try:
+                    info = proc.info
+                    p_minfo = info.get("memory_info")
+                    if p_minfo:
+                        p_rss_mb = round(p_minfo.rss / (1024 * 1024), 1)
+                        procs.append({
+                            "pid": info["pid"],
+                            "name": info.get("name") or "unknown",
+                            "user": info.get("username") or "unknown",
+                            "rss_mb": p_rss_mb,
+                            "rss_gb": round(p_rss_mb / 1024, 2),
+                            "percent": round(info.get("memory_percent") or 0.0, 1)
+                        })
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    continue
+            procs.sort(key=lambda x: x["rss_mb"], reverse=True)
+            trace["top_processes"] = procs[:10]
+        except Exception:
+            pass
+
+        # 4. GPU VRAM Breakdown
+        if self.device_available:
+            try:
+                total = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+                allocated = torch.cuda.memory_allocated(0) / (1024 ** 3)
+                reserved = torch.cuda.memory_reserved(0) / (1024 ** 3)
+                free_device, total_device = torch.cuda.mem_get_info()
+                free_gb = free_device / (1024 ** 3)
+                external_os_gb = max(0.0, (total - free_gb) - reserved)
+
+                trace["gpu"] = {
+                    "available": True,
+                    "device_name": torch.cuda.get_device_name(0),
+                    "total_gb": round(total, 2),
+                    "allocated_gb": round(allocated, 2),
+                    "reserved_gb": round(reserved, 2),
+                    "external_os_gb": round(external_os_gb, 2),
+                    "free_gb": round(free_gb, 2),
+                    "utilization_percent": round(((total - free_gb) / total) * 100, 1)
+                }
+            except Exception as e:
+                print(f"[VRAM Warning] Failed to compute GPU memory trace: {e}")
+
+        return trace
+
+
+def get_deep_memory_trace() -> Dict[str, Any]:
+    """Top-level helper to obtain deep memory trace."""
+    return VRAMManager().get_deep_memory_trace()
+

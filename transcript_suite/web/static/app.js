@@ -142,10 +142,14 @@ themeSelect.addEventListener("change", (e) => {
 });
 
 // --- 2. Primary Tab Navigation ---
+const tabBtnModels = document.getElementById("tabBtnModels");
+const paneModels = document.getElementById("paneModels");
+
 function switchTab(tabId) {
   const allTabs = [
     { btn: tabBtnStudio, pane: paneStudio, id: "paneStudio" },
     { btn: tabBtnTranscript, pane: paneTranscript, id: "paneTranscript" },
+    { btn: tabBtnModels, pane: paneModels, id: "paneModels" },
     { btn: tabBtnTelemetry, pane: paneTelemetry, id: "paneTelemetry" }
   ];
 
@@ -158,11 +162,14 @@ function switchTab(tabId) {
     setTimeout(() => {
       if (cachedTraceSamples && cachedTraceSamples.length > 0) renderTraceGraph(cachedTraceSamples);
     }, 60);
+  } else if (tabId === "paneModels") {
+    fetchModelData();
   }
 }
 
 if (tabBtnStudio) tabBtnStudio.addEventListener("click", () => switchTab("paneStudio"));
 if (tabBtnTranscript) tabBtnTranscript.addEventListener("click", () => switchTab("paneTranscript"));
+if (tabBtnModels) tabBtnModels.addEventListener("click", () => switchTab("paneModels"));
 if (tabBtnTelemetry) tabBtnTelemetry.addEventListener("click", () => switchTab("paneTelemetry"));
 
 // --- 3. Cache & Storage Dropdown Management ---
@@ -370,6 +377,10 @@ btnStart.addEventListener("click", async () => {
   formData.append("enable_ambiguity", ambiguityCheckbox ? ambiguityCheckbox.checked : true);
   formData.append("enable_council", councilCheckbox ? councilCheckbox.checked : true);
   formData.append("council_mode", councilModeSelect ? councilModeSelect.value : "sequential");
+  const vocalBoostSelect = document.getElementById("vocalBoostSelect");
+  if (vocalBoostSelect) {
+    formData.append("vocal_boost_level", vocalBoostSelect.value);
+  }
 
   try {
     const res = await fetch("/api/transcribe", { method: "POST", body: formData });
@@ -1320,23 +1331,38 @@ const btnExportLogsTxt = document.getElementById("btnExportLogsTxt");
 const btnClearTelemetry = document.getElementById("btnClearTelemetry");
 const btnClearMemTelemetry = document.getElementById("btnClearMemTelemetry");
 
+const tabBtnDeepMem = document.getElementById("tabBtnDeepMem");
+const paneDeepMem = document.getElementById("paneDeepMem");
+
 function initTelemetryTabs() {
   if (!tabBtnTrace || !tabBtnLogs) return;
+
+  const setTelemetrySubTab = (activeBtn, activePane) => {
+    [tabBtnTrace, tabBtnLogs, tabBtnDeepMem].forEach(btn => {
+      if (btn) btn.classList.toggle("active", btn === activeBtn);
+    });
+    [paneTrace, paneLogs, paneDeepMem].forEach(pane => {
+      if (pane) pane.classList.toggle("active", pane === activePane);
+    });
+  };
+
   tabBtnTrace.addEventListener("click", () => {
-    tabBtnTrace.classList.add("active");
-    tabBtnLogs.classList.remove("active");
-    paneTrace.classList.add("active");
-    paneLogs.classList.remove("active");
+    setTelemetrySubTab(tabBtnTrace, paneTrace);
     setTimeout(() => {
       if (cachedTraceSamples && cachedTraceSamples.length > 0) renderTraceGraph(cachedTraceSamples);
     }, 50);
   });
+
   tabBtnLogs.addEventListener("click", () => {
-    tabBtnLogs.classList.add("active");
-    tabBtnTrace.classList.remove("active");
-    paneLogs.classList.add("active");
-    paneTrace.classList.remove("active");
+    setTelemetrySubTab(tabBtnLogs, paneLogs);
   });
+
+  if (tabBtnDeepMem) {
+    tabBtnDeepMem.addEventListener("click", () => {
+      setTelemetrySubTab(tabBtnDeepMem, paneDeepMem);
+      fetchDeepMemoryTrace();
+    });
+  }
 }
 
 function initCadenceSelector() {
@@ -1726,6 +1752,409 @@ function initTelemetryExports() {
   }
 }
 
+// ==========================================================================
+// 8. Deep Memory Telemetry & Process Inspection
+// ==========================================================================
+async function fetchDeepMemoryTrace() {
+  try {
+    const res = await fetch("/api/telemetry/deep-memory");
+    if (!res.ok) return;
+    const data = await res.json();
+
+    // 1. Suite process memory
+    const proc = data.process || {};
+    const deepRssVal = document.getElementById("deepRssVal");
+    const deepVmsVal = document.getElementById("deepVmsVal");
+    const deepSharedVal = document.getElementById("deepSharedVal");
+    const deepDataVal = document.getElementById("deepDataVal");
+    if (deepRssVal) deepRssVal.innerText = `${proc.rss_mb || 0} MB (${proc.rss_gb || 0} GB)`;
+    if (deepVmsVal) deepVmsVal.innerText = `${proc.vms_mb || 0} MB`;
+    if (deepSharedVal) deepSharedVal.innerText = `${proc.shared_mb || 0} MB`;
+    if (deepDataVal) deepDataVal.innerText = `${proc.data_mb || 0} MB`;
+
+    // 2. GPU VRAM Breakdown
+    const gpu = data.gpu || {};
+    const deepGpuDevice = document.getElementById("deepGpuDevice");
+    const deepGpuAlloc = document.getElementById("deepGpuAlloc");
+    const deepGpuReserved = document.getElementById("deepGpuReserved");
+    const deepGpuExternal = document.getElementById("deepGpuExternal");
+    const deepGpuFree = document.getElementById("deepGpuFree");
+    if (deepGpuDevice) deepGpuDevice.innerText = gpu.device_name || "CPU";
+    if (deepGpuAlloc) deepGpuAlloc.innerText = `${gpu.allocated_gb || 0} GB`;
+    if (deepGpuReserved) deepGpuReserved.innerText = `${gpu.reserved_gb || 0} GB`;
+    if (deepGpuExternal) deepGpuExternal.innerText = `${gpu.external_os_gb || 0} GB`;
+    if (deepGpuFree) deepGpuFree.innerText = `${gpu.free_gb || 0} GB / ${gpu.total_gb || 0} GB (${gpu.utilization_percent || 0}%)`;
+
+    // 3. Host System RAM
+    const sys = data.system_ram || {};
+    const deepSysTotal = document.getElementById("deepSysTotal");
+    const deepSysUsed = document.getElementById("deepSysUsed");
+    const deepSysFree = document.getElementById("deepSysFree");
+    const deepSysPct = document.getElementById("deepSysPct");
+    if (deepSysTotal) deepSysTotal.innerText = `${sys.total_gb || 0} GB`;
+    if (deepSysUsed) deepSysUsed.innerText = `${sys.used_gb || 0} GB`;
+    if (deepSysFree) deepSysFree.innerText = `${sys.free_gb || 0} GB`;
+    if (deepSysPct) deepSysPct.innerText = `${sys.percent || 0}%`;
+
+    // 4. Top 10 System Processes
+    const tbody = document.getElementById("deepProcessesBody");
+    if (tbody && data.top_processes) {
+      tbody.innerHTML = "";
+      data.top_processes.forEach((p) => {
+        const tr = document.createElement("tr");
+        const isSuite = (p.pid === proc.pid) || (p.name && p.name.includes("transcript"));
+        if (isSuite) {
+          tr.style.backgroundColor = "rgba(105, 167, 121, 0.12)";
+          tr.style.fontWeight = "600";
+        }
+        tr.innerHTML = `
+          <td><code>${p.pid}</code></td>
+          <td>${escapeHtml(p.name)} ${isSuite ? '<span class="status-badge-active" style="font-size:9px; margin-left:6px;">This Suite</span>' : ''}</td>
+          <td>${escapeHtml(p.user)}</td>
+          <td>${p.rss_mb} MB</td>
+          <td>${p.rss_gb} GB</td>
+          <td>${p.percent}%</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+  } catch (err) {
+    console.warn("Failed to fetch deep memory trace:", err);
+  }
+}
+
+// ==========================================================================
+// 9. Model Manager & Checkpoints Client
+// ==========================================================================
+let modelCatalogData = null;
+let downloadStatusTimer = null;
+
+async function initModelManager() {
+  const btnSaveRoster = document.getElementById("btnSaveRoster");
+  const btnInstallCustomModel = document.getElementById("btnInstallCustomModel");
+  const btnGoToModels = document.getElementById("btnGoToModels");
+  const btnRefreshDeepMem = document.getElementById("btnRefreshDeepMem");
+
+  if (btnGoToModels) {
+    btnGoToModels.addEventListener("click", () => switchTab("paneModels"));
+  }
+
+  if (btnSaveRoster) {
+    btnSaveRoster.addEventListener("click", saveActiveRoster);
+  }
+
+  if (btnInstallCustomModel) {
+    btnInstallCustomModel.addEventListener("click", async () => {
+      const customId = document.getElementById("customModelId")?.value.trim();
+      const customFw = document.getElementById("customModelFramework")?.value;
+      const customRole = document.getElementById("customModelRole")?.value;
+      if (!customId) {
+        alert("Please enter a Hugging Face Repo ID or NeMo model name.");
+        return;
+      }
+      await startModelInstall(customId, customFw, customRole);
+    });
+  }
+
+  if (btnRefreshDeepMem) {
+    btnRefreshDeepMem.addEventListener("click", fetchDeepMemoryTrace);
+  }
+
+  await fetchModelData();
+}
+
+async function fetchModelData() {
+  try {
+    const res = await fetch("/api/models");
+    if (!res.ok) return;
+    const data = await res.json();
+    modelCatalogData = data;
+
+    renderModelRoster(data.roster, data.presets, data.checkpoints);
+    renderPresetCatalog(data.presets);
+    renderCheckpointsTable(data.checkpoints, data.roster);
+
+    const totalBadge = document.getElementById("checkpointTotalDisk");
+    if (totalBadge) {
+      totalBadge.innerText = `Total: ${data.total_checkpoint_gb || 0} GB`;
+    }
+
+    if (data.install_status && data.install_status.is_downloading) {
+      showDownloadProgress(data.install_status);
+      startDownloadPolling();
+    }
+  } catch (err) {
+    console.warn("Failed to fetch models data:", err);
+  }
+}
+
+function renderModelRoster(roster, presets, checkpoints) {
+  if (!roster) return;
+
+  const selectCanary = document.getElementById("rosterSelectCanary");
+  const selectWhisper = document.getElementById("rosterSelectWhisper");
+  const selectConformer = document.getElementById("rosterSelectConformer");
+  const selectParakeet = document.getElementById("rosterSelectParakeet");
+  const selectDiarizer = document.getElementById("rosterSelectDiarizer");
+  const selectBoost = document.getElementById("rosterSelectBoost");
+
+  const buildOptions = (role, activeVal) => {
+    const rolePresets = (presets || []).filter(p => p.role === role);
+    let html = "";
+    rolePresets.forEach(p => {
+      const isSel = (p.id === activeVal);
+      const tag = p.is_installed ? "✓ Installed" : "Not Cached";
+      html += `<option value="${p.id}" ${isSel ? "selected" : ""}>${p.name} [${p.parameters}] (${tag})</option>`;
+    });
+    if (activeVal && !rolePresets.some(p => p.id === activeVal)) {
+      html += `<option value="${activeVal}" selected>${activeVal} (Active Custom)</option>`;
+    }
+    return html;
+  };
+
+  if (selectCanary) selectCanary.innerHTML = buildOptions("speech_llm", roster.model_name);
+  if (selectWhisper) selectWhisper.innerHTML = buildOptions("whisper", roster.whisper_model);
+  if (selectConformer) selectConformer.innerHTML = buildOptions("conformer", roster.conformer_model);
+  if (selectParakeet) selectParakeet.innerHTML = buildOptions("parakeet", roster.parakeet_model);
+  if (selectDiarizer && roster.default_diarizer) selectDiarizer.value = roster.default_diarizer;
+  if (selectBoost && roster.vocal_boost_level) selectBoost.value = roster.vocal_boost_level;
+
+  // Sync Studio Vocal Boost selector
+  const studioBoost = document.getElementById("vocalBoostSelect");
+  if (studioBoost && roster.vocal_boost_level) {
+    studioBoost.value = roster.vocal_boost_level;
+  }
+
+  // Update Studio Council Roster Pills
+  const pillLead = document.getElementById("pillLeadJustice");
+  const pillCross = document.getElementById("pillCrossExaminer");
+  const pillAnchor = document.getElementById("pillAnchor");
+  const pillTrans = document.getElementById("pillTransducer");
+
+  if (pillLead) pillLead.innerText = `Pass 1: ${roster.model_name ? roster.model_name.split("/").pop() : "Canary-Qwen-2.5B"}`;
+  if (pillCross) pillCross.innerText = `Pass 2: ${roster.whisper_model ? roster.whisper_model.split("/").pop() : "Whisper-Large-v3"}`;
+  if (pillAnchor) pillAnchor.innerText = `Pass 3A: ${roster.conformer_model ? roster.conformer_model.split("/").pop() : "Conformer-CTC"}`;
+  if (pillTrans) pillTrans.innerText = `Pass 3B: ${roster.parakeet_model ? roster.parakeet_model.split("/").pop() : "Parakeet-TDT"}`;
+}
+
+function renderPresetCatalog(presets) {
+  const container = document.getElementById("presetsGrid");
+  if (!container || !presets) return;
+
+  container.innerHTML = "";
+  presets.forEach(p => {
+    const card = document.createElement("div");
+    card.className = "preset-card";
+
+    let roleClass = "stage-lead";
+    if (p.role === "whisper") roleClass = "stage-cross";
+    else if (p.role === "conformer") roleClass = "stage-ctc";
+    else if (p.role === "parakeet") roleClass = "stage-tdt";
+    else if (p.role === "diarizer") roleClass = "stage-diar";
+
+    card.innerHTML = `
+      <div class="preset-header">
+        <div class="preset-name">${escapeHtml(p.name)}</div>
+        <span class="preset-badge ${roleClass}">${p.parameters}</span>
+      </div>
+      <div class="preset-desc">${escapeHtml(p.description)}</div>
+      <div class="preset-meta">
+        <span>~${p.size_gb} GB</span>
+        ${p.is_installed ? '<span class="preset-installed-tag">✓ Installed</span>' : `<button class="btn-preset-install" data-id="${p.id}" data-fw="${p.framework}" data-role="${p.role}">⬇️ Install</button>`}
+      </div>
+    `;
+
+    const btn = card.querySelector(".btn-preset-install");
+    if (btn) {
+      btn.addEventListener("click", () => {
+        startModelInstall(p.id, p.framework, p.role);
+      });
+    }
+
+    container.appendChild(card);
+  });
+}
+
+function renderCheckpointsTable(checkpoints, roster) {
+  const tbody = document.getElementById("checkpointsTableBody");
+  if (!tbody) return;
+
+  tbody.innerHTML = "";
+  if (!checkpoints || checkpoints.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 20px;">No model checkpoints found in local caches.</td></tr>`;
+    return;
+  }
+
+  const activeSet = new Set(Object.values(roster || {}));
+
+  checkpoints.forEach(cp => {
+    const tr = document.createElement("tr");
+    const isActive = cp.is_active || activeSet.has(cp.id) || activeSet.has(cp.raw_name);
+
+    tr.innerHTML = `
+      <td>
+        <div style="font-weight: 600;">${escapeHtml(cp.name)}</div>
+        <div style="font-size: 10px; color: var(--text-muted); font-family: monospace;">${escapeHtml(cp.id)}</div>
+      </td>
+      <td><span class="roster-stage-tag" style="background: rgba(255,255,255,0.06); color: var(--text-secondary);">${escapeHtml(cp.role_display || cp.role)}</span></td>
+      <td><code style="font-size: 11px;">${cp.framework === "huggingface" ? "HF Hub" : "NeMo"}</code></td>
+      <td><strong>${cp.size_gb} GB</strong></td>
+      <td style="color: var(--text-muted); font-size: 11px;">${cp.last_modified}</td>
+      <td>
+        ${isActive ? '<span class="status-badge-active">Active In Pipeline</span>' : '<span class="status-badge-installed">Cached</span>'}
+      </td>
+      <td>
+        <button class="btn-delete-checkpoint" data-id="${escapeHtml(cp.id)}" data-name="${escapeHtml(cp.name)}" title="Delete model checkpoint to reclaim disk space">🗑️ Delete</button>
+      </td>
+    `;
+
+    const delBtn = tr.querySelector(".btn-delete-checkpoint");
+    if (delBtn) {
+      delBtn.addEventListener("click", () => {
+        deleteCheckpoint(cp.id, cp.name);
+      });
+    }
+
+    tbody.appendChild(tr);
+  });
+}
+
+async function saveActiveRoster() {
+  const btn = document.getElementById("btnSaveRoster");
+  const origText = btn ? btn.innerText : "";
+  if (btn) {
+    btn.innerText = "Saving...";
+    btn.disabled = true;
+  }
+
+  const payload = {
+    model_name: document.getElementById("rosterSelectCanary")?.value,
+    whisper_model: document.getElementById("rosterSelectWhisper")?.value,
+    conformer_model: document.getElementById("rosterSelectConformer")?.value,
+    parakeet_model: document.getElementById("rosterSelectParakeet")?.value,
+    default_diarizer: document.getElementById("rosterSelectDiarizer")?.value,
+    vocal_boost_level: document.getElementById("rosterSelectBoost")?.value
+  };
+
+  try {
+    const res = await fetch("/api/models/roster", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error("Failed to save roster");
+    if (btn) {
+      btn.innerText = "✓ Roster Saved!";
+      setTimeout(() => {
+        btn.innerText = origText;
+        btn.disabled = false;
+      }, 1500);
+    }
+    await fetchModelData();
+  } catch (err) {
+    alert("Error saving roster: " + err.message);
+    if (btn) {
+      btn.innerText = origText;
+      btn.disabled = false;
+    }
+  }
+}
+
+async function startModelInstall(modelId, framework, role) {
+  try {
+    const res = await fetch("/api/models/install", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model_id: modelId, framework: framework || "huggingface", role: role })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.detail || "Failed to start install.");
+      return;
+    }
+
+    showDownloadProgress({
+      model_id: modelId,
+      progress: 5.0,
+      message: `Initiating download of ${modelId}...`
+    });
+    startDownloadPolling();
+  } catch (err) {
+    alert("Install error: " + err.message);
+  }
+}
+
+function showDownloadProgress(status) {
+  const box = document.getElementById("downloadProgressBox");
+  const title = document.getElementById("downloadProgressTitle");
+  const pct = document.getElementById("downloadProgressPct");
+  const fill = document.getElementById("downloadProgressFill");
+  const msg = document.getElementById("downloadProgressMsg");
+
+  if (!box) return;
+  box.style.display = "block";
+  if (title) title.innerText = `Downloading ${status.model_id || "Checkpoint"}...`;
+  if (pct) pct.innerText = `${Math.round(status.progress || 0)}%`;
+  if (fill) fill.style.width = `${Math.round(status.progress || 0)}%`;
+  if (msg) msg.innerText = status.message || "Downloading...";
+}
+
+function startDownloadPolling() {
+  if (downloadStatusTimer) clearInterval(downloadStatusTimer);
+  downloadStatusTimer = setInterval(async () => {
+    try {
+      const res = await fetch("/api/models/install/status");
+      if (!res.ok) return;
+      const status = await res.json();
+
+      showDownloadProgress(status);
+
+      if (status.status === "completed") {
+        clearInterval(downloadStatusTimer);
+        downloadStatusTimer = null;
+        setTimeout(() => {
+          const box = document.getElementById("downloadProgressBox");
+          if (box) box.style.display = "none";
+        }, 3000);
+        fetchModelData();
+        fetchCacheBreakdown();
+      } else if (status.status === "failed") {
+        clearInterval(downloadStatusTimer);
+        downloadStatusTimer = null;
+        alert(`Download failed: ${status.error || status.message}`);
+        setTimeout(() => {
+          const box = document.getElementById("downloadProgressBox");
+          if (box) box.style.display = "none";
+        }, 4000);
+      }
+    } catch (err) {
+      console.warn("Poll error:", err);
+    }
+  }, 1500);
+}
+
+async function deleteCheckpoint(checkpointId, displayName) {
+  const ok = confirm(`Are you sure you want to delete "${displayName || checkpointId}" from disk cache?\nThis will permanently remove the checkpoint files to reclaim disk space.`);
+  if (!ok) return;
+
+  try {
+    const res = await fetch("/api/models/checkpoints", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: checkpointId })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(`Deletion failed: ${data.detail || "Error"}`);
+      return;
+    }
+    await fetchModelData();
+    await fetchCacheBreakdown();
+  } catch (err) {
+    alert("Deletion error: " + err.message);
+  }
+}
+
 // Initialize Everything on Load
 initTheme();
 initCacheDropdown();
@@ -1734,5 +2163,6 @@ initTelemetryTabs();
 initCadenceSelector();
 initLogLevelFilters();
 initTelemetryExports();
+initModelManager();
 startTelemetryPolling();
 fetchTelemetryData();

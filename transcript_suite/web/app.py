@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from ..config import config
 from ..pipeline import TranscriptionPipeline
 from ..asr.memory import VRAMManager
+from ..asr.model_manager import model_manager
 from ..export import TranscriptExporter
 
 app = FastAPI(title="Transcript Suite API")
@@ -344,6 +345,92 @@ async def clear_system_memory(request: Request):
     return await clear_cache_endpoint(request)
 
 
+@app.get("/api/telemetry/deep-memory")
+async def get_deep_memory():
+    """Returns deep system process RAM, suite memory sections, and granular GPU breakdown."""
+    return vram_manager.get_deep_memory_trace()
+
+
+@app.get("/api/models")
+async def get_models_overview():
+    """Returns active council roster, discovered local checkpoints, curated presets, and download state."""
+    checkpoints = model_manager.list_installed_checkpoints()
+    total_bytes = sum(cp["size_bytes"] for cp in checkpoints)
+    return {
+        "roster": model_manager.get_active_roster(),
+        "checkpoints": checkpoints,
+        "presets": model_manager.get_preset_catalog(),
+        "total_checkpoint_bytes": total_bytes,
+        "total_checkpoint_gb": round(total_bytes / (1024 ** 3), 2),
+        "install_status": model_manager.get_download_status()
+    }
+
+
+@app.post("/api/models/roster")
+async def update_roster(request: Request):
+    """Updates the active multi-model council roster and persists to settings.json."""
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Invalid roster payload")
+    
+    updated = model_manager.update_active_roster(payload)
+    add_log(None, "CONFIG", f"Council roster updated: Speech-LLM='{updated.get('model_name')}', Whisper='{updated.get('whisper_model')}', CTC='{updated.get('conformer_model')}', TDT='{updated.get('parakeet_model')}', Boost='{updated.get('vocal_boost_level')}'")
+    return {"status": "updated", "roster": updated}
+
+
+@app.post("/api/models/install")
+async def install_model(request: Request):
+    """Starts background download of a Hugging Face or NeMo model checkpoint."""
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    model_id = payload.get("model_id", "").strip()
+    if not model_id:
+        raise HTTPException(status_code=400, detail="model_id is required")
+    framework = payload.get("framework", "huggingface")
+    role = payload.get("role")
+
+    result = model_manager.start_download_task(model_id=model_id, framework=framework, role=role)
+    if result.get("status") == "busy":
+        raise HTTPException(status_code=409, detail=result.get("message"))
+
+    add_log(None, "DOWNLOAD", f"Initiated background install of '{model_id}' ({framework}).")
+    return result
+
+
+@app.get("/api/models/install/status")
+async def get_model_install_status():
+    """Polls background model download status."""
+    return model_manager.get_download_status()
+
+
+@app.delete("/api/models/checkpoints")
+async def delete_model_checkpoint(request: Request):
+    """Deletes an installed model checkpoint directory or .nemo file from disk."""
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    checkpoint_id = payload.get("id") or payload.get("path")
+    if not checkpoint_id:
+        raise HTTPException(status_code=400, detail="Checkpoint ID or path is required")
+
+    try:
+        res = model_manager.delete_checkpoint(checkpoint_id)
+        add_log(None, "MEM", f"Deleted model checkpoint '{checkpoint_id}'. Reclaimed {res.get('reclaimed_gb', 0)} GB disk.")
+        return res
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @app.post("/api/transcribe")
 async def create_transcription_task(
     background_tasks: BackgroundTasks,
@@ -354,6 +441,11 @@ async def create_transcription_task(
     enable_ambiguity: bool = Form(True),
     enable_council: bool = Form(True),
     council_mode: str = Form("sequential"),
+    vocal_boost_level: str = Form("adaptive"),
+    whisper_model: Optional[str] = Form(None),
+    conformer_model: Optional[str] = Form(None),
+    parakeet_model: Optional[str] = Form(None),
+    model_name: Optional[str] = Form(None),
     hf_token: Optional[str] = Form(None)
 ):
     """
@@ -407,6 +499,11 @@ async def create_transcription_task(
         enable_ambiguity=enable_ambiguity,
         enable_council=enable_council,
         council_mode=council_mode,
+        vocal_boost_level=vocal_boost_level,
+        whisper_model=whisper_model,
+        conformer_model=conformer_model,
+        parakeet_model=parakeet_model,
+        model_name=model_name,
         hf_token=hf_token
     )
 
@@ -505,16 +602,30 @@ def run_transcription_worker(
     enable_ambiguity: bool,
     enable_council: bool,
     council_mode: str,
-    hf_token: Optional[str]
+    vocal_boost_level: str = "adaptive",
+    whisper_model: Optional[str] = None,
+    conformer_model: Optional[str] = None,
+    parakeet_model: Optional[str] = None,
+    model_name: Optional[str] = None,
+    hf_token: Optional[str] = None
 ):
     ctrl = TASK_CONTROLS.get(task_id)
     pause_evt = ctrl["pause_event"] if ctrl else None
     stop_evt = ctrl["stop_event"] if ctrl else None
 
-    add_log(task_id, "INFO", f"Pipeline starting: Diarizer={diarizer}, GPU Enhancer={enable_enhancer}, Ambiguity Resolver={enable_ambiguity}, Council={enable_council} ({council_mode})")
-    pipeline = TranscriptionPipeline(diarizer_type=diarizer, hf_token=hf_token)
+    pipeline = TranscriptionPipeline(
+        diarizer_type=diarizer,
+        hf_token=hf_token,
+        model_name=model_name,
+        whisper_model=whisper_model,
+        conformer_model=conformer_model,
+        parakeet_model=parakeet_model,
+        vocal_boost_level=vocal_boost_level
+    )
     if ctrl:
         ctrl["pipeline"] = pipeline
+
+    add_log(task_id, "INFO", f"Pipeline starting: Lead={pipeline.transcriber.model_name.split('/')[-1]}, Whisper={pipeline.council.whisper_model_id.split('/')[-1]}, CTC={pipeline.council.conformer_model_id.split('/')[-1]}, TDT={pipeline.council.parakeet_model_id.split('/')[-1]}, Boost={pipeline.vocal_boost_level}")
 
     def on_progress(stage: str, frac: float, current_seg: Optional[Dict[str, Any]]):
         if task_id in TASKS:
@@ -527,9 +638,14 @@ def run_transcription_worker(
             stats = vram_manager.get_stats()
             TASKS[task_id]["vram"] = stats
             
-            # Identify log level
+            # Identify log level: explicitly tag [MEM] unload events
             stage_l = stage.lower()
-            lvl = "CHUNK" if ("chunk" in stage_l and ("transcribed" in stage_l or "council" in stage_l)) else "STAGE"
+            if "[mem]" in stage_l or "unloaded" in stage_l:
+                lvl = "MEM"
+            elif "chunk" in stage_l and ("transcribed" in stage_l or "council" in stage_l):
+                lvl = "CHUNK"
+            else:
+                lvl = "STAGE"
             add_log(task_id, lvl, f"{stage} [{round(frac * 100, 1)}%]", stats)
             add_trace_sample(task_id)
 

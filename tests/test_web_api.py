@@ -253,13 +253,51 @@ def test_cache_and_segment_management():
     print("✓ Segment patch and delete endpoints verified.")
 
 
+def test_models_and_deep_memory_api():
+    client = TestClient(app)
+
+    # 1. Test /api/models overview
+    res_models = client.get("/api/models")
+    assert res_models.status_code == 200
+    m_data = res_models.json()
+    assert "roster" in m_data
+    assert "checkpoints" in m_data
+    assert "presets" in m_data
+    assert "total_checkpoint_gb" in m_data
+
+    # 2. Test /api/models/roster update
+    res_roster = client.post("/api/models/roster", json={"vocal_boost_level": "max"})
+    assert res_roster.status_code == 200
+    assert res_roster.json()["roster"]["vocal_boost_level"] == "max"
+
+    # Reset back to adaptive
+    client.post("/api/models/roster", json={"vocal_boost_level": "adaptive"})
+
+    # 3. Test /api/telemetry/deep-memory
+    res_deep = client.get("/api/telemetry/deep-memory")
+    assert res_deep.status_code == 200
+    deep_data = res_deep.json()
+    assert "process" in deep_data
+    assert "system_ram" in deep_data
+    assert "top_processes" in deep_data
+    assert "gpu" in deep_data
+    assert deep_data["process"]["rss_mb"] > 0
+    assert len(deep_data["top_processes"]) <= 10
+
+    # 4. Test /api/models/checkpoints delete security rejection
+    res_del_bad = client.request("DELETE", "/api/models/checkpoints", json={"id": "/etc/passwd"})
+    assert res_del_bad.status_code == 403
+
+
 if __name__ == "__main__":
     test_web_endpoints()
     test_task_control_endpoints()
     test_audio_stream_endpoints()
     test_telemetry_endpoints()
     test_cache_and_segment_management()
-    print("\nAll Web API and telemetry tests passed!")
+    test_models_and_deep_memory_api()
+    print("\nAll Web API, models, and deep memory tests passed!")
+
 
 
 

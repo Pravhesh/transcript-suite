@@ -118,6 +118,7 @@
     <button class="main-tab-btn" data-tab="paneTranscript" id="tabBtnTranscript">
       📝 Transcript & Editor <span class="tab-badge" id="tabTranscriptBadge">0</span>
     </button>
+    <button class="main-tab-btn" data-tab="paneModels" id="tabBtnModels">🤖 Models & Checkpoints</button>
     <button class="main-tab-btn" data-tab="paneTelemetry" id="tabBtnTelemetry">📈 Telemetry & Logs</button>
   </nav>
 
@@ -142,6 +143,16 @@
             <input type="checkbox" id="voiceEnhancerCheckbox" checked>
             <span>Voice Filter & Amplifier (GPU)</span>
           </label>
+
+          <div style="display: flex; align-items: center; gap: 8px;" title="GPU Vocal Amplifier Boost Headroom">
+            <span style="font-size: 13px; color: var(--text-secondary);">Vocal Boost:</span>
+            <select class="select-input" id="vocalBoostSelect">
+              <option value="adaptive">🔊 Adaptive AGC (+15 dB)</option>
+              <option value="standard">🔈 Standard (+10 dB)</option>
+              <option value="high">📢 High Boost (+18 dB)</option>
+              <option value="max">⚡ Max Headroom (+22 dB)</option>
+            </select>
+          </div>
 
           <label class="checkbox-label" title="Auto-slows tricky audio frames to 0.75x and re-evaluates before asking for human review">
             <input type="checkbox" id="ambiguityCheckbox" checked>
@@ -170,6 +181,16 @@
           </div>
 
           <button class="btn-primary" id="btnStart" disabled>Transcribe Audio</button>
+        </div>
+
+        <!-- Compact Active Council Roster Indicator -->
+        <div class="council-roster-bar" id="councilRosterBar">
+          <span class="council-roster-title">⚖️ Active Council:</span>
+          <span class="roster-pill" id="pillLeadJustice">Pass 1: Canary-Qwen-2.5B</span>
+          <span class="roster-pill" id="pillCrossExaminer">Pass 2: Whisper-Large-v3</span>
+          <span class="roster-pill" id="pillAnchor">Pass 3A: Conformer-CTC</span>
+          <span class="roster-pill" id="pillTransducer">Pass 3B: Parakeet-TDT</span>
+          <button type="button" class="btn-roster-config" id="btnGoToModels" title="Configure or change models in the Models & Checkpoints tab">⚙️ Change Models</button>
         </div>
       </div>
 
@@ -345,13 +366,177 @@
       </div>
     </div>
 
-    <!-- TAB 3: TELEMETRY & LOGS PANE -->
+    <!-- TAB 3: MODELS & CHECKPOINTS PANE -->
+    <div class="tab-pane" id="paneModels">
+      <!-- 1. Active Council Pipeline Roster -->
+      <div class="model-manager-card">
+        <div class="model-card-header">
+          <div class="model-card-title-group">
+            <span class="model-badge">⚖️ ACTIVE COUNCIL ROSTER</span>
+            <span class="model-card-subtitle">Configure which models deliberate in the 4-stage sequential pipeline</span>
+          </div>
+          <button class="btn-primary btn-save-roster" id="btnSaveRoster">💾 Save Active Pipeline Roster</button>
+        </div>
+
+        <div class="roster-grid">
+          <!-- Pass 1 -->
+          <div class="roster-field">
+            <label for="rosterSelectCanary" class="roster-label">
+              <span class="roster-stage-tag stage-lead">Pass 1</span>
+              <span>Lead Justice (Speech-LLM):</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectCanary"></select>
+            <div class="roster-hint">NVIDIA Speech-LLM providing overarching conversational context & acoustic reasoning.</div>
+          </div>
+
+          <!-- Pass 2 -->
+          <div class="roster-field">
+            <label for="rosterSelectWhisper" class="roster-label">
+              <span class="roster-stage-tag stage-cross">Pass 2</span>
+              <span>Cross-Examiner (Autoregressive):</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectWhisper"></select>
+            <div class="roster-hint">Autoregressive Whisper cross-examiner for phonetic precision & phrase boundary validation.</div>
+          </div>
+
+          <!-- Pass 3A -->
+          <div class="roster-field">
+            <label for="rosterSelectConformer" class="roster-label">
+              <span class="roster-stage-tag stage-ctc">Pass 3A</span>
+              <span>Acoustic Anchor (Dense CTC):</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectConformer"></select>
+            <div class="roster-hint">Non-autoregressive Conformer CTC model. Overrules speech-LLM hallucinations.</div>
+          </div>
+
+          <!-- Pass 3B -->
+          <div class="roster-field">
+            <label for="rosterSelectParakeet" class="roster-label">
+              <span class="roster-stage-tag stage-tdt">Pass 3B</span>
+              <span>Transducer (RNN-T / TDT):</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectParakeet"></select>
+            <div class="roster-hint">Token-and-Duration Transducer for joint acoustic-linguistic cross-examination.</div>
+          </div>
+
+          <!-- Diarizer -->
+          <div class="roster-field">
+            <label for="rosterSelectDiarizer" class="roster-label">
+              <span class="roster-stage-tag stage-diar">Diarizer</span>
+              <span>Speaker Diarization Engine:</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectDiarizer">
+              <option value="nemo">NeMo TitaNet-Large (1D Depthwise CNN Embeddings)</option>
+              <option value="pyannote">PyAnnote Audio 3.1 (Neural End-to-End)</option>
+            </select>
+            <div class="roster-hint">Clusters speech segments into distinct speaker voices.</div>
+          </div>
+
+          <!-- Vocal Boost -->
+          <div class="roster-field">
+            <label for="rosterSelectBoost" class="roster-label">
+              <span class="roster-stage-tag stage-boost">Enhancer</span>
+              <span>GPU Vocal Amplifier Boost Level:</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectBoost">
+              <option value="adaptive">🔊 Adaptive AGC (+15 dB Headroom - Recommended)</option>
+              <option value="standard">🔈 Standard (+10 dB Headroom)</option>
+              <option value="high">📢 High Boost (+18 dB Headroom)</option>
+              <option value="max">⚡ Max Headroom (+22 dB Boost)</option>
+            </select>
+            <div class="roster-hint">Frame-gated dynamic amplifier with soft-knee tanh peak limiting.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Install / Download Model Checkpoint -->
+      <div class="model-manager-card">
+        <div class="model-card-header">
+          <div class="model-card-title-group">
+            <span class="model-badge">⬇️ INSTALL NEW MODEL / CHECKPOINT</span>
+            <span class="model-card-subtitle">Download official or custom Hugging Face / NeMo models directly into local cache</span>
+          </div>
+        </div>
+
+        <div class="install-form-row">
+          <div class="install-input-group" style="flex: 1;">
+            <label class="install-label" for="customModelId">Hugging Face Repo ID or NeMo Model Name:</label>
+            <input type="text" class="text-input" id="customModelId" placeholder="e.g. openai/whisper-large-v3-turbo or nvidia/parakeet-ctc-1.1b">
+          </div>
+          <div class="install-input-group" style="width: 180px;">
+            <label class="install-label" for="customModelFramework">Framework:</label>
+            <select class="select-input" id="customModelFramework">
+              <option value="huggingface">Hugging Face Hub</option>
+              <option value="nemo">NVIDIA NeMo</option>
+            </select>
+          </div>
+          <div class="install-input-group" style="width: 200px;">
+            <label class="install-label" for="customModelRole">Architecture Role:</label>
+            <select class="select-input" id="customModelRole">
+              <option value="whisper">Pass 2: Whisper</option>
+              <option value="conformer">Pass 3A: CTC Anchor</option>
+              <option value="parakeet">Pass 3B: Transducer</option>
+              <option value="speech_llm">Pass 1: Speech-LLM</option>
+              <option value="diarizer">Diarizer</option>
+            </select>
+          </div>
+          <button class="btn-primary btn-install-action" id="btnInstallCustomModel">⬇️ Download Model</button>
+        </div>
+
+        <!-- Download Status Box -->
+        <div class="download-progress-box" id="downloadProgressBox" style="display: none;">
+          <div class="download-progress-header">
+            <div class="download-progress-title" id="downloadProgressTitle">Downloading Checkpoint...</div>
+            <span class="download-progress-pct" id="downloadProgressPct">0%</span>
+          </div>
+          <div class="download-progress-track">
+            <div class="download-progress-fill" id="downloadProgressFill"></div>
+          </div>
+          <div class="download-progress-msg" id="downloadProgressMsg">Contacting registry...</div>
+        </div>
+
+        <!-- Curated 1-Click Install Presets -->
+        <div class="presets-section-title">⚡ Curated 1-Click Model Presets</div>
+        <div class="presets-grid" id="presetsGrid"></div>
+      </div>
+
+      <!-- 3. Installed Checkpoints Manager -->
+      <div class="model-manager-card">
+        <div class="model-card-header">
+          <div class="model-card-title-group">
+            <span class="model-badge">💾 INSTALLED CHECKPOINTS & DISK FOOTPRINT</span>
+            <span class="model-card-subtitle">Inspect local weights and delete checkpoints to immediately reclaim disk space</span>
+          </div>
+          <div class="checkpoint-summary-badge" id="checkpointTotalDisk">Total: -- GB</div>
+        </div>
+
+        <div class="checkpoints-table-container">
+          <table class="checkpoints-table">
+            <thead>
+              <tr>
+                <th>Model Name & Identifier</th>
+                <th>Role in Pipeline</th>
+                <th style="width: 120px;">Framework</th>
+                <th style="width: 100px;">Disk Size</th>
+                <th style="width: 140px;">Last Modified</th>
+                <th style="width: 140px;">Roster Status</th>
+                <th style="width: 110px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="checkpointsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: TELEMETRY & LOGS PANE -->
     <div class="tab-pane" id="paneTelemetry">
       <div class="telemetry-card" id="telemetryCard">
         <div class="telemetry-header">
           <div class="telemetry-tabs">
             <button class="tab-btn active" id="tabBtnTrace">📈 Memory Trace</button>
             <button class="tab-btn" id="tabBtnLogs">📜 Live Execution Logs</button>
+            <button class="tab-btn" id="tabBtnDeepMem">🔍 Deep Memory & Processes</button>
             <span class="pulse-indicator" id="telemetryPulse" title="Live telemetry active">● Live</span>
           </div>
 
@@ -468,6 +653,99 @@
               <span>Auto-scroll to latest log</span>
             </label>
             <span class="telemetry-count" id="logCountText">0 log entries</span>
+          </div>
+        </div>
+
+        <!-- SUB-TAB 3: DEEP MEMORY & PROCESS TRACE -->
+        <div class="telemetry-tab-pane" id="paneDeepMem">
+          <!-- Deep Memory Cards -->
+          <div class="deep-mem-grid">
+            <div class="deep-mem-card">
+              <div class="deep-card-title">🖥️ Suite Process Memory (RSS / Heap)</div>
+              <div class="deep-stat-row">
+                <span>Resident RAM (RSS):</span>
+                <span class="deep-val" id="deepRssVal">-- MB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Virtual Size (VMS):</span>
+                <span class="deep-val" id="deepVmsVal">-- MB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Shared Libraries:</span>
+                <span class="deep-val" id="deepSharedVal">-- MB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Process Heap Data:</span>
+                <span class="deep-val" id="deepDataVal">-- MB</span>
+              </div>
+            </div>
+
+            <div class="deep-mem-card">
+              <div class="deep-card-title">🎮 GPU VRAM Distribution</div>
+              <div class="deep-stat-row">
+                <span>Device:</span>
+                <span class="deep-val" id="deepGpuDevice" style="font-size: 11px;">--</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>PyTorch Active Tensors:</span>
+                <span class="deep-val" id="deepGpuAlloc" style="color: #a855f7;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>PyTorch Reserved Cache:</span>
+                <span class="deep-val" id="deepGpuReserved" style="color: #38bdf8;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>OS / Compositor VRAM:</span>
+                <span class="deep-val" id="deepGpuExternal" style="color: #f59e0b;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Free Hardware Headroom:</span>
+                <span class="deep-val" id="deepGpuFree" style="color: #10b981;">-- GB</span>
+              </div>
+            </div>
+
+            <div class="deep-mem-card">
+              <div class="deep-card-title">🧠 Host Operating System RAM</div>
+              <div class="deep-stat-row">
+                <span>Total Physical RAM:</span>
+                <span class="deep-val" id="deepSysTotal">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Used RAM (OS + Apps):</span>
+                <span class="deep-val" id="deepSysUsed">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Available / Free RAM:</span>
+                <span class="deep-val" id="deepSysFree">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Host RAM Utilization:</span>
+                <span class="deep-val" id="deepSysPct">-- %</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Top System Processes Table -->
+          <div class="deep-proc-section">
+            <div class="deep-proc-header">
+              <div class="deep-proc-title">⚡ Top 10 Memory-Consuming Processes (Live Machine Inspection)</div>
+              <button class="btn-telemetry" id="btnRefreshDeepMem" title="Poll active processes from psutil">🔄 Refresh Processes</button>
+            </div>
+            <div class="trace-table-container">
+              <table class="trace-table">
+                <thead>
+                  <tr>
+                    <th style="width: 80px;">PID</th>
+                    <th>Process Name</th>
+                    <th style="width: 140px;">User</th>
+                    <th style="width: 120px;">RAM (MB)</th>
+                    <th style="width: 120px;">RAM (GB)</th>
+                    <th style="width: 120px;">% Host RAM</th>
+                  </tr>
+                </thead>
+                <tbody id="deepProcessesBody"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>

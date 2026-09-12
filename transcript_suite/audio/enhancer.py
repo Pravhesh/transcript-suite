@@ -17,22 +17,29 @@ class GPUSpeechEnhancer:
         low_cut_hz: float = 85.0,
         vocal_boost_hz: float = 2400.0,
         vocal_boost_gain_db: float = 3.0,
-        target_rms: float = 0.08
+        target_speech_rms: float = 0.12,
+        boost_level: str = "adaptive"
     ):
         self.sample_rate = sample_rate
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.low_cut_hz = low_cut_hz
         self.vocal_boost_hz = vocal_boost_hz
         self.vocal_boost_gain_db = vocal_boost_gain_db
-        self.target_rms = target_rms
+        self.target_speech_rms = target_speech_rms
+        self.boost_level = boost_level
 
-    def enhance(self, waveform: torch.Tensor) -> torch.Tensor:
+    def set_boost_level(self, level: str):
+        """Sets the amplifier boost level ('standard', 'adaptive', 'high', 'max')."""
+        if level in ("standard", "adaptive", "high", "max"):
+            self.boost_level = level
+
+    def enhance(self, waveform: torch.Tensor, boost_level: Optional[str] = None) -> torch.Tensor:
         """
         Enhances audio waveform [1, T] directly on GPU with clean spectral processing:
         1. 4th-order High-pass filter (sub-85Hz low-frequency noise, wind, HVAC rumble cut).
         2. Vocal formant presence equalizer (+3dB boost at 2.4 kHz for consonant definition).
         3. Frequency-domain Wiener spectral subtraction noise gate (STFT domain, zero chopping).
-        4. Smooth Automatic Gain Control (AGC) with soft-knee saturation (no clipping).
+        4. Speech-Active Gated Vocal Amplifier with Soft-Knee Tanh Dynamic Limiting (up to +18dB clean gain, no clipping).
         """
         orig_device = waveform.device
         audio = waveform.to(self.device).float()
@@ -64,21 +71,70 @@ class GPUSpeechEnhancer:
         except Exception as e:
             print(f"[GPUSpeechEnhancer Warning] Spectral denoise fallback: {e}")
 
-        # 4. Smooth Automatic Gain Control (AGC) & Linear Peak Normalization
+        # 4. Speech-Active Gated Vocal Amplifier & Soft-Knee Dynamic Compression
         try:
-            rms = torch.sqrt(torch.mean(audio.pow(2)) + 1e-8)
-            if rms > 1e-4:
-                gain = torch.clamp(0.06 / rms, min=0.8, max=2.0)
-                audio = audio * gain
-
-            # Linear peak normalization: scales loud peaks cleanly without square-wave distortion
-            peak = audio.abs().max()
-            if peak > 0.90:
-                audio = audio * (0.90 / peak)
-        except Exception:
-            pass
+            active_level = boost_level or self.boost_level
+            audio = self._amplify_and_limit(audio, boost_level=active_level)
+        except Exception as e:
+            print(f"[GPUSpeechEnhancer Warning] Vocal amplifier fallback: {e}")
 
         return audio.to(orig_device)
+
+    def _amplify_and_limit(self, audio: torch.Tensor, boost_level: str = "adaptive") -> torch.Tensor:
+        """
+        Vocal Amplifier with Speech-Active Gated AGC and Soft-Knee Dynamic Compression:
+        - Detects active vocal frames to calculate true speech RMS (ignoring silence and noise floor).
+        - Applies adaptive gain to achieve target speech RMS (~0.12 / -18.4 dBFS).
+        - Smoothly compresses transient peaks above 0.70 using hyperbolic tangent saturation (soft-knee limiter).
+        - Enforces strict peak headroom at 0.95 (0% digital clipping).
+        """
+        max_gain_db_map = {
+            "standard": 10.0,   # ~3.1x
+            "adaptive": 15.0,   # ~5.6x
+            "high": 18.0,       # ~8.0x
+            "max": 22.0         # ~12.6x
+        }
+        max_gain_db = max_gain_db_map.get(boost_level, 15.0)
+        max_gain = 10.0 ** (max_gain_db / 20.0)
+
+        total_samples = audio.shape[-1]
+        frame_len = int(self.sample_rate * 0.05)  # 50ms frames
+        
+        if total_samples >= frame_len:
+            frames = audio.unfold(-1, frame_len, frame_len // 2)
+            frame_rms = torch.sqrt(torch.mean(frames.pow(2), dim=-1) + 1e-8)
+            
+            noise_floor = torch.quantile(frame_rms, 0.15)
+            speech_gate = max(noise_floor.item() * 1.5, 1e-3)
+            speech_frames = frame_rms[frame_rms > speech_gate]
+            
+            if len(speech_frames) > 0:
+                speech_rms = torch.mean(speech_frames).item()
+            else:
+                speech_rms = torch.sqrt(torch.mean(audio.pow(2)) + 1e-8).item()
+        else:
+            speech_rms = torch.sqrt(torch.mean(audio.pow(2)) + 1e-8).item()
+
+        if speech_rms > 1e-4:
+            gain = min(self.target_speech_rms / speech_rms, max_gain)
+        else:
+            gain = 1.0
+
+        gain = max(gain, 1.0)
+        amplified = audio * gain
+
+        threshold = 0.70
+        abs_x = torch.abs(amplified)
+        excess = torch.clamp(abs_x - threshold, min=0.0)
+        compressed = threshold + (1.0 - threshold) * torch.tanh(excess / (1.0 - threshold))
+        scale = torch.where(abs_x > threshold, compressed / (abs_x + 1e-8), torch.ones_like(amplified))
+        output = amplified * scale
+
+        peak = output.abs().max()
+        if peak > 0.95:
+            output = output * (0.95 / peak)
+
+        return output
 
     def _spectral_denoise(self, audio: torch.Tensor) -> torch.Tensor:
         """

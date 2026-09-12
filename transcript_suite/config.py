@@ -32,6 +32,7 @@ class SuiteConfig:
     max_chunk_duration_s: float = 25.0  # Safe bounds for 8GB VRAM
     min_chunk_duration_s: float = 1.0
     vad_padding_s: float = 0.3
+    vocal_boost_level: str = "adaptive"  # standard, adaptive, high, max
     
     # Memory safety
     vram_alert_threshold_gb: float = 7.0  # Max safe threshold on 8GB GPU
@@ -46,10 +47,15 @@ class SuiteConfig:
     base_dir: Path = Path.home() / ".cache" / "transcript_suite"
     upload_dir: Path = base_dir / "uploads"
     output_dir: Path = base_dir / "outputs"
+    settings_file: Path = base_dir / "settings.json"
     
     def __post_init__(self):
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Load user persisted settings if available
+        self.load_persistent_settings()
         
         # Enable Ada Lovelace Tensor Core acceleration
         if self.enable_tf32 and torch.cuda.is_available():
@@ -57,6 +63,56 @@ class SuiteConfig:
             torch.backends.cudnn.allow_tf32 = True
         if self.cudnn_benchmark and torch.cuda.is_available():
             torch.backends.cudnn.benchmark = True
+
+    def load_persistent_settings(self) -> dict:
+        """Loads persistent model settings from settings.json and updates config attributes."""
+        import json
+        if not self.settings_file.exists():
+            return {}
+        try:
+            with open(self.settings_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                allowed_keys = {
+                    "model_name",
+                    "whisper_model",
+                    "conformer_model",
+                    "parakeet_model",
+                    "default_diarizer",
+                    "nemo_diarizer_model",
+                    "vocal_boost_level"
+                }
+                for k, v in data.items():
+                    if k in allowed_keys and v is not None:
+                        setattr(self, k, v)
+                return data
+        except Exception as e:
+            print(f"[Config Warning] Failed to load {self.settings_file}: {e}")
+        return {}
+
+    def save_persistent_settings(self, updates: dict) -> dict:
+        """Saves persistent model settings to settings.json and updates active config."""
+        import json
+        current = self.load_persistent_settings()
+        allowed_keys = {
+            "model_name",
+            "whisper_model",
+            "conformer_model",
+            "parakeet_model",
+            "default_diarizer",
+            "nemo_diarizer_model",
+            "vocal_boost_level"
+        }
+        for k, v in updates.items():
+            if k in allowed_keys and v is not None:
+                current[k] = v
+                setattr(self, k, v)
+        try:
+            with open(self.settings_file, "w", encoding="utf-8") as f:
+                json.dump(current, f, indent=2)
+        except Exception as e:
+            print(f"[Config Warning] Failed to write {self.settings_file}: {e}")
+        return current
 
 
 config = SuiteConfig()
