@@ -128,18 +128,25 @@ const btnSaveAliases = document.getElementById("btnSaveAliases");
 const aliasInputsContainer = document.getElementById("aliasInputsContainer");
 
 // --- 1. Theme Management ---
-function initTheme() {
-  const saved = localStorage.getItem("ts_theme") || "foggy-woodland";
-  document.body.dataset.theme = saved;
-  themeSelect.value = saved;
-}
-
-themeSelect.addEventListener("change", (e) => {
-  const theme = e.target.value;
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  document.body.setAttribute("data-theme", theme);
   document.body.dataset.theme = theme;
+  if (themeSelect) themeSelect.value = theme;
   localStorage.setItem("ts_theme", theme);
   updateWaveformTheme();
-});
+}
+
+function initTheme() {
+  const saved = localStorage.getItem("ts_theme") || "foggy-woodland";
+  applyTheme(saved);
+}
+
+if (themeSelect) {
+  themeSelect.addEventListener("change", (e) => {
+    applyTheme(e.target.value);
+  });
+}
 
 // --- 2. Primary Tab Navigation ---
 const tabBtnModels = document.getElementById("tabBtnModels");
@@ -508,24 +515,24 @@ function getWaveThemeColors() {
   const currentTheme = document.body.dataset.theme;
   if (currentTheme === "forest-sage") {
     return {
-      origWave: '#1e2825', origProgress: '#527568',
-      modelWave: '#162b1e', modelProgress: '#4a825b'
+      origWave: '#252e22', origProgress: '#6c945d',
+      modelWave: '#1c231a', modelProgress: '#9fd18c'
     };
   } else if (currentTheme === "nordic-slate") {
     return {
-      origWave: '#232a35', origProgress: '#50637d',
-      modelWave: '#1d2c33', modelProgress: '#457a8c'
+      origWave: '#1e293a', origProgress: '#488ac7',
+      modelWave: '#161e2b', modelProgress: '#72b6f4'
     };
   } else if (currentTheme === "warm-umber") {
     return {
-      origWave: '#2a221e', origProgress: '#7c5a43',
-      modelWave: '#2d281a', modelProgress: '#78683e'
+      origWave: '#30241c', origProgress: '#b86d44',
+      modelWave: '#231a14', modelProgress: '#ea9866'
     };
   } else {
     // Foggy woodland default
     return {
-      origWave: '#1f2823', origProgress: '#558762',
-      modelWave: '#1b2621', modelProgress: '#6d9978'
+      origWave: '#1a2b24', origProgress: '#3d8b63',
+      modelWave: '#131f1a', modelProgress: '#5ec793'
     };
   }
 }
@@ -1323,7 +1330,6 @@ const tracePeakMem = document.getElementById("tracePeakMem");
 const traceTableBody = document.getElementById("traceTableBody");
 const traceAutoScroll = document.getElementById("traceAutoScroll");
 const traceCountText = document.getElementById("traceCountText");
-const memoryTraceCanvas = document.getElementById("memoryTraceCanvas");
 const vramTraceCanvas = document.getElementById("vramTraceCanvas");
 const ramTraceCanvas = document.getElementById("ramTraceCanvas");
 
@@ -1532,8 +1538,10 @@ function renderTraceTable(samples) {
     const container = document.getElementById("traceTableContainer");
     if (container) container.scrollTop = container.scrollHeight;
   }
+}
+
 function renderVramGraph(samples) {
-  const canvas = vramTraceCanvas || memoryTraceCanvas;
+  const canvas = vramTraceCanvas;
   if (!canvas || !samples || samples.length === 0) return;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
