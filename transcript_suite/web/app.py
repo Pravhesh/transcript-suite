@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from ..config import config
 from ..pipeline import TranscriptionPipeline, get_active_pipeline
-from ..asr.memory import VRAMManager, get_subsystem_supervisor, format_memory_audit_text
+from ..asr.memory import VRAMManager, get_subsystem_supervisor, format_memory_audit_text, purge_page_cache
 from ..asr.model_manager import model_manager
 from ..diarization.pyannote import verify_pyannote_access
 from ..export import TranscriptExporter
@@ -352,6 +352,21 @@ async def clear_cache_endpoint(request: Request):
 async def clear_system_memory(request: Request):
     """Backwards-compatible endpoint for proactive memory cleanup."""
     return await clear_cache_endpoint(request)
+
+
+@app.post("/api/memory/drop-cache")
+async def drop_page_cache_endpoint():
+    """Purges Linux page cache (model checkpoints, audio buffers) and trims glibc heap."""
+    res = purge_page_cache()
+    supervisor = get_subsystem_supervisor()
+    supervisor.log_journal(
+        severity="INFO",
+        subsystem="audio_buffers",
+        event_type="PAGE_CACHE_PURGE",
+        message=f"Page cache purged. Freed {res.get('freed_cached_mb', 0)} MB cached pages ({res.get('files_purged', 0)} files).",
+        details=res
+    )
+    return res
 
 
 @app.get("/api/telemetry/deep-memory")

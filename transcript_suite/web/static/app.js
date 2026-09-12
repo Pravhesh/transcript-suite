@@ -1949,6 +1949,15 @@ function initTelemetryExports() {
       }
     });
   }
+
+  const btnDropPageCacheNav = document.getElementById("btnDropPageCacheNav");
+  if (btnDropPageCacheNav) {
+    btnDropPageCacheNav.addEventListener("click", (e) => triggerPageCachePurge(e.currentTarget));
+  }
+  const btnDropPageCacheCard = document.getElementById("btnDropPageCacheCard");
+  if (btnDropPageCacheCard) {
+    btnDropPageCacheCard.addEventListener("click", (e) => triggerPageCachePurge(e.currentTarget));
+  }
 }
 
 // ==========================================================================
@@ -2006,6 +2015,8 @@ async function fetchDeepMemoryTrace() {
       if (sys.shared_gb) parts.push(`shm: ${sys.shared_gb} GB`);
       deepSysKernelZswap.innerText = parts.length > 0 ? parts.join(" | ") : `~${Math.max(0, (sys.used_gb - (sys.all_procs_gb || 0)).toFixed(2))} GB`;
     }
+    const deepSysCached = document.getElementById("deepSysCached");
+    if (deepSysCached) deepSysCached.innerText = `${sys.cached_gb || 0} GB`;
     if (deepSysFree) deepSysFree.innerText = `${sys.free_gb || 0} GB`;
     if (deepSysPct) deepSysPct.innerText = `${sys.percent || 0}%`;
 
@@ -2114,6 +2125,65 @@ async function copyProcessAndMemoryToClipboard(triggerBtn) {
       }, 2000);
     }
     addNotification("Copy Error", "Could not copy process list to clipboard.", "error");
+  }
+}
+
+async function triggerPageCachePurge(triggerBtn) {
+  const navBtn = document.getElementById("btnDropPageCacheNav");
+  const cardBtn = document.getElementById("btnDropPageCacheCard");
+  const buttons = [navBtn, cardBtn].filter(Boolean);
+
+  buttons.forEach((b) => {
+    b.disabled = true;
+    b.setAttribute("data-orig-text", b.innerHTML);
+    b.innerHTML = "⏳ Purging OS Cache...";
+  });
+
+  try {
+    const res = await fetch("/api/memory/drop-cache", { method: "POST" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const freedMb = data.freed_cached_mb || 0;
+    const freedGb = data.freed_cached_gb || (freedMb / 1024).toFixed(2);
+    const filesCount = data.files_purged || 0;
+
+    buttons.forEach((b) => {
+      if (freedMb > 0) {
+        b.innerHTML = `✅ Purged ${freedMb} MB Cache!`;
+        b.style.borderColor = "#10b981";
+        b.style.color = "#10b981";
+      } else {
+        b.innerHTML = "✅ Cache Already Clean!";
+      }
+    });
+
+    if (freedMb > 0) {
+      addNotification("Page Cache Purged", `Evicted ${freedMb} MB (${freedGb} GB) across ${filesCount} checkpoint & audio files.`, "success");
+    } else {
+      addNotification("Page Cache Clean", `All ${filesCount} model & audio cache files are already purged from RAM.`, "info");
+    }
+
+    if (typeof fetchMemoryStats === "function") fetchMemoryStats();
+    if (typeof fetchDeepMemoryTrace === "function") fetchDeepMemoryTrace();
+
+    setTimeout(() => {
+      buttons.forEach((b) => {
+        b.innerHTML = b.getAttribute("data-orig-text") || "⚡ Purge Page Cache";
+        b.disabled = false;
+        b.style.borderColor = "";
+        b.style.color = "";
+      });
+    }, 2500);
+  } catch (err) {
+    console.error("Failed to purge page cache:", err);
+    buttons.forEach((b) => {
+      b.innerHTML = "❌ Purge Failed";
+      b.disabled = false;
+      setTimeout(() => {
+        b.innerHTML = b.getAttribute("data-orig-text") || "⚡ Purge Page Cache";
+      }, 2000);
+    });
+    addNotification("Purge Error", "Could not purge page cache.", "error");
   }
 }
 

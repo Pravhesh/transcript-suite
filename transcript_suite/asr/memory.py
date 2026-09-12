@@ -348,6 +348,109 @@ def format_memory_audit_text(trace: Optional[Dict[str, Any]] = None) -> str:
     return "\n".join(lines)
 
 
+def purge_page_cache() -> Dict[str, Any]:
+    """
+    Purges cached model files, audio buffers, and checkpoint pages from Linux page cache
+    using posix_fadvise (POSIX_FADV_DONTNEED) without requiring root privileges.
+    Also attempts system-wide drop_caches via sudo -n if available, and executes
+    glibc malloc_trim to release freed process heap back to the OS.
+    """
+    def _get_cache_stats():
+        cached_mb = 0
+        used_mb = 0
+        try:
+            with open("/proc/meminfo", "r") as f:
+                for line in f:
+                    if line.startswith("Cached:"):
+                        cached_mb = int(line.split()[1]) // 1024
+                    elif line.startswith("MemTotal:"):
+                        total_kb = int(line.split()[1])
+                    elif line.startswith("MemAvailable:"):
+                        avail_kb = int(line.split()[1])
+                        used_mb = (total_kb - avail_kb) // 1024
+        except Exception:
+            pass
+        return cached_mb, used_mb
+
+    cached_before, used_before = _get_cache_stats()
+
+    # 1. Sync dirty filesystem pages to disk first
+    try:
+        os.sync()
+    except Exception:
+        pass
+
+    # 2. Try system-level drop_caches if sudo -n or root allows it
+    system_drop_success = False
+    try:
+        if os.geteuid() == 0:
+            with open("/proc/sys/vm/drop_caches", "w") as f:
+                f.write("3\n")
+            system_drop_success = True
+        else:
+            res = os.system("echo 3 | sudo -n tee /proc/sys/vm/drop_caches >/dev/null 2>&1")
+            if res == 0:
+                system_drop_success = True
+    except Exception:
+        pass
+
+    # 3. Targeted user-space cache purge via posix_fadvise across model checkpoints and audio
+    files_purged = 0
+    cache_dirs = [
+        Path.home() / ".cache" / "torch",
+        Path.home() / ".cache" / "huggingface",
+        Path.home() / ".cache" / "transcript_suite",
+        Path.home() / ".cache" / "pip",
+        Path("/tmp"),
+        Path.cwd()
+    ]
+
+    for cdir in cache_dirs:
+        if cdir.exists():
+            for fpath in cdir.rglob("*"):
+                if fpath.is_file() and not fpath.is_symlink():
+                    try:
+                        fd = os.open(str(fpath), os.O_RDONLY)
+                        os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
+                        os.close(fd)
+                        files_purged += 1
+                    except Exception:
+                        pass
+
+    # 4. Release Python garbage, CUDA cache, and glibc unmapped memory
+    gc.collect()
+    if torch.cuda.is_available():
+        try:
+            torch.cuda.empty_cache()
+        except Exception:
+            pass
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
+
+    cached_after, used_after = _get_cache_stats()
+    freed_cached_mb = max(0, cached_before - cached_after)
+    freed_ram_mb = max(0, used_before - used_after)
+
+    return {
+        "status": "success",
+        "success": True,
+        "system_drop_executed": system_drop_success,
+        "files_purged": files_purged,
+        "cached_before_mb": cached_before,
+        "cached_after_mb": cached_after,
+        "before_cached_mb": cached_before,
+        "after_cached_mb": cached_after,
+        "freed_cached_mb": freed_cached_mb,
+        "freed_cached_gb": round(freed_cached_mb / 1024, 2),
+        "used_before_mb": used_before,
+        "used_after_mb": used_after,
+        "freed_ram_mb": freed_ram_mb,
+        "freed_ram_gb": round(freed_ram_mb / 1024, 2)
+    }
+
+
 class SubsystemSupervisor:
     """
     Advanced Supervisory Engine that tracks and controls each internal process

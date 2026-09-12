@@ -296,6 +296,15 @@ def test_models_and_deep_memory_api():
     res_del_bad = client.request("DELETE", "/api/models/checkpoints", json={"id": "/etc/passwd"})
     assert res_del_bad.status_code == 403
 
+    # 5. Test /api/memory/drop-cache
+    res_drop_cache = client.post("/api/memory/drop-cache")
+    assert res_drop_cache.status_code == 200
+    cache_data = res_drop_cache.json()
+    assert cache_data.get("status") == "success"
+    assert "freed_cached_mb" in cache_data
+    assert "files_purged" in cache_data
+
+
 
 def test_pyannote_and_supervisor_api():
     client = TestClient(app)

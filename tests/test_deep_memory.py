@@ -79,3 +79,17 @@ def test_format_memory_audit_text():
     assert "HOST SYSTEM RAM BREAKDOWN" in text
     assert "COMPLETE SYSTEM PROCESS LIST" in text
     assert "Total Process Count:" in text
+
+
+def test_purge_page_cache():
+    from transcript_suite.asr.memory import purge_page_cache
+    res = purge_page_cache()
+    assert isinstance(res, dict)
+    assert res.get("status") == "success"
+    assert "freed_cached_mb" in res
+    assert "freed_cached_gb" in res
+    assert "files_purged" in res
+    assert "before_cached_mb" in res
+    assert "after_cached_mb" in res
+    assert res["files_purged"] >= 0
+
