@@ -65,3 +65,40 @@ def test_pyannote_diarizer_lifecycle():
     # Calling unload when not loaded should safely no-op
     diarizer.unload()
     assert diarizer.pipeline is None
+
+
+def test_pyannote_diarizer_direct_tensor_and_fallback():
+    """Verify PyAnnoteDiarizer accepts in-memory waveform tensor and processes tracks."""
+    import torch
+    diarizer = PyAnnoteDiarizer(hf_token="hf_dummy_token", device="cpu")
+    diarizer._is_loaded = True
+
+    mock_track = MagicMock()
+    mock_track.start = 0.5
+    mock_track.end = 2.5
+
+    mock_result = MagicMock()
+    mock_result.itertracks.return_value = [
+        (mock_track, None, "SPEAKER_00")
+    ]
+
+    mock_pipeline = MagicMock(return_value=mock_result)
+    diarizer.pipeline = mock_pipeline
+
+    dummy_waveform = torch.zeros((1, 16000), dtype=torch.float32)
+    turns = diarizer.diarize(dummy_waveform, sample_rate=16000)
+
+    assert len(turns) == 1
+    assert turns[0].start == 0.5
+    assert turns[0].end == 2.5
+    assert turns[0].speaker == "Speaker 0"
+    mock_pipeline.assert_called_once()
+    # Check that input was audio_input dict
+    call_arg = mock_pipeline.call_args[0][0]
+    assert isinstance(call_arg, dict)
+    assert "waveform" in call_arg
+    assert "sample_rate" in call_arg
+    assert call_arg["sample_rate"] == 16000
+
+    diarizer.unload()
+    assert diarizer.pipeline is None

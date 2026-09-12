@@ -9,6 +9,7 @@ import time
 import tempfile
 import soundfile as sf
 import torch
+import numpy as np
 
 from .config import config
 from .audio.loader import AudioLoader
@@ -417,7 +418,14 @@ class TranscriptionPipeline:
                     try:
                         base_w = 2 if "large" in str(self.council.whisper_model_id).lower() else 4
                         w_batch = self.supervisor.get_suggested_batch_size("whisper", base_w)
-                        whisper_hyps = self.council.transcribe_batch_whisper(chunk_wavs, batch_size=w_batch)
+                        def on_whisper_prog(completed: int, total: int, ratio: float):
+                            check_stop()
+                            frac = 0.56 + ratio * 0.18
+                            batch_num = int(np.ceil(completed / w_batch))
+                            tot_batches = int(np.ceil(total / w_batch))
+                            report(f"Pass 2/3 (Whisper): Chunk {completed}/{total} (Batch {batch_num}/{tot_batches})", frac)
+
+                        whisper_hyps = self.council.transcribe_batch_whisper(chunk_wavs, batch_size=w_batch, progress_cb=on_whisper_prog)
                     except Exception as e:
                         print(f"[Pipeline Warning] Batched Whisper error ({e}), falling back to sequential...")
                         whisper_hyps = []
@@ -452,7 +460,14 @@ class TranscriptionPipeline:
                     try:
                         base_c = 8 if "xlarge" in str(self.council.conformer_model_id).lower() else 16
                         c_batch = self.supervisor.get_suggested_batch_size("conformer", base_c)
-                        ctc_hyps = self.council.transcribe_batch_conformer(chunk_wavs, batch_size=c_batch)
+                        def on_conformer_prog(completed: int, total: int, ratio: float):
+                            check_stop()
+                            frac = 0.74 + ratio * 0.07
+                            batch_num = int(np.ceil(completed / c_batch))
+                            tot_batches = int(np.ceil(total / c_batch))
+                            report(f"Pass 3A (Conformer): Chunk {completed}/{total} (Batch {batch_num}/{tot_batches})", frac)
+
+                        ctc_hyps = self.council.transcribe_batch_conformer(chunk_wavs, batch_size=c_batch, progress_cb=on_conformer_prog)
                     except Exception as e:
                         print(f"[Pipeline Warning] Batched Conformer error ({e}), falling back to sequential...")
                         ctc_hyps = []
@@ -464,7 +479,7 @@ class TranscriptionPipeline:
                                 ctc_h = ""
                             ctc_hyps.append(ctc_h)
                             frac = 0.74 + ((idx + 1) / total_chunks) * 0.07
-                            report(f"Pass 3/3 (Conformer): Chunk {idx + 1}/{total_chunks}", frac)
+                            report(f"Pass 3A (Conformer): Chunk {idx + 1}/{total_chunks}", frac)
 
                     self.supervisor.record_stage_end("stage_3a_conformer", time.time() - t_c_start, duration)
 
@@ -484,8 +499,15 @@ class TranscriptionPipeline:
                     report("Pass 3/3 (Phase B): Parakeet-TDT Transducer Verification (Batched)...", 0.81)
                     check_stop()
                     try:
-                        p_batch = self.supervisor.get_suggested_batch_size("parakeet", 16)
-                        parakeet_hyps = self.council.transcribe_batch_parakeet(chunk_wavs, batch_size=p_batch)
+                        p_batch = self.supervisor.get_suggested_batch_size("parakeet", 8)
+                        def on_parakeet_prog(completed: int, total: int, ratio: float):
+                            check_stop()
+                            frac = 0.81 + ratio * 0.07
+                            batch_num = int(np.ceil(completed / p_batch))
+                            tot_batches = int(np.ceil(total / p_batch))
+                            report(f"Pass 3B (Parakeet): Chunk {completed}/{total} (Batch {batch_num}/{tot_batches})", frac)
+
+                        parakeet_hyps = self.council.transcribe_batch_parakeet(chunk_wavs, batch_size=p_batch, progress_cb=on_parakeet_prog)
                     except Exception as e:
                         print(f"[Pipeline Warning] Batched Parakeet error ({e}), falling back to sequential...")
                         parakeet_hyps = []
@@ -497,7 +519,7 @@ class TranscriptionPipeline:
                                 pk_h = ""
                             parakeet_hyps.append(pk_h)
                             frac = 0.81 + ((idx + 1) / total_chunks) * 0.07
-                            report(f"Pass 3/3 (Parakeet): Chunk {idx + 1}/{total_chunks}", frac)
+                            report(f"Pass 3B (Parakeet): Chunk {idx + 1}/{total_chunks}", frac)
 
                     self.supervisor.record_stage_end("stage_3b_parakeet", time.time() - t_p_start, duration)
 
@@ -511,8 +533,10 @@ class TranscriptionPipeline:
                         subsystem_id="stage_3b_parakeet"
                     )
 
-                    # 4. Adjudication & Consensus Synthesis
+                    # 4. Council Consensus Synthesis & Disputed Chunk Identification
                     report("Adjudicating Supreme Council Consensus...", 0.88)
+                    deliberations = []
+                    disputed_indices = []
                     for idx, seg in enumerate(speech_segments):
                         start_sample = max(0, int(seg.start * sr))
                         end_sample = min(waveform.shape[1], int(seg.end * sr))
@@ -530,7 +554,55 @@ class TranscriptionPipeline:
                             chunks_dir=Path(chunks_dir) if chunks_dir else None,
                             sample_rate=sr
                         )
+                        deliberations.append(delib)
+                        if delib.needs_human_review or delib.consensus_score < 0.85:
+                            disputed_indices.append(idx)
 
+                    # Stage 5: Audex-2B Supreme Audio Adjudicator (if enabled and disputes exist)
+                    enable_audex = getattr(self.config, "enable_audex_adjudicator", False)
+                    if enable_audex and disputed_indices:
+                        t_audex_start = time.time()
+                        audex_id = getattr(self.config, "audex_model_id", "nvidia/Nemotron-Labs-Audex-2B")
+                        self.supervisor.record_stage_start("stage_5_audex", audex_id)
+                        report(f"Stage 5: Audex-2B Adjudicating {len(disputed_indices)} disputed segments...", 0.90)
+                        try:
+                            from .asr.audex import AudexAdjudicator
+                            audex = AudexAdjudicator(model_id=audex_id, device=self.device)
+                            for d_count, d_idx in enumerate(disputed_indices):
+                                check_stop()
+                                seg = speech_segments[d_idx]
+                                delib = deliberations[d_idx]
+                                start_sample = max(0, int(seg.start * sr))
+                                end_sample = min(waveform.shape[1], int(seg.end * sr))
+                                chunk_slice = waveform[:, start_sample:end_sample]
+
+                                verdict, reasoning = audex.adjudicate_chunk(
+                                    audio_path_or_slice=chunk_slice,
+                                    votes=delib.votes,
+                                    previous_verdict=delib.verdict,
+                                    sample_rate=sr
+                                )
+                                delib.verdict = verdict
+                                delib.agreement_type = "AUDEX_ADJUDICATED"
+                                delib.deliberation_notes = (delib.deliberation_notes + "\n" + reasoning).strip()
+                                delib.needs_human_review = False
+                                frac = 0.90 + ((d_count + 1) / len(disputed_indices)) * 0.05
+                                report(f"Audex adjudicated disputed chunk {d_count + 1}/{len(disputed_indices)}", frac)
+
+                            self._unload_and_log(
+                                "Audex-2B Adjudicator",
+                                audex.unload,
+                                report,
+                                0.95,
+                                subsystem_id="stage_5_audex"
+                            )
+                        except Exception as e:
+                            print(f"[Pipeline Warning] Audex Stage 5 adjudication error: {e}")
+                        finally:
+                            self.supervisor.record_stage_end("stage_5_audex", time.time() - t_audex_start, duration)
+
+                    for idx, seg in enumerate(speech_segments):
+                        delib = deliberations[idx]
                         seg_dict = {
                             "start": round(seg.start, 2),
                             "end": round(seg.end, 2),
@@ -542,8 +614,8 @@ class TranscriptionPipeline:
                             "ambiguity_score": round(1.0 - delib.consensus_score, 3)
                         }
                         transcribed_segments.append(seg_dict)
-                        frac = 0.88 + ((idx + 1) / total_chunks) * 0.10
-                        report(f"Council deliberated chunk {idx + 1}/{total_chunks}: {delib.agreement_type}", frac, seg_dict)
+                        frac = 0.95 + ((idx + 1) / total_chunks) * 0.04
+                        report(f"Deliberated chunk {idx + 1}/{total_chunks}: {delib.agreement_type}", frac, seg_dict)
 
                     for cw in chunk_wavs:
                         cw.unlink(missing_ok=True)

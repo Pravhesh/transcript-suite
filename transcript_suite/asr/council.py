@@ -6,7 +6,7 @@ resolve acoustic ambiguities, and eliminate hallucinations.
 """
 
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 from pathlib import Path
 import difflib
 import re
@@ -168,19 +168,27 @@ class ModelCouncil:
         return self._conformer_model
 
     def _get_parakeet_model(self):
-        """Lazy loader for Parakeet-TDT transducer."""
+        """Lazy loader for Parakeet-TDT transducer with direct CUDA FP16 instantiation."""
         if self._parakeet_model is None:
             try:
                 import nemo.collections.asr as nemo_asr
-                print(f"[Council] Loading Transducer Cross-Examiner ({self.parakeet_model_id}) in FP16 onto {self.device}...")
+                import gc
+                import ctypes
+                target_device = self.device if (self.device.startswith("cuda") and torch.cuda.is_available()) else "cpu"
+                print(f"[Council] Loading Transducer Cross-Examiner ({self.parakeet_model_id}) directly onto {target_device}...")
                 self._parakeet_model = nemo_asr.models.ASRModel.from_pretrained(
                     model_name=self.parakeet_model_id,
-                    map_location="cpu"
+                    map_location=target_device
                 )
-                if self.device.startswith("cuda") and torch.cuda.is_available():
-                    self._parakeet_model = self._parakeet_model.half().to(self.device)
+                if target_device.startswith("cuda"):
+                    self._parakeet_model = self._parakeet_model.half()
                 self._parakeet_model.eval()
                 self._is_parakeet_loaded = True
+                gc.collect()
+                try:
+                    ctypes.CDLL("libc.so.6").malloc_trim(0)
+                except Exception:
+                    pass
             except Exception as e:
                 print(f"[Council Warning] Parakeet-TDT could not be loaded ({e}).")
                 self._parakeet_model = None
@@ -210,8 +218,13 @@ class ModelCouncil:
             print(f"[Council Warning] Whisper transcription failed: {e}")
             return ""
 
-    def transcribe_batch_whisper(self, wav_paths: list[str | Path], batch_size: Optional[int] = None) -> list[str]:
-        """Transcribes a batch of audio chunks using Whisper cross-examiner."""
+    def transcribe_batch_whisper(
+        self,
+        wav_paths: list[str | Path],
+        batch_size: Optional[int] = None,
+        progress_cb: Optional[Callable[[int, int, float], None]] = None
+    ) -> list[str]:
+        """Transcribes a batch of audio chunks using Whisper cross-examiner with chunk progress."""
         if not wav_paths:
             return []
         pipe = self._get_whisper_pipeline()
@@ -226,18 +239,25 @@ class ModelCouncil:
                 kwargs["generate_kwargs"]["language"] = "en"
                 kwargs["generate_kwargs"]["task"] = "transcribe"
 
-            with torch.inference_mode():
-                results = pipe(resolved_paths, batch_size=batch_size, **kwargs)
             texts = []
-            for r in results:
-                t = r.get("text", "") if isinstance(r, dict) else str(r)
-                texts.append(t.strip())
+            total_items = len(resolved_paths)
+            for i in range(0, total_items, batch_size):
+                sub_paths = resolved_paths[i : i + batch_size]
+                with torch.inference_mode():
+                    sub_results = pipe(sub_paths, batch_size=len(sub_paths), **kwargs)
+                for r in sub_results:
+                    t = r.get("text", "") if isinstance(r, dict) else str(r)
+                    texts.append(t.strip())
+                if progress_cb:
+                    progress_cb(len(texts), total_items, len(texts) / total_items)
             return texts
         except Exception as e:
             print(f"[Council Warning] Whisper batch transcription failed: {e}")
             fallback = []
             for p in wav_paths:
                 fallback.append(self.transcribe_with_whisper(p))
+                if progress_cb:
+                    progress_cb(len(fallback), len(wav_paths), len(fallback) / len(wav_paths))
             return fallback
 
     def transcribe_with_conformer(self, wav_path: str | Path) -> str:
@@ -258,8 +278,13 @@ class ModelCouncil:
             print(f"[Council Warning] Conformer-CTC transcription failed: {e}")
             return ""
 
-    def transcribe_batch_conformer(self, wav_paths: list[str | Path], batch_size: int = 16) -> list[str]:
-        """Transcribes a list of audio chunk paths using Conformer-CTC in parallel batches."""
+    def transcribe_batch_conformer(
+        self,
+        wav_paths: list[str | Path],
+        batch_size: int = 8,
+        progress_cb: Optional[Callable[[int, int, float], None]] = None
+    ) -> list[str]:
+        """Transcribes audio chunk paths using Conformer-CTC in micro-batches with progress."""
         if not wav_paths:
             return []
         model = self._get_conformer_model()
@@ -267,18 +292,25 @@ class ModelCouncil:
             return [""] * len(wav_paths)
         try:
             resolved_paths = [str(Path(p).resolve()) for p in wav_paths]
-            with torch.inference_mode():
-                results = model.transcribe(resolved_paths, batch_size=batch_size, return_hypotheses=False)
             texts = []
-            for r in results:
-                t = getattr(r, "text", str(r))
-                texts.append(t.strip())
+            total_items = len(resolved_paths)
+            for i in range(0, total_items, batch_size):
+                sub_paths = resolved_paths[i : i + batch_size]
+                with torch.inference_mode():
+                    sub_results = model.transcribe(sub_paths, batch_size=len(sub_paths), return_hypotheses=False)
+                for r in sub_results:
+                    t = getattr(r, "text", str(r))
+                    texts.append(t.strip())
+                if progress_cb:
+                    progress_cb(len(texts), total_items, len(texts) / total_items)
             return texts
         except Exception as e:
             print(f"[Council Warning] Conformer batch transcription failed: {e}")
             fallback = []
             for p in wav_paths:
                 fallback.append(self.transcribe_with_conformer(p))
+                if progress_cb:
+                    progress_cb(len(fallback), len(wav_paths), len(fallback) / len(wav_paths))
             return fallback
 
     def transcribe_with_parakeet(self, wav_path: str | Path) -> str:
@@ -299,8 +331,13 @@ class ModelCouncil:
             print(f"[Council Warning] Parakeet transcription failed: {e}")
             return ""
 
-    def transcribe_batch_parakeet(self, wav_paths: list[str | Path], batch_size: int = 16) -> list[str]:
-        """Transcribes a list of audio chunk paths using Parakeet-TDT in parallel batches."""
+    def transcribe_batch_parakeet(
+        self,
+        wav_paths: list[str | Path],
+        batch_size: int = 8,
+        progress_cb: Optional[Callable[[int, int, float], None]] = None
+    ) -> list[str]:
+        """Transcribes audio chunk paths using Parakeet-TDT in micro-batches with progress."""
         if not wav_paths:
             return []
         model = self._get_parakeet_model()
@@ -308,18 +345,25 @@ class ModelCouncil:
             return [""] * len(wav_paths)
         try:
             resolved_paths = [str(Path(p).resolve()) for p in wav_paths]
-            with torch.inference_mode():
-                results = model.transcribe(resolved_paths, batch_size=batch_size, return_hypotheses=False)
             texts = []
-            for r in results:
-                t = getattr(r, "text", str(r))
-                texts.append(t.strip())
+            total_items = len(resolved_paths)
+            for i in range(0, total_items, batch_size):
+                sub_paths = resolved_paths[i : i + batch_size]
+                with torch.inference_mode():
+                    sub_results = model.transcribe(sub_paths, batch_size=len(sub_paths), return_hypotheses=False)
+                for r in sub_results:
+                    t = getattr(r, "text", str(r))
+                    texts.append(t.strip())
+                if progress_cb:
+                    progress_cb(len(texts), total_items, len(texts) / total_items)
             return texts
         except Exception as e:
             print(f"[Council Warning] Parakeet batch transcription failed: {e}")
             fallback = []
             for p in wav_paths:
                 fallback.append(self.transcribe_with_parakeet(p))
+                if progress_cb:
+                    progress_cb(len(fallback), len(wav_paths), len(fallback) / len(wav_paths))
             return fallback
 
     def synthesize_deliberation(

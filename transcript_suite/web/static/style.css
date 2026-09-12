@@ -1084,6 +1084,19 @@ main {
   font-family: ui-monospace, monospace;
 }
 
+/* Dual Dedicated Trace Graphs (VRAM & RAM) */
+.dual-trace-graphs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .dual-trace-graphs-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Live Memory Trace Graph Card */
 .trace-graph-card {
   background-color: var(--bg-surface);

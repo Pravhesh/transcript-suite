@@ -15,7 +15,9 @@ from .base import BaseDiarizer, SpeakerTurn
 def ensure_pyannote_compatibility():
     """
     Applies compatibility shims for torchaudio 2.10+ / 2.11+ where AudioMetaData
-    and list_audio_backends were removed from the public module root.
+    and list_audio_backends were removed from the public module root,
+    patches huggingface_hub for use_auth_token deprecation,
+    and patches torch.load for PyTorch 2.6+ unpickling of pyannote task specifications.
     """
     import torchaudio
     if not hasattr(torchaudio, "AudioMetaData"):
@@ -31,6 +33,31 @@ def ensure_pyannote_compatibility():
 
     if not hasattr(torchaudio, "list_audio_backends"):
         torchaudio.list_audio_backends = lambda: ["soundfile"]
+
+    try:
+        import huggingface_hub
+        if not getattr(huggingface_hub, "_hf_hub_download_compat_patched", False):
+            orig_hf_hub_download = huggingface_hub.hf_hub_download
+            def patched_hf_hub_download(*args, **kwargs):
+                if "use_auth_token" in kwargs:
+                    kwargs["token"] = kwargs.pop("use_auth_token")
+                return orig_hf_hub_download(*args, **kwargs)
+            huggingface_hub.hf_hub_download = patched_hf_hub_download
+            huggingface_hub._hf_hub_download_compat_patched = True
+    except Exception:
+        pass
+
+    try:
+        if not getattr(torch, "_pyannote_torch_load_patched", False):
+            orig_torch_load = torch.load
+            def patched_torch_load(*args, **kwargs):
+                if "weights_only" not in kwargs:
+                    kwargs["weights_only"] = False
+                return orig_torch_load(*args, **kwargs)
+            torch.load = patched_torch_load
+            torch._pyannote_torch_load_patched = True
+    except Exception:
+        pass
 
 
 def verify_pyannote_access(token: Optional[str] = None) -> Dict[str, Any]:
@@ -145,15 +172,34 @@ class PyAnnoteDiarizer(BaseDiarizer):
     def diarize(self, waveform: torch.Tensor, sample_rate: int = 16000) -> List[SpeakerTurn]:
         """
         Runs pyannote speaker diarization on audio waveform.
+        Accepts in-memory waveform tensor directly, falling back to temp WAV only if needed.
         """
         self._load_pipeline()
 
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as tmp:
-            wav_path = tmp.name
-            audio_np = waveform.squeeze(0).cpu().numpy()
-            sf.write(wav_path, audio_np, sample_rate, subtype="PCM_16")
+        if waveform.dim() == 1:
+            wf_in = waveform.unsqueeze(0)
+        elif waveform.dim() > 2:
+            wf_in = waveform.squeeze()
+            if wf_in.dim() == 1:
+                wf_in = wf_in.unsqueeze(0)
+        else:
+            wf_in = waveform
 
-            diarization_result = self.pipeline(wav_path)
+        # Ensure tensor is on CPU float32 for pyannote pipeline dictionary protocol
+        audio_input = {
+            "waveform": wf_in.cpu().float(),
+            "sample_rate": sample_rate
+        }
+
+        try:
+            diarization_result = self.pipeline(audio_input)
+        except Exception as e:
+            print(f"[PyAnnote] Direct tensor input failed ({e}), falling back to disk file...")
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as tmp:
+                wav_path = tmp.name
+                audio_np = wf_in.squeeze(0).cpu().numpy()
+                sf.write(wav_path, audio_np, sample_rate, subtype="PCM_16")
+                diarization_result = self.pipeline(wav_path)
 
         speaker_map = {}
         speaker_turns: List[SpeakerTurn] = []

@@ -152,6 +152,17 @@ CATALOG_PRESETS: List[Dict[str, Any]] = [
         "description": "NVIDIA Token-and-Duration Transducer model. Fast joint acoustic and linguistic verification.",
         "recommended": True
     },
+    {
+        "id": "nvidia/parakeet-tdt-0.6b",
+        "name": "Parakeet-TDT-0.6B",
+        "role": "parakeet",
+        "role_display": "Pass 3B: Transducer (TDT Cross-Examiner)",
+        "framework": "huggingface",
+        "size_gb": 1.2,
+        "parameters": "0.6B",
+        "description": "Ultra-lightweight NVIDIA Token-and-Duration Transducer model with minimal VRAM and RAM footprint.",
+        "recommended": False
+    },
     # Diarization
     {
         "id": "titanet_large",
@@ -174,6 +185,18 @@ CATALOG_PRESETS: List[Dict[str, Any]] = [
         "parameters": "N/A",
         "description": "PyAnnote Audio neural end-to-end diarization pipeline (requires HF Token).",
         "recommended": False
+    },
+    # Stage 5: Supreme Audio Adjudicator
+    {
+        "id": "nvidia/Nemotron-Labs-Audex-2B",
+        "name": "Nemotron-Labs-Audex-2B",
+        "role": "audex",
+        "role_display": "Stage 5: Supreme Audio Adjudicator",
+        "framework": "huggingface",
+        "size_gb": 4.2,
+        "parameters": "2.0B",
+        "description": "NVIDIA Dense Audio-Language Model with chain-of-thought <think> reasoning for acoustic dispute resolution.",
+        "recommended": True
     }
 ]
 
@@ -233,7 +256,9 @@ class ModelManager:
             "parakeet_model": config.parakeet_model,
             "default_diarizer": config.default_diarizer,
             "nemo_diarizer_model": config.nemo_diarizer_model,
-            "vocal_boost_level": config.vocal_boost_level
+            "vocal_boost_level": config.vocal_boost_level,
+            "enable_audex_adjudicator": config.enable_audex_adjudicator,
+            "audex_model_id": config.audex_model_id
         }
 
     def update_active_roster(self, updates: Dict[str, Any]) -> Dict[str, Any]:

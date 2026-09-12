@@ -1324,6 +1324,8 @@ const traceTableBody = document.getElementById("traceTableBody");
 const traceAutoScroll = document.getElementById("traceAutoScroll");
 const traceCountText = document.getElementById("traceCountText");
 const memoryTraceCanvas = document.getElementById("memoryTraceCanvas");
+const vramTraceCanvas = document.getElementById("vramTraceCanvas");
+const ramTraceCanvas = document.getElementById("ramTraceCanvas");
 
 const terminalBody = document.getElementById("terminalBody");
 const logsAutoScroll = document.getElementById("logsAutoScroll");
@@ -1530,57 +1532,51 @@ function renderTraceTable(samples) {
     const container = document.getElementById("traceTableContainer");
     if (container) container.scrollTop = container.scrollHeight;
   }
-}
-
-function renderTraceGraph(samples) {
-  if (!memoryTraceCanvas || !samples || samples.length === 0) return;
-  const ctx = memoryTraceCanvas.getContext("2d");
+function renderVramGraph(samples) {
+  const canvas = vramTraceCanvas || memoryTraceCanvas;
+  if (!canvas || !samples || samples.length === 0) return;
+  const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  const parent = memoryTraceCanvas.parentElement;
+  const parent = canvas.parentElement;
   if (!parent) return;
   const rect = parent.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
-  const w = rect.width || 600;
+  const w = rect.width || 450;
   const h = rect.height || 150;
-
   if (w <= 0 || h <= 0) return;
 
-  if (memoryTraceCanvas.width !== Math.round(w * dpr) || memoryTraceCanvas.height !== Math.round(h * dpr)) {
-    memoryTraceCanvas.width = Math.round(w * dpr);
-    memoryTraceCanvas.height = Math.round(h * dpr);
+  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
   }
 
   ctx.save();
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
 
-  // Canvas background
-  ctx.fillStyle = "#0c1410";
+  // Background
+  ctx.fillStyle = "#0a0f0d";
   ctx.fillRect(0, 0, w, h);
 
-  const padLeft = 40;
+  const padLeft = 38;
   const padRight = 14;
   const padTop = 14;
   const padBottom = 22;
   const plotW = w - padLeft - padRight;
   const plotH = h - padTop - padBottom;
+  if (plotW <= 0 || plotH <= 0) { ctx.restore(); return; }
 
-  if (plotW <= 0 || plotH <= 0) {
-    ctx.restore();
-    return;
-  }
-
-  // Find max value across all series (min scale 16 GB)
-  let maxGB = 16.0;
+  // VRAM ceiling is 8.0 GB or max reserved observed
+  let maxGB = 8.0;
   samples.forEach((s) => {
-    const sys = s.sys_ram_used_gb ?? s.ram_used_gb ?? 0;
     const vres = s.vram_reserved_gb ?? 0;
-    if (sys > maxGB) maxGB = Math.ceil(sys);
-    if (vres > maxGB) maxGB = Math.ceil(vres);
+    const alloc = s.allocated_gb ?? s.vram_alloc_gb ?? 0;
+    if (vres > maxGB) maxGB = Math.ceil(vres * 1.1);
+    if (alloc > maxGB) maxGB = Math.ceil(alloc * 1.1);
   });
 
-  // Draw horizontal grid lines and Y-axis labels
+  // Grid lines
   ctx.font = "10px ui-monospace, monospace";
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
@@ -1596,11 +1592,27 @@ function renderTraceGraph(samples) {
     ctx.stroke();
 
     ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-    ctx.fillText(`${yVal.toFixed(0)}G`, padLeft - 6, yPos);
+    ctx.fillText(`${yVal.toFixed(1)}G`, padLeft - 4, yPos);
+  }
+
+  // 5.5 GB Governor Emergency Ceiling Line
+  if (maxGB >= 5.5) {
+    const yCeil = padTop + plotH - (5.5 / maxGB) * plotH;
+    ctx.strokeStyle = "rgba(239, 68, 68, 0.75)";
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(padLeft, yCeil);
+    ctx.lineTo(w - padRight, yCeil);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = "rgba(239, 68, 68, 0.85)";
+    ctx.textAlign = "right";
+    ctx.fillText("5.5G Ceiling", w - padRight - 2, Math.max(padTop + 8, yCeil - 4));
   }
 
   const count = samples.length;
-
   function drawSeries(getValue, strokeColor, fillColor = null, lineWidth = 2) {
     if (count < 1) return;
     ctx.strokeStyle = strokeColor;
@@ -1626,7 +1638,6 @@ function renderTraceGraph(samples) {
       ctx.fill();
     }
 
-    // Glow dot on latest point
     const last = samples[count - 1];
     const lastVal = Math.max(0, Math.min(maxGB, getValue(last)));
     const lx = padLeft + (count === 1 ? plotW / 2 : plotW);
@@ -1637,17 +1648,11 @@ function renderTraceGraph(samples) {
     ctx.fill();
   }
 
-  // 1. System RAM (Amber)
-  drawSeries((s) => s.sys_ram_used_gb ?? s.ram_used_gb ?? 0, "#f59e0b", "rgba(245, 158, 11, 0.06)", 2);
+  // 1. VRAM Reserved Pool (Sky Blue)
+  drawSeries((s) => s.vram_reserved_gb ?? 0, "#38bdf8", "rgba(56, 189, 248, 0.10)", 1.5);
 
-  // 2. VRAM Reserved (Sky Blue)
-  drawSeries((s) => s.vram_reserved_gb ?? 0, "#38bdf8", "rgba(56, 189, 248, 0.08)", 2);
-
-  // 3. VRAM Allocated (Violet)
-  drawSeries((s) => s.allocated_gb ?? s.vram_alloc_gb ?? 0, "#a855f7", null, 1.5);
-
-  // 4. App RAM RSS (Emerald / Green)
-  drawSeries((s) => s.proc_ram_used_gb ?? s.app_ram_gb ?? 0, "#10b981", "rgba(16, 185, 129, 0.12)", 2.5);
+  // 2. VRAM Allocated (Violet)
+  drawSeries((s) => s.allocated_gb ?? s.vram_alloc_gb ?? 0, "#a855f7", "rgba(168, 85, 247, 0.22)", 2.5);
 
   // Time labels on X-axis
   ctx.textAlign = "center";
@@ -1666,6 +1671,134 @@ function renderTraceGraph(samples) {
   }
 
   ctx.restore();
+}
+
+function renderRamGraph(samples) {
+  const canvas = ramTraceCanvas;
+  if (!canvas || !samples || samples.length === 0) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const parent = canvas.parentElement;
+  if (!parent) return;
+  const rect = parent.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = rect.width || 450;
+  const h = rect.height || 150;
+  if (w <= 0 || h <= 0) return;
+
+  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+  }
+
+  ctx.save();
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  // Background
+  ctx.fillStyle = "#0a0f0d";
+  ctx.fillRect(0, 0, w, h);
+
+  const padLeft = 38;
+  const padRight = 14;
+  const padTop = 14;
+  const padBottom = 22;
+  const plotW = w - padLeft - padRight;
+  const plotH = h - padTop - padBottom;
+  if (plotW <= 0 || plotH <= 0) { ctx.restore(); return; }
+
+  // Scale: max of system RAM (min 16 GB)
+  let maxGB = 16.0;
+  samples.forEach((s) => {
+    const sys = s.sys_ram_used_gb ?? s.ram_used_gb ?? 0;
+    if (sys > maxGB) maxGB = Math.ceil(sys * 1.05);
+  });
+
+  // Grid lines
+  ctx.font = "10px ui-monospace, monospace";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  const ySteps = 4;
+  for (let i = 0; i <= ySteps; i++) {
+    const yVal = (maxGB / ySteps) * i;
+    const yPos = padTop + plotH - (i / ySteps) * plotH;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padLeft, yPos);
+    ctx.lineTo(w - padRight, yPos);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+    ctx.fillText(`${yVal.toFixed(0)}G`, padLeft - 4, yPos);
+  }
+
+  const count = samples.length;
+  function drawSeries(getValue, strokeColor, fillColor = null, lineWidth = 2) {
+    if (count < 1) return;
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = lineWidth;
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+
+    for (let i = 0; i < count; i++) {
+      const s = samples[i];
+      const val = Math.max(0, Math.min(maxGB, getValue(s)));
+      const x = padLeft + (count === 1 ? plotW / 2 : (i / (count - 1)) * plotW);
+      const y = padTop + plotH - (val / maxGB) * plotH;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    if (fillColor && count > 1) {
+      ctx.lineTo(padLeft + plotW, padTop + plotH);
+      ctx.lineTo(padLeft, padTop + plotH);
+      ctx.closePath();
+      ctx.fillStyle = fillColor;
+      ctx.fill();
+    }
+
+    const last = samples[count - 1];
+    const lastVal = Math.max(0, Math.min(maxGB, getValue(last)));
+    const lx = padLeft + (count === 1 ? plotW / 2 : plotW);
+    const ly = padTop + plotH - (lastVal / maxGB) * plotH;
+    ctx.fillStyle = strokeColor;
+    ctx.beginPath();
+    ctx.arc(lx, ly, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 1. Total System RAM (Amber)
+  drawSeries((s) => s.sys_ram_used_gb ?? s.ram_used_gb ?? 0, "#f59e0b", "rgba(245, 158, 11, 0.06)", 2);
+
+  // 2. App RSS Process RAM (Emerald)
+  drawSeries((s) => s.proc_ram_used_gb ?? s.app_ram_gb ?? 0, "#10b981", "rgba(16, 185, 129, 0.20)", 2.5);
+
+  // Time labels on X-axis
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+  if (count > 0) {
+    ctx.textAlign = "left";
+    ctx.fillText(samples[0].time_str || "", padLeft, padTop + plotH + 5);
+    if (count > 12) {
+      ctx.textAlign = "center";
+      const mid = samples[Math.floor(count / 2)];
+      ctx.fillText(mid.time_str || "", padLeft + plotW / 2, padTop + plotH + 5);
+    }
+    ctx.textAlign = "right";
+    ctx.fillText(samples[count - 1].time_str || "", padLeft + plotW, padTop + plotH + 5);
+  }
+
+  ctx.restore();
+}
+
+function renderTraceGraph(samples) {
+  if (!samples || samples.length === 0) return;
+  renderVramGraph(samples);
+  renderRamGraph(samples);
 }
 
 window.addEventListener("resize", () => {
@@ -1957,6 +2090,15 @@ function renderModelRoster(roster, presets, checkpoints) {
   if (selectDiarizer && roster.default_diarizer) selectDiarizer.value = roster.default_diarizer;
   if (selectBoost && roster.vocal_boost_level) selectBoost.value = roster.vocal_boost_level;
 
+  const selectAudex = document.getElementById("rosterSelectAudex");
+  if (selectAudex) {
+    if (roster.enable_audex_adjudicator) {
+      selectAudex.value = roster.audex_model_id || "nvidia/Nemotron-Labs-Audex-2B";
+    } else {
+      selectAudex.value = "disabled";
+    }
+  }
+
   // Sync Studio Vocal Boost selector
   const studioBoost = document.getElementById("vocalBoostSelect");
   if (studioBoost && roster.vocal_boost_level) {
@@ -2065,13 +2207,16 @@ async function saveActiveRoster() {
     btn.disabled = true;
   }
 
+  const audexVal = document.getElementById("rosterSelectAudex")?.value;
   const payload = {
     model_name: document.getElementById("rosterSelectCanary")?.value,
     whisper_model: document.getElementById("rosterSelectWhisper")?.value,
     conformer_model: document.getElementById("rosterSelectConformer")?.value,
     parakeet_model: document.getElementById("rosterSelectParakeet")?.value,
     default_diarizer: document.getElementById("rosterSelectDiarizer")?.value,
-    vocal_boost_level: document.getElementById("rosterSelectBoost")?.value
+    vocal_boost_level: document.getElementById("rosterSelectBoost")?.value,
+    enable_audex_adjudicator: audexVal && audexVal !== "disabled",
+    audex_model_id: audexVal && audexVal !== "disabled" ? audexVal : "nvidia/Nemotron-Labs-Audex-2B"
   };
 
   try {

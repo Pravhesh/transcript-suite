@@ -463,6 +463,19 @@
             </select>
             <div class="roster-hint">Frame-gated dynamic amplifier with soft-knee tanh peak limiting.</div>
           </div>
+
+          <!-- Stage 5: Audex Supreme Adjudicator -->
+          <div class="roster-field">
+            <label for="rosterSelectAudex" class="roster-label">
+              <span class="roster-stage-tag stage-lead" style="background:#4338ca;">Stage 5</span>
+              <span>Supreme Audio Adjudicator:</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectAudex">
+              <option value="disabled">Disabled (Default Consensus Deliberation)</option>
+              <option value="nvidia/Nemotron-Labs-Audex-2B">Nemotron-Labs-Audex-2B (&lt;think&gt; Audio Deliberator)</option>
+            </select>
+            <div class="roster-hint">NVIDIA dense audio-language model with chain-of-thought &lt;think&gt; reasoning on disputed chunks.</div>
+          </div>
         </div>
       </div>
 
@@ -644,19 +657,35 @@
             </div>
           </div>
 
-          <!-- Live Visual Memory Graph -->
-          <div class="trace-graph-card">
-            <div class="trace-graph-header">
-              <span class="trace-graph-title">📈 Memory & VRAM Timeline (Live Graph)</span>
-              <div class="trace-graph-legend">
-                <span class="legend-item"><span class="legend-dot" style="background:#10b981;"></span> App RAM</span>
-                <span class="legend-item"><span class="legend-dot" style="background:#f59e0b;"></span> System RAM</span>
-                <span class="legend-item"><span class="legend-dot" style="background:#38bdf8;"></span> VRAM Reserved</span>
-                <span class="legend-item"><span class="legend-dot" style="background:#a855f7;"></span> VRAM Allocated</span>
+          <!-- Dual Live Dedicated Visual Memory Graphs -->
+          <div class="dual-trace-graphs-grid">
+            <!-- Graph 1: GPU VRAM Timeline -->
+            <div class="trace-graph-card">
+              <div class="trace-graph-header">
+                <span class="trace-graph-title">🎮 GPU VRAM Timeline (Live)</span>
+                <div class="trace-graph-legend">
+                  <span class="legend-item"><span class="legend-dot" style="background:#a855f7;"></span> Allocated</span>
+                  <span class="legend-item"><span class="legend-dot" style="background:#38bdf8;"></span> Reserved</span>
+                  <span class="legend-item"><span class="legend-dot" style="background:#ef4444; border-radius: 0; width: 10px; height: 2px;"></span> 5.5G Ceiling</span>
+                </div>
+              </div>
+              <div class="trace-graph-canvas-wrap">
+                <canvas id="vramTraceCanvas" height="150"></canvas>
               </div>
             </div>
-            <div class="trace-graph-canvas-wrap">
-              <canvas id="memoryTraceCanvas" height="150"></canvas>
+
+            <!-- Graph 2: Host & Process RAM Timeline -->
+            <div class="trace-graph-card">
+              <div class="trace-graph-header">
+                <span class="trace-graph-title">🧠 Host & Process RAM Timeline (Live)</span>
+                <div class="trace-graph-legend">
+                  <span class="legend-item"><span class="legend-dot" style="background:#10b981;"></span> App RSS (Process)</span>
+                  <span class="legend-item"><span class="legend-dot" style="background:#f59e0b;"></span> Total System RAM</span>
+                </div>
+              </div>
+              <div class="trace-graph-canvas-wrap">
+                <canvas id="ramTraceCanvas" height="150"></canvas>
+              </div>
             </div>
           </div>
 

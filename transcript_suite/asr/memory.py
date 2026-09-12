@@ -342,6 +342,21 @@ class SubsystemSupervisor:
                 "can_eject": True,
                 "last_updated": datetime.now().isoformat()
             },
+            "stage_5_audex": {
+                "id": "stage_5_audex",
+                "name": "Pass 5: Audex-2B Supreme Adjudicator",
+                "category": "pipeline_stage",
+                "state": "idle",
+                "vram_allocated_mb": 0.0,
+                "vram_reserved_mb": 0.0,
+                "vram_peak_mb": 0.0,
+                "ram_rss_mb": 0.0,
+                "last_runtime_sec": 0.0,
+                "rtfx": 0.0,
+                "active_model": getattr(self.config, "audex_model_id", "nvidia/Nemotron-Labs-Audex-2B"),
+                "can_eject": True,
+                "last_updated": datetime.now().isoformat()
+            },
             "web_server": {
                 "id": "web_server",
                 "name": "Web Server & Telemetry Engine",

@@ -19,6 +19,7 @@ def test_supervisor_singleton_and_subsystems():
     assert "stage_3a_conformer" in sup1.subsystems
     assert "stage_3b_parakeet" in sup1.subsystems
     assert "stage_4_diarizer" in sup1.subsystems
+    assert "stage_5_audex" in sup1.subsystems
     assert "web_server" in sup1.subsystems
 
 

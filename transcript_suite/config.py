@@ -44,6 +44,10 @@ class SuiteConfig:
     default_diarizer: str = os.getenv("DEFAULT_DIARIZER", "nemo")  # "nemo" or "pyannote"
     nemo_diarizer_model: str = "titanet_large"
     hf_token: str | None = os.getenv("HF_TOKEN", None)
+
+    # Supreme Adjudicator (Stage 5)
+    enable_audex_adjudicator: bool = os.getenv("ENABLE_AUDEX_ADJUDICATOR", "false").lower() in ("true", "1")
+    audex_model_id: str = os.getenv("AUDEX_MODEL_ID", "nvidia/Nemotron-Labs-Audex-2B")
     
     # Storage
     base_dir: Path = Path.home() / ".cache" / "transcript_suite"
@@ -85,7 +89,9 @@ class SuiteConfig:
                     "vocal_boost_level",
                     "hf_token",
                     "vram_governor_threshold_gb",
-                    "predictive_emergency_enabled"
+                    "predictive_emergency_enabled",
+                    "enable_audex_adjudicator",
+                    "audex_model_id"
                 }
                 for k, v in data.items():
                     if k in allowed_keys and v is not None:
@@ -109,7 +115,9 @@ class SuiteConfig:
             "vocal_boost_level",
             "hf_token",
             "vram_governor_threshold_gb",
-            "predictive_emergency_enabled"
+            "predictive_emergency_enabled",
+            "enable_audex_adjudicator",
+            "audex_model_id"
         }
         for k, v in updates.items():
             if k in allowed_keys and v is not None:
