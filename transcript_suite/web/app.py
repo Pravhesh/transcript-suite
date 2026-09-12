@@ -194,42 +194,47 @@ def get_cache_breakdown() -> Dict[str, Any]:
     """Inspects RAM, VRAM, and on-disk model/temp cache footprints."""
     mem_stats = vram_manager.get_stats()
     
-    hf_cache_dir = Path.home() / ".cache" / "huggingface" / "hub"
-    nemo_cache_dir = Path.home() / ".cache" / "torch" / "NeMo"
-    temp_dir = Path("/tmp")
-    
     hf_models = []
     hf_total = 0
-    if hf_cache_dir.exists():
-        for d in hf_cache_dir.iterdir():
-            if d.is_dir():
-                sz = get_path_size(d)
-                hf_total += sz
-                if sz > 5 * 1024 * 1024:
+    seen_hf = set()
+    for hf_dir in model_manager.hf_cache_dirs:
+        if hf_dir.exists():
+            for d in hf_dir.iterdir():
+                if d.is_dir() and d.name.startswith("models--"):
                     clean_name = d.name.replace("models--", "").replace("--", "/")
-                    hf_models.append({"name": clean_name, "bytes": sz, "mb": round(sz / (1024 * 1024), 1)})
-        hf_models.sort(key=lambda x: x["bytes"], reverse=True)
+                    if clean_name not in seen_hf:
+                        seen_hf.add(clean_name)
+                        sz = get_path_size(d)
+                        hf_total += sz
+                        if sz > 5 * 1024 * 1024:
+                            hf_models.append({"name": clean_name, "bytes": sz, "mb": round(sz / (1024 * 1024), 1)})
+    hf_models.sort(key=lambda x: x["bytes"], reverse=True)
         
     nemo_models = []
     nemo_total = 0
-    if nemo_cache_dir.exists():
-        for d in nemo_cache_dir.iterdir():
-            sz = get_path_size(d)
-            nemo_total += sz
-            if sz > 5 * 1024 * 1024:
-                nemo_models.append({"name": d.name, "bytes": sz, "mb": round(sz / (1024 * 1024), 1)})
-        nemo_models.sort(key=lambda x: x["bytes"], reverse=True)
+    seen_nemo = set()
+    for nemo_dir in model_manager.nemo_cache_dirs:
+        if nemo_dir.exists():
+            for d in nemo_dir.rglob("*.nemo"):
+                if d.is_file() and d.name not in seen_nemo:
+                    seen_nemo.add(d.name)
+                    sz = d.stat().st_size
+                    nemo_total += sz
+                    if sz > 1 * 1024 * 1024:
+                        nemo_models.append({"name": d.name, "bytes": sz, "mb": round(sz / (1024 * 1024), 1)})
+    nemo_models.sort(key=lambda x: x["bytes"], reverse=True)
         
     temp_audio_bytes = 0
-    if temp_dir.exists():
-        for f in temp_dir.glob("*"):
-            try:
-                if f.is_file() and (f.suffix.lower() in [".wav", ".aac", ".mp3", ".m4a", ".flac"] or "transcript_suite" in f.name):
-                    temp_audio_bytes += f.stat().st_size
-                elif f.is_dir() and "transcript_suite" in f.name:
-                    temp_audio_bytes += get_path_size(f)
-            except OSError:
-                pass
+    for t_dir in [config.tmp_dir, Path("/tmp")]:
+        if t_dir.exists():
+            for f in t_dir.glob("*"):
+                try:
+                    if f.is_file() and (f.suffix.lower() in [".wav", ".aac", ".mp3", ".m4a", ".flac"] or "transcript_suite" in f.name):
+                        temp_audio_bytes += f.stat().st_size
+                    elif f.is_dir() and "transcript_suite" in f.name:
+                        temp_audio_bytes += get_path_size(f)
+                except OSError:
+                    pass
     upload_bytes = get_path_size(config.upload_dir)
     total_temp = temp_audio_bytes + upload_bytes
     total_disk = hf_total + nemo_total + total_temp
@@ -669,6 +674,110 @@ async def purge_storage_target(request: Request):
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("message"))
     return res
+
+
+@app.get("/api/settings")
+async def get_settings_endpoint():
+    """Returns persistent storage settings, directory metrics, and configuration options."""
+    info = config.get_storage_info()
+    return {
+        "storage": info,
+        "settings": {
+            "base_dir": str(config.base_dir),
+            "default_diarizer": config.default_diarizer,
+            "vocal_boost_level": config.vocal_boost_level,
+            "vram_governor_threshold_gb": config.vram_governor_threshold_gb,
+            "predictive_emergency_enabled": config.predictive_emergency_enabled,
+            "enable_audex_adjudicator": config.enable_audex_adjudicator,
+            "audex_model_id": config.audex_model_id,
+            "token_configured": bool(config.hf_token)
+        }
+    }
+
+
+@app.post("/api/settings")
+async def update_settings_endpoint(request: Request):
+    """Updates persistent storage base_dir or pipeline settings."""
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="Payload must be a JSON object")
+
+    new_base_dir = data.get("base_dir")
+    if new_base_dir:
+        try:
+            config.update_storage_root(new_base_dir)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to update storage root: {e}")
+
+    # Update other allowed settings
+    config.save_persistent_settings(data)
+    supervisor = get_subsystem_supervisor()
+    supervisor.log_journal(
+        severity="INFO",
+        subsystem="web_server",
+        event_type="SETTINGS_UPDATED",
+        message="Persistent settings updated.",
+        details=data
+    )
+    return {
+        "status": "updated",
+        "storage": config.get_storage_info(),
+        "settings": config.load_persistent_settings()
+    }
+
+
+@app.post("/api/storage/purge-all")
+async def purge_all_storage_endpoint():
+    """Purges all model caches and temporary scratch files for a clean slate."""
+    import shutil
+    purged = {}
+
+    # 1. Clean scratch / tmp dir
+    if config.tmp_dir.exists():
+        count = 0
+        for item in config.tmp_dir.iterdir():
+            try:
+                if item.is_dir():
+                    shutil.rmtree(item, ignore_errors=True)
+                else:
+                    item.unlink(missing_ok=True)
+                count += 1
+            except Exception:
+                pass
+        purged["tmp_files"] = count
+
+    # 2. Clean models dir
+    if config.models_dir.exists():
+        for sub in [config.hf_home, config.nemo_dir, config.torch_home]:
+            if sub.exists():
+                try:
+                    shutil.rmtree(sub, ignore_errors=True)
+                    sub.mkdir(parents=True, exist_ok=True)
+                except Exception:
+                    pass
+        purged["models_cleaned"] = True
+
+    # 3. Clean legacy ~/.cache dirs
+    legacy_hf = Path.home() / ".cache" / "huggingface" / "hub"
+    legacy_nemo = Path.home() / ".cache" / "torch" / "NeMo"
+    if legacy_hf.exists():
+        shutil.rmtree(legacy_hf, ignore_errors=True)
+    if legacy_nemo.exists():
+        shutil.rmtree(legacy_nemo, ignore_errors=True)
+
+    supervisor = get_subsystem_supervisor()
+    supervisor.log_journal(
+        severity="WARNING",
+        subsystem="audio_buffers",
+        event_type="STORAGE_ALL_PURGED",
+        message="All model caches and scratch directories purged fresh.",
+        details=purged
+    )
+    return {"status": "purged", "storage": config.get_storage_info(), "details": purged}
 
 
 @app.post("/api/transcribe")

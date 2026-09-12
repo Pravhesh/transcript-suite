@@ -266,6 +266,29 @@ class ModelManager:
         saved = config.save_persistent_settings(updates)
         return self.get_active_roster()
 
+    @property
+    def hf_cache_dirs(self) -> List[Path]:
+        dirs = []
+        persistent_hub = config.hf_home / "hub"
+        if persistent_hub.exists():
+            dirs.append(persistent_hub)
+        if config.hf_home.exists() and config.hf_home not in dirs:
+            dirs.append(config.hf_home)
+        legacy = Path.home() / ".cache" / "huggingface" / "hub"
+        if legacy.exists() and legacy not in dirs:
+            dirs.append(legacy)
+        return dirs
+
+    @property
+    def nemo_cache_dirs(self) -> List[Path]:
+        dirs = []
+        if config.nemo_dir.exists():
+            dirs.append(config.nemo_dir)
+        legacy = Path.home() / ".cache" / "torch" / "NeMo"
+        if legacy.exists() and legacy not in dirs:
+            dirs.append(legacy)
+        return dirs
+
     def list_installed_checkpoints(self) -> List[Dict[str, Any]]:
         """
         Inspects local Hugging Face and NeMo disk caches to discover installed models.
@@ -273,68 +296,73 @@ class ModelManager:
         active_roster = self.get_active_roster()
         active_values = set(active_roster.values())
         checkpoints: List[Dict[str, Any]] = []
+        seen_paths = set()
 
-        # 1. Inspect Hugging Face hub cache
-        if self.hf_cache_dir.exists():
-            for p in self.hf_cache_dir.glob("models--*"):
-                if p.is_dir():
-                    sz = self._get_path_size(p)
-                    # Filter out empty stub dirs (< 5 MB)
-                    if sz > 5 * 1024 * 1024:
-                        raw_id = p.name.replace("models--", "").replace("--", "/")
-                        mtime = p.stat().st_mtime
-                        
-                        # Find corresponding role and display info from catalog
-                        matched_preset = next((x for x in CATALOG_PRESETS if x["id"].lower() == raw_id.lower()), None)
-                        role = matched_preset["role"] if matched_preset else "custom"
-                        role_display = matched_preset["role_display"] if matched_preset else "Custom Checkpoint"
-                        name = matched_preset["name"] if matched_preset else raw_id
+        # 1. Inspect Hugging Face hub caches
+        for hf_dir in self.hf_cache_dirs:
+            if hf_dir.exists():
+                for p in hf_dir.glob("models--*"):
+                    if p.is_dir() and str(p.resolve()) not in seen_paths:
+                        seen_paths.add(str(p.resolve()))
+                        sz = self._get_path_size(p)
+                        # Filter out empty stub dirs (< 5 MB)
+                        if sz > 5 * 1024 * 1024:
+                            raw_id = p.name.replace("models--", "").replace("--", "/")
+                            mtime = p.stat().st_mtime
+                            
+                            # Find corresponding role and display info from catalog
+                            matched_preset = next((x for x in CATALOG_PRESETS if x["id"].lower() == raw_id.lower()), None)
+                            role = matched_preset["role"] if matched_preset else "custom"
+                            role_display = matched_preset["role_display"] if matched_preset else "Custom Checkpoint"
+                            name = matched_preset["name"] if matched_preset else raw_id
 
-                        checkpoints.append({
-                            "id": raw_id,
-                            "raw_name": p.name,
-                            "name": name,
-                            "framework": "huggingface",
-                            "path": str(p),
-                            "size_bytes": sz,
-                            "size_mb": round(sz / (1024 * 1024), 1),
-                            "size_gb": round(sz / (1024 ** 3), 2),
-                            "last_modified": time.strftime("%Y-%m-%d %H:%M", time.localtime(mtime)),
-                            "is_active": (raw_id in active_values),
-                            "role": role,
-                            "role_display": role_display,
-                            "removable": True
-                        })
+                            checkpoints.append({
+                                "id": raw_id,
+                                "raw_name": p.name,
+                                "name": name,
+                                "framework": "huggingface",
+                                "path": str(p),
+                                "size_bytes": sz,
+                                "size_mb": round(sz / (1024 * 1024), 1),
+                                "size_gb": round(sz / (1024 ** 3), 2),
+                                "last_modified": time.strftime("%Y-%m-%d %H:%M", time.localtime(mtime)),
+                                "is_active": (raw_id in active_values),
+                                "role": role,
+                                "role_display": role_display,
+                                "removable": True
+                            })
 
-        # 2. Inspect NeMo cache
-        if self.nemo_cache_dir.exists():
-            for p in self.nemo_cache_dir.rglob("*.nemo"):
-                if p.is_file():
-                    sz = p.stat().st_size
-                    if sz > 1 * 1024 * 1024:
-                        stem = p.stem
-                        mtime = p.stat().st_mtime
-                        model_id = "titanet_large" if "titanet" in stem.lower() else stem
-                        matched_preset = next((x for x in CATALOG_PRESETS if x["id"].lower() == model_id.lower() or stem in x["id"]), None)
-                        role = matched_preset["role"] if matched_preset else "nemo_asr"
-                        role_display = matched_preset["role_display"] if matched_preset else "NeMo Checkpoint"
-                        name = matched_preset["name"] if matched_preset else stem
+        # 2. Inspect NeMo caches
+        for nemo_dir in self.nemo_cache_dirs:
+            if nemo_dir.exists():
+                for p in nemo_dir.rglob("*.nemo"):
+                    if p.is_file() and str(p.resolve()) not in seen_paths:
+                        seen_paths.add(str(p.resolve()))
+                        sz = p.stat().st_size
+                        if sz > 1 * 1024 * 1024:
+                            stem = p.stem
+                            mtime = p.stat().st_mtime
+                            model_id = "titanet_large" if "titanet" in stem.lower() else stem
+                            matched_preset = next((x for x in CATALOG_PRESETS if x["id"].lower() == model_id.lower() or stem in x["id"]), None)
+                            role = matched_preset["role"] if matched_preset else "nemo_asr"
+                            role_display = matched_preset["role_display"] if matched_preset else "NeMo Checkpoint"
+                            name = matched_preset["name"] if matched_preset else stem
 
-                        checkpoints.append({
-                            "id": model_id,
-                            "raw_name": p.name,
-                            "name": name,
-                            "framework": "nemo",
-                            "path": str(p),
-                            "size_bytes": sz,
-                            "size_mb": round(sz / (1024 * 1024), 1),
-                            "size_gb": round(sz / (1024 ** 3), 2),
-                            "last_modified": time.strftime("%Y-%m-%d %H:%M", time.localtime(mtime)),
-                            "is_active": (model_id in active_values or stem in active_values),
-                            "role": role,
-                            "role_display": role_display,
-                            "removable": True
-                        })
+                            checkpoints.append({
+                                "id": model_id,
+                                "raw_name": p.name,
+                                "name": name,
+                                "framework": "nemo",
+                                "path": str(p),
+                                "size_bytes": sz,
+                                "size_mb": round(sz / (1024 * 1024), 1),
+                                "size_gb": round(sz / (1024 ** 3), 2),
+                                "last_modified": time.strftime("%Y-%m-%d %H:%M", time.localtime(mtime)),
+                                "is_active": (model_id in active_values or stem in active_values),
+                                "role": role,
+                                "role_display": role_display,
+                                "removable": True
+                            })
 
         checkpoints.sort(key=lambda x: x["size_bytes"], reverse=True)
         return checkpoints
@@ -383,13 +411,13 @@ class ModelManager:
         if not target_path or not target_path.exists():
             raise FileNotFoundError(f"Checkpoint '{checkpoint_id_or_path}' not found in local caches.")
 
-        # Security check: Ensure target is strictly inside huggingface or nemo cache dirs
-        hf_resolved = self.hf_cache_dir.resolve()
-        nemo_resolved = self.nemo_cache_dir.resolve()
-        is_hf = str(target_path).startswith(str(hf_resolved))
-        is_nemo = str(target_path).startswith(str(nemo_resolved))
+        # Security check: Ensure target is strictly inside allowed model cache dirs
+        allowed_dirs = [d.resolve() for d in self.hf_cache_dirs + self.nemo_cache_dirs]
+        if config.models_dir.exists():
+            allowed_dirs.append(config.models_dir.resolve())
+        is_safe = any(str(target_path).startswith(str(ad)) for ad in allowed_dirs)
 
-        if not (is_hf or is_nemo):
+        if not is_safe:
             raise PermissionError(f"Refusing to delete path outside cache directories: {target_path}")
 
         sz = self._get_path_size(target_path)

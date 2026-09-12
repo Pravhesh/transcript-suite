@@ -149,13 +149,16 @@ class ModelCouncil:
         return self._whisper_pipeline
 
     def _get_conformer_model(self):
-        """Lazy loader for Conformer-CTC acoustic anchor."""
+        """Lazy loader for Conformer-CTC acoustic anchor with NGC name resolution."""
         if self._conformer_model is None:
             try:
                 import nemo.collections.asr as nemo_asr
-                print(f"[Council] Loading Acoustic Anchor ({self.conformer_model_id}) onto {self.device}...")
+                m_id = self.conformer_model_id
+                if m_id.startswith("nvidia/"):
+                    m_id = m_id[len("nvidia/"):]
+                print(f"[Council] Loading Acoustic Anchor ({m_id}) onto {self.device}...")
                 self._conformer_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(
-                    model_name=self.conformer_model_id,
+                    model_name=m_id,
                     map_location="cpu"
                 )
                 if self.device.startswith("cuda") and torch.cuda.is_available():
@@ -168,23 +171,26 @@ class ModelCouncil:
         return self._conformer_model
 
     def _get_parakeet_model(self):
-        """Lazy loader for Parakeet-TDT transducer with direct CUDA FP16 instantiation."""
+        """Lazy loader for Parakeet-TDT transducer with CPU staging to avoid 8GB double-allocation peak."""
         if self._parakeet_model is None:
             try:
                 import nemo.collections.asr as nemo_asr
                 import gc
                 import ctypes
                 target_device = self.device if (self.device.startswith("cuda") and torch.cuda.is_available()) else "cpu"
-                print(f"[Council] Loading Transducer Cross-Examiner ({self.parakeet_model_id}) directly onto {target_device}...")
+                print(f"[Council] Loading Transducer Cross-Examiner ({self.parakeet_model_id}) via CPU staging onto {target_device}...")
                 self._parakeet_model = nemo_asr.models.ASRModel.from_pretrained(
                     model_name=self.parakeet_model_id,
-                    map_location=target_device
+                    map_location="cpu"
                 )
                 if target_device.startswith("cuda"):
                     self._parakeet_model = self._parakeet_model.half()
+                    self._parakeet_model = self._parakeet_model.to(target_device)
                 self._parakeet_model.eval()
                 self._is_parakeet_loaded = True
                 gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
                 try:
                     ctypes.CDLL("libc.so.6").malloc_trim(0)
                 except Exception:
@@ -451,15 +457,28 @@ class ModelCouncil:
                     deliberation_notes="Unanimous consensus: non-speech / silence."
                 )
             else:
-                return CouncilDeliberation(
-                    verdict="",
-                    consensus_score=0.92,
-                    agreement_type="CTC_ANCHORED",
-                    votes=[v.to_dict() for v in votes],
-                    disputed_tokens=find_disputed_words([h_canary, h_whisper]),
-                    needs_human_review=False,
-                    deliberation_notes="Acoustic Anchor (CTC) verified non-speech. Autoregressive hallucination suppressed."
-                )
+                has_substantive = bool(h_whisper and len(h_whisper.split()) >= 2) or bool(h_canary and len(h_canary.split()) >= 2)
+                if has_substantive:
+                    chosen_verdict = h_whisper if h_whisper else h_canary
+                    return CouncilDeliberation(
+                        verdict=chosen_verdict,
+                        consensus_score=0.45,
+                        agreement_type="SPLIT_DECISION",
+                        votes=[v.to_dict() for v in votes],
+                        disputed_tokens=find_disputed_words([h_canary, h_whisper]),
+                        needs_human_review=True,
+                        deliberation_notes="Split decision: Acoustic anchors returned no text but Cross-Examiner transcribed substantive speech. Flagged for review/adjudication."
+                    )
+                else:
+                    return CouncilDeliberation(
+                        verdict="",
+                        consensus_score=0.85,
+                        agreement_type="CTC_ANCHORED",
+                        votes=[v.to_dict() for v in votes],
+                        disputed_tokens=find_disputed_words([h_canary, h_whisper]),
+                        needs_human_review=False,
+                        deliberation_notes="Acoustic Anchor (CTC) verified non-speech. Short token hallucination suppressed."
+                    )
 
         # Case B: Canary Prompt Leak Neutralization
         if not h_canary and (h_whisper or h_parakeet):

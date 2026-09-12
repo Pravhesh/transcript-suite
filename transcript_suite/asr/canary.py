@@ -13,7 +13,7 @@ from ..config import config
 import re
 
 PROMPT_LEAK_PATTERNS = [
-    r"^\s*transcri(pt|be|ption)(\s+(the\s+following.*|text.*|all.*|into.*|and.*|in.*|this.*|what.*))?\.?\s*$",
+    r"^\s*transcri(pt|be|ption)(\s+(the|following|text|all|into|and|in|this|what|audio|box).*)?\.?\s*$",
     r"^\s*put it in the box.*$",
     r"^\s*transcribe\s*:?\s*$",
     r"^\s*transcript\s*:?\s*$",
@@ -30,7 +30,7 @@ _PROMPT_REGEXES = [re.compile(p, re.IGNORECASE) for p in PROMPT_LEAK_PATTERNS]
 def sanitize_canary_output(text: str, chunk_waveform: Optional[torch.Tensor] = None) -> str:
     """
     Sanitizes Canary-Qwen output by detecting and neutralizing:
-    1. Conditioning prompt leakage (e.g. 'Transcript the following text and put it in the box').
+    1. Conditioning prompt leakage (e.g. 'Transcript the', 'Transcript the following text and put it in the box').
     2. Silence/noise hallucinations when RMS energy is near zero.
     3. Severe single-word or short-phrase repetition loops.
     """
@@ -43,8 +43,10 @@ def sanitize_canary_output(text: str, chunk_waveform: Optional[torch.Tensor] = N
         if rx.match(cleaned):
             return ""
 
-    # 2. Check for severe repetition loops (e.g. 'will be will be will be')
     words = cleaned.split()
+    # If phrase starts with transcribe/transcript and is short (<= 3 words), it is conditioning leakage
+    if len(words) <= 3 and words and words[0].lower().strip(".,:;!?").startswith("transcri"):
+        return ""
     if len(words) >= 4:
         word_counts = {}
         for w in words:

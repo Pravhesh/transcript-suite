@@ -143,9 +143,12 @@ class NeMoTitaNetDiarizer(BaseDiarizer):
         if len(valid_segments) > 1:
             distances = pdist(emb_matrix, metric="cosine")
             distances = np.nan_to_num(distances, nan=1.0)
-            # Threshold ~0.65 separates different speakers effectively
+            # Threshold ~0.82 separates distinct speakers without over-fragmenting short speech slices
             linkage_matrix = linkage(distances, method="average")
-            cluster_ids = fcluster(linkage_matrix, t=0.65, criterion="distance")
+            cluster_ids = fcluster(linkage_matrix, t=0.82, criterion="distance")
+            # If still over-fragmented due to short slices (> 8 speakers), cap clusters
+            if len(set(cluster_ids)) > 8:
+                cluster_ids = fcluster(linkage_matrix, t=8, criterion="maxclust")
             # Convert clusters to 0-indexed labels: Speaker 0, Speaker 1, ...
             unique_clusters = {cid: f"Speaker {i}" for i, cid in enumerate(sorted(set(cluster_ids)))}
             speaker_labels = [unique_clusters[cid] for cid in cluster_ids]

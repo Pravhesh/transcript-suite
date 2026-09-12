@@ -152,13 +152,16 @@ if (themeSelect) {
 // --- 2. Primary Tab Navigation ---
 const tabBtnModels = document.getElementById("tabBtnModels");
 const paneModels = document.getElementById("paneModels");
+const tabBtnSettings = document.getElementById("tabBtnSettings");
+const paneSettings = document.getElementById("paneSettings");
 
 function switchTab(tabId) {
   const allTabs = [
     { btn: tabBtnStudio, pane: paneStudio, id: "paneStudio" },
     { btn: tabBtnTranscript, pane: paneTranscript, id: "paneTranscript" },
     { btn: tabBtnModels, pane: paneModels, id: "paneModels" },
-    { btn: tabBtnTelemetry, pane: paneTelemetry, id: "paneTelemetry" }
+    { btn: tabBtnTelemetry, pane: paneTelemetry, id: "paneTelemetry" },
+    { btn: tabBtnSettings, pane: paneSettings, id: "paneSettings" }
   ];
 
   allTabs.forEach(item => {
@@ -173,6 +176,13 @@ function switchTab(tabId) {
   } else if (tabId === "paneModels") {
     fetchModelData();
     fetchPyAnnoteStatus();
+  } else if (tabId === "paneSettings") {
+    fetchSettingsData();
+  } else if (tabId === "paneStudio") {
+    setTimeout(() => {
+      try { wavesurferOrig?.drawBuffer(); } catch(e){}
+      try { wavesurferModel?.drawBuffer(); } catch(e){}
+    }, 60);
   }
 }
 
@@ -180,6 +190,7 @@ if (tabBtnStudio) tabBtnStudio.addEventListener("click", () => switchTab("paneSt
 if (tabBtnTranscript) tabBtnTranscript.addEventListener("click", () => switchTab("paneTranscript"));
 if (tabBtnModels) tabBtnModels.addEventListener("click", () => switchTab("paneModels"));
 if (tabBtnTelemetry) tabBtnTelemetry.addEventListener("click", () => switchTab("paneTelemetry"));
+if (tabBtnSettings) tabBtnSettings.addEventListener("click", () => switchTab("paneSettings"));
 
 // --- 3. Cache & Storage Dropdown Management ---
 function initCacheDropdown() {
@@ -646,6 +657,19 @@ function initAudioPlayer(taskId) {
 
   wavesurferOrig.on('ready', () => updateMixLevels());
   wavesurferModel.on('ready', () => updateMixLevels());
+
+  const wfContainer = document.getElementById("waveformOrig");
+  if (wfContainer && window.ResizeObserver) {
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect.width > 0) {
+          try { wavesurferOrig?.drawBuffer(); } catch (e) {}
+          try { wavesurferModel?.drawBuffer(); } catch (e) {}
+        }
+      }
+    });
+    ro.observe(wfContainer);
+  }
 }
 
 function updateWaveformTheme() {
@@ -3151,6 +3175,296 @@ function initJournalControls() {
   }
 }
 
+// --- 11. Settings Tab Management ---
+const settingBaseDirInput = document.getElementById("settingBaseDirInput");
+const btnSaveStoragePath = document.getElementById("btnSaveStoragePath");
+const settingsDiskStatusBadge = document.getElementById("settingsDiskStatusBadge");
+const settingDiskFreeText = document.getElementById("settingDiskFreeText");
+const settingDiskTotalText = document.getElementById("settingDiskTotalText");
+const settingDiskBar = document.getElementById("settingDiskBar");
+const settingSubdirModels = document.getElementById("settingSubdirModels");
+const settingSubdirTmp = document.getElementById("settingSubdirTmp");
+const settingSubdirUploads = document.getElementById("settingSubdirUploads");
+const settingSubdirOutputs = document.getElementById("settingSubdirOutputs");
+
+const btnPurgeAllModelsSettings = document.getElementById("btnPurgeAllModelsSettings");
+const btnPurgeScratchSettings = document.getElementById("btnPurgeScratchSettings");
+const btnDropPageCacheSettingsTab = document.getElementById("btnDropPageCacheSettingsTab");
+
+const settingHfBadge = document.getElementById("settingHfBadge");
+const settingHfTokenInput = document.getElementById("settingHfTokenInput");
+const btnToggleSettingHfToken = document.getElementById("btnToggleSettingHfToken");
+const btnSaveSettingHfToken = document.getElementById("btnSaveSettingHfToken");
+const btnClearSettingHfToken = document.getElementById("btnClearSettingHfToken");
+const settingHfFeedback = document.getElementById("settingHfFeedback");
+
+const settingDefaultDiarizer = document.getElementById("settingDefaultDiarizer");
+const settingVocalBoost = document.getElementById("settingVocalBoost");
+const settingGovCeilingSlider = document.getElementById("settingGovCeilingSlider");
+const settingGovCeilingVal = document.getElementById("settingGovCeilingVal");
+const settingEnableAudex = document.getElementById("settingEnableAudex");
+const btnSavePipelinePrefs = document.getElementById("btnSavePipelinePrefs");
+
+async function fetchSettingsData() {
+  try {
+    const res = await fetch("/api/settings");
+    if (!res.ok) return;
+    const data = await res.json();
+    const s = data.settings || {};
+    const st = data.storage || {};
+
+    if (settingBaseDirInput && s.base_dir) {
+      settingBaseDirInput.value = s.base_dir;
+    }
+
+    if (settingDiskFreeText && st.free_gb !== undefined) {
+      settingDiskFreeText.textContent = `${st.free_gb} GB Available`;
+    }
+    if (settingDiskTotalText && st.total_gb !== undefined) {
+      settingDiskTotalText.textContent = `Total: ${st.total_gb} GB (${st.percent || 0}% used)`;
+    }
+    if (settingDiskBar && st.percent !== undefined) {
+      settingDiskBar.style.width = `${st.percent}%`;
+    }
+    if (settingsDiskStatusBadge) {
+      settingsDiskStatusBadge.textContent = `Partition Active (${st.free_gb || 0} GB free)`;
+    }
+
+    if (settingSubdirModels && st.models_dir) settingSubdirModels.textContent = st.models_dir;
+    if (settingSubdirTmp && st.tmp_dir) settingSubdirTmp.textContent = st.tmp_dir;
+    if (settingSubdirUploads && st.upload_dir) settingSubdirUploads.textContent = st.upload_dir;
+    if (settingSubdirOutputs && st.output_dir) settingSubdirOutputs.textContent = st.output_dir;
+
+    if (settingDefaultDiarizer && s.default_diarizer) {
+      settingDefaultDiarizer.value = s.default_diarizer;
+    }
+    if (settingVocalBoost && s.vocal_boost_level) {
+      settingVocalBoost.value = s.vocal_boost_level;
+    }
+    if (settingGovCeilingSlider && s.vram_governor_threshold_gb) {
+      settingGovCeilingSlider.value = s.vram_governor_threshold_gb;
+      if (settingGovCeilingVal) settingGovCeilingVal.textContent = `${s.vram_governor_threshold_gb} GB`;
+    }
+    if (settingEnableAudex && s.enable_audex_adjudicator !== undefined) {
+      settingEnableAudex.value = String(s.enable_audex_adjudicator);
+    }
+
+    // Update HF token UI in settings
+    const savedToken = localStorage.getItem("ts_hf_token") || "";
+    if (settingHfTokenInput && savedToken && !settingHfTokenInput.value) {
+      settingHfTokenInput.value = savedToken;
+    }
+    if (settingHfBadge) {
+      if (s.token_configured) {
+        settingHfBadge.className = "status-badge-active";
+        settingHfBadge.textContent = "Token Configured";
+      } else {
+        settingHfBadge.className = "status-badge";
+        settingHfBadge.textContent = "Token Not Set";
+      }
+    }
+  } catch (err) {
+    console.warn("fetchSettingsData failed:", err);
+  }
+}
+
+function initSettingsTab() {
+  if (settingGovCeilingSlider && settingGovCeilingVal) {
+    settingGovCeilingSlider.addEventListener("input", (e) => {
+      settingGovCeilingVal.textContent = `${e.target.value} GB`;
+    });
+  }
+
+  if (btnSaveStoragePath && settingBaseDirInput) {
+    btnSaveStoragePath.addEventListener("click", async () => {
+      const newPath = settingBaseDirInput.value.trim();
+      if (!newPath) {
+        alert("Please specify a valid absolute directory path.");
+        return;
+      }
+      btnSaveStoragePath.disabled = true;
+      btnSaveStoragePath.textContent = "Applying...";
+      try {
+        const res = await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ base_dir: newPath })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Failed to update storage root");
+        addNotification("Storage Root Updated", `Persistent storage relocated to ${newPath}`, "success");
+        await fetchSettingsData();
+        await fetchModelData();
+        await fetchCacheBreakdown();
+      } catch (err) {
+        alert("Failed to update storage path: " + err.message);
+      } finally {
+        btnSaveStoragePath.disabled = false;
+        btnSaveStoragePath.textContent = "💾 Apply Storage Root";
+      }
+    });
+  }
+
+  if (btnPurgeAllModelsSettings) {
+    btnPurgeAllModelsSettings.addEventListener("click", async () => {
+      const ok = confirm("Purge all cached models and scratch files across both persistent storage and legacy caches?\n\nClean fresh copies will be downloaded directly to /mnt/d/transcript_suite_data when next required.");
+      if (!ok) return;
+      btnPurgeAllModelsSettings.disabled = true;
+      btnPurgeAllModelsSettings.textContent = "Purging Checkpoints...";
+      try {
+        const res = await fetch("/api/storage/purge-all", { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Purge failed");
+        addNotification("Model Hub Purged", "All model checkpoints and scratch directories cleared.", "warning");
+        await fetchSettingsData();
+        await fetchModelData();
+        await fetchCacheBreakdown();
+      } catch (err) {
+        alert("Purge failed: " + err.message);
+      } finally {
+        btnPurgeAllModelsSettings.disabled = false;
+        btnPurgeAllModelsSettings.textContent = "🗑️ Purge All Existing Models (Clean Slate)";
+      }
+    });
+  }
+
+  if (btnPurgeScratchSettings) {
+    btnPurgeScratchSettings.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/storage/purge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target: "temp_audio" })
+        });
+        const data = await res.json();
+        addNotification("Scratch Purged", `Freed ${data.reclaimed_mb || 0} MB of temporary files.`, "info");
+        await fetchSettingsData();
+        await fetchCacheBreakdown();
+      } catch (err) {
+        alert("Purge scratch failed: " + err.message);
+      }
+    });
+  }
+
+  if (btnDropPageCacheSettingsTab) {
+    btnDropPageCacheSettingsTab.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/memory/drop-cache", { method: "POST" });
+        const data = await res.json();
+        addNotification("Page Cache Purged", `Freed ${data.freed_cached_mb || 0} MB cached pages (${data.files_purged || 0} files).`, "info");
+        await fetchTelemetryData();
+      } catch (err) {
+        alert("Drop page cache failed: " + err.message);
+      }
+    });
+  }
+
+  // HF Token in Settings Tab
+  if (btnToggleSettingHfToken && settingHfTokenInput) {
+    btnToggleSettingHfToken.addEventListener("click", () => {
+      settingHfTokenInput.type = settingHfTokenInput.type === "password" ? "text" : "password";
+      btnToggleSettingHfToken.textContent = settingHfTokenInput.type === "password" ? "👁️" : "🙈";
+    });
+  }
+
+  if (btnSaveSettingHfToken && settingHfTokenInput) {
+    btnSaveSettingHfToken.addEventListener("click", async () => {
+      const tok = settingHfTokenInput.value.trim();
+      btnSaveSettingHfToken.disabled = true;
+      btnSaveSettingHfToken.textContent = "Verifying...";
+      try {
+        const res = await fetch("/api/pyannote/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: tok })
+        });
+        const data = await res.json();
+        if (tok && data.token_valid) {
+          localStorage.setItem("ts_hf_token", tok);
+          if (hfTokenInput) hfTokenInput.value = tok;
+        } else if (!tok) {
+          localStorage.removeItem("ts_hf_token");
+          if (hfTokenInput) hfTokenInput.value = "";
+        }
+        updatePyAnnoteUI(data);
+        if (settingHfBadge) {
+          settingHfBadge.className = data.ready ? "status-badge-active" : "status-badge";
+          settingHfBadge.textContent = data.ready ? `Ready (@${data.username || "User"})` : "Verification Issue";
+        }
+        if (settingHfFeedback) {
+          settingHfFeedback.style.color = data.ready ? "#10b981" : (data.token_valid ? "#f59e0b" : "#ef4444");
+          settingHfFeedback.textContent = data.message || "Token status updated.";
+        }
+        addNotification("HF Token Saved", data.ready ? `Verified for @${data.username}` : data.message, data.ready ? "success" : "warning");
+      } catch (err) {
+        alert("Token verification error: " + err.message);
+      } finally {
+        btnSaveSettingHfToken.disabled = false;
+        btnSaveSettingHfToken.textContent = "Verify & Save";
+      }
+    });
+  }
+
+  if (btnClearSettingHfToken && settingHfTokenInput) {
+    btnClearSettingHfToken.addEventListener("click", async () => {
+      if (!confirm("Remove saved Hugging Face token?")) return;
+      settingHfTokenInput.value = "";
+      localStorage.removeItem("ts_hf_token");
+      if (hfTokenInput) hfTokenInput.value = "";
+      try {
+        const res = await fetch("/api/pyannote/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: "" })
+        });
+        const data = await res.json();
+        updatePyAnnoteUI(data);
+        if (settingHfBadge) {
+          settingHfBadge.className = "status-badge";
+          settingHfBadge.textContent = "Token Not Set";
+        }
+        if (settingHfFeedback) {
+          settingHfFeedback.style.color = "var(--text-muted)";
+          settingHfFeedback.textContent = "Token cleared.";
+        }
+        addNotification("Token Removed", "Hugging Face token cleared from settings.", "info");
+      } catch (err) {
+        console.warn("Failed to clear token:", err);
+      }
+    });
+  }
+
+  // Pipeline Preferences
+  if (btnSavePipelinePrefs) {
+    btnSavePipelinePrefs.addEventListener("click", async () => {
+      btnSavePipelinePrefs.disabled = true;
+      btnSavePipelinePrefs.textContent = "Saving...";
+      try {
+        const payload = {
+          default_diarizer: settingDefaultDiarizer ? settingDefaultDiarizer.value : "pyannote",
+          vocal_boost_level: settingVocalBoost ? settingVocalBoost.value : "adaptive",
+          vram_governor_threshold_gb: settingGovCeilingSlider ? parseFloat(settingGovCeilingSlider.value) : 5.5,
+          enable_audex_adjudicator: settingEnableAudex ? (settingEnableAudex.value === "true") : true
+        };
+        const res = await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Failed to update pipeline settings");
+        addNotification("Preferences Saved", "Pipeline & governor preferences updated in settings.json.", "success");
+        await fetchSettingsData();
+      } catch (err) {
+        alert("Failed to save pipeline preferences: " + err.message);
+      } finally {
+        btnSavePipelinePrefs.disabled = false;
+        btnSavePipelinePrefs.textContent = "💾 Save All Pipeline Preferences";
+      }
+    });
+  }
+}
+
 // Initialize Everything on Load
 initTheme();
 initCacheDropdown();
@@ -3164,7 +3478,10 @@ initNotificationSystem();
 initPyAnnoteVerifier();
 initSupervisorControls();
 initJournalControls();
+initSettingsTab();
 startTelemetryPolling();
 fetchTelemetryData();
 fetchPyAnnoteStatus();
+fetchSettingsData();
+
 

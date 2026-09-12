@@ -379,6 +379,38 @@ def test_pyannote_and_supervisor_api():
     assert res_purge_guarded.status_code == 400
 
 
+def test_settings_and_storage_endpoints():
+    """Tests /api/settings GET & POST and /api/storage/purge-all clean slate endpoint."""
+    client = TestClient(app)
+    # 1. GET /api/settings
+    res = client.get("/api/settings")
+    assert res.status_code == 200
+    data = res.json()
+    assert "storage" in data
+    assert "settings" in data
+    storage = data["storage"]
+    assert "base_dir" in storage
+    assert "models_dir" in storage
+    assert "tmp_dir" in storage
+    assert "free_gb" in storage
+
+    # 2. POST /api/settings
+    res_update = client.post("/api/settings", json={
+        "vocal_boost_level": "adaptive",
+        "default_diarizer": "pyannote"
+    })
+    assert res_update.status_code == 200
+    up_data = res_update.json()
+    assert up_data["status"] == "updated"
+    assert up_data["settings"]["vocal_boost_level"] == "adaptive"
+
+    # 3. POST /api/storage/purge-all
+    res_purge = client.post("/api/storage/purge-all")
+    assert res_purge.status_code == 200
+    purge_data = res_purge.json()
+    assert purge_data["status"] == "purged"
+
+
 if __name__ == "__main__":
     test_web_endpoints()
     test_task_control_endpoints()
@@ -387,7 +419,9 @@ if __name__ == "__main__":
     test_cache_and_segment_management()
     test_models_and_deep_memory_api()
     test_pyannote_and_supervisor_api()
+    test_settings_and_storage_endpoints()
     print("\nAll Web API, models, deep memory, PyAnnote, and supervisor tests passed!")
+
 
 
 

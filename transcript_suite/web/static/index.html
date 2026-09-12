@@ -141,6 +141,7 @@
     </button>
     <button class="main-tab-btn" data-tab="paneModels" id="tabBtnModels">🤖 Models & Checkpoints</button>
     <button class="main-tab-btn" data-tab="paneTelemetry" id="tabBtnTelemetry">📈 Telemetry & Logs</button>
+    <button class="main-tab-btn" data-tab="paneSettings" id="tabBtnSettings">⚙️ Settings</button>
   </nav>
 
   <main>
@@ -976,6 +977,165 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: SETTINGS PANE (Far Right) -->
+    <div class="tab-pane" id="paneSettings">
+      <div class="models-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 20px; margin-bottom: 24px;">
+        
+        <!-- CARD 1: PERSISTENT STORAGE & PATHS -->
+        <div class="model-card" style="grid-column: 1 / -1;">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title">📁 Persistent Storage &amp; Directory Routing</div>
+              <div class="model-card-arch">Directs all model checkpoints, temporary extractions, uploads, and outputs to dedicated disk storage.</div>
+            </div>
+            <span class="status-badge-active" id="settingsDiskStatusBadge">NVMe Connected</span>
+          </div>
+
+          <div style="margin-top: 14px;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">
+              PRIMARY STORAGE ROOT DIRECTORY (Default: <code>/mnt/d/transcript_suite_data</code>)
+            </label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="settingBaseDirInput" class="text-input" style="flex: 1; font-family: monospace; font-size: 13px;" placeholder="/mnt/d/transcript_suite_data">
+              <button class="btn-primary" id="btnSaveStoragePath" style="white-space: nowrap;">💾 Apply Storage Root</button>
+            </div>
+          </div>
+
+          <!-- Live Disk Gauge -->
+          <div style="margin-top: 16px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
+              <span><strong>Selected Partition Disk Space:</strong> <span id="settingDiskFreeText" style="color: #34d399; font-weight: 600;">-- GB Available</span></span>
+              <span id="settingDiskTotalText" style="color: var(--text-muted);">Total: -- GB (--% used)</span>
+            </div>
+            <div style="background: rgba(255,255,255,0.08); height: 8px; border-radius: 4px; overflow: hidden;">
+              <div id="settingDiskBar" style="width: 0%; height: 100%; background: var(--accent-light); transition: width 0.3s ease;"></div>
+            </div>
+          </div>
+
+          <!-- Subdirectories Breakdown -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 14px;">
+            <div style="padding: 10px; background: rgba(0,0,0,0.15); border-radius: 6px; font-size: 11px;">
+              <span style="color: var(--accent-light); font-weight: 600;">🧠 Model Hubs:</span>
+              <div style="color: var(--text-muted); font-family: monospace; margin-top: 3px;" id="settingSubdirModels">models/ (hf, nemo, torch)</div>
+            </div>
+            <div style="padding: 10px; background: rgba(0,0,0,0.15); border-radius: 6px; font-size: 11px;">
+              <span style="color: #60a5fa; font-weight: 600;">⚡ Scratch / Temp:</span>
+              <div style="color: var(--text-muted); font-family: monospace; margin-top: 3px;" id="settingSubdirTmp">tmp/ (replaces /tmp tmpfs)</div>
+            </div>
+            <div style="padding: 10px; background: rgba(0,0,0,0.15); border-radius: 6px; font-size: 11px;">
+              <span style="color: #34d399; font-weight: 600;">📥 Ingest Audio:</span>
+              <div style="color: var(--text-muted); font-family: monospace; margin-top: 3px;" id="settingSubdirUploads">uploads/ (original &amp; 16kHz)</div>
+            </div>
+            <div style="padding: 10px; background: rgba(0,0,0,0.15); border-radius: 6px; font-size: 11px;">
+              <span style="color: #f59e0b; font-weight: 600;">📤 Artifacts:</span>
+              <div style="color: var(--text-muted); font-family: monospace; margin-top: 3px;" id="settingSubdirOutputs">outputs/ (transcripts &amp; json)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 2: MODEL PURGE & MAINTENANCE -->
+        <div class="model-card">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title">🧹 Clean Slate &amp; Model Purge</div>
+              <div class="model-card-arch">Wipe cached checkpoints and scratch buffers to force fresh downloads into persistent storage.</div>
+            </div>
+          </div>
+          <p style="font-size: 12px; color: var(--text-muted); margin-top: 10px; line-height: 1.5;">
+            Purges all local model weights in both legacy cache and the new storage root. When you run your next transcription, clean fresh copies will be downloaded directly into <code>/mnt/d/transcript_suite_data/models</code>.
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
+            <button class="btn-telemetry" id="btnPurgeAllModelsSettings" style="background: rgba(239, 68, 68, 0.12); border: 1px solid #ef4444; color: #f87171; font-weight: 600; padding: 10px 14px; text-align: center; justify-content: center; cursor: pointer;">
+              🗑️ Purge All Existing Models (Clean Slate)
+            </button>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn-telemetry" id="btnPurgeScratchSettings" style="flex: 1; border-color: #60a5fa; color: #60a5fa; justify-content: center;">
+                ⚡ Purge Scratch Temp
+              </button>
+              <button class="btn-telemetry" id="btnDropPageCacheSettingsTab" style="flex: 1; border-color: #34d399; color: #34d399; justify-content: center;">
+                ⚡ Purge OS Page Cache
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 3: HUGGING FACE AUTHENTICATION -->
+        <div class="model-card">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title">🔑 Hugging Face Authentication</div>
+              <div class="model-card-arch">Authentication for PyAnnote Audio 3.1 &amp; gated models.</div>
+            </div>
+            <span class="status-badge" id="settingHfBadge">Checking...</span>
+          </div>
+          <div style="margin-top: 12px;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">
+              User Access Token (read permission)
+            </label>
+            <div style="display: flex; gap: 8px;">
+              <input type="password" id="settingHfTokenInput" class="text-input" style="flex: 1; font-family: monospace; font-size: 12px;" placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxxx">
+              <button class="btn-secondary" id="btnToggleSettingHfToken">👁️</button>
+              <button class="btn-primary" id="btnSaveSettingHfToken">Verify &amp; Save</button>
+              <button class="btn-secondary" id="btnClearSettingHfToken" title="Clear saved token">🗑️</button>
+            </div>
+            <div id="settingHfFeedback" style="font-size: 11px; margin-top: 8px; color: var(--text-muted);">
+              Saved persistently in settings.json.
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 4: PIPELINE & INFERENCE DEFAULTS -->
+        <div class="model-card" style="grid-column: 1 / -1;">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title">⚙️ Pipeline &amp; Hardware Preferences</div>
+              <div class="model-card-arch">Set default precision, diarizer engine, vocal limiter level, and governor safety thresholds.</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Default Speaker Diarizer</label>
+              <select id="settingDefaultDiarizer" class="select-input" style="width: 100%;">
+                <option value="pyannote">PyAnnote Audio 3.1 (State-of-the-art neural diarization)</option>
+                <option value="nemo">NeMo TitaNet Large (Offline, open-weights)</option>
+              </select>
+            </div>
+
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Vocal Boost &amp; Limiter Level</label>
+              <select id="settingVocalBoost" class="select-input" style="width: 100%;">
+                <option value="adaptive">Adaptive Soft-Knee (Recommended)</option>
+                <option value="standard">Standard Gating</option>
+                <option value="high">High Vocal Boost (+6dB)</option>
+                <option value="max">Maximum Vocal Boost (+12dB)</option>
+              </select>
+            </div>
+
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">
+                Predictive Governor Ceiling: <span id="settingGovCeilingVal" style="color: var(--accent-light);">5.5 GB</span>
+              </label>
+              <input type="range" id="settingGovCeilingSlider" min="4.0" max="7.5" step="0.1" value="5.5" style="width: 100%;">
+            </div>
+
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Stage 5 Audex-2B Adjudication</label>
+              <select id="settingEnableAudex" class="select-input" style="width: 100%;">
+                <option value="true">Enabled (Adjudicate disputes with acoustic reasoning)</option>
+                <option value="false">Disabled (Sequential consensus only)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="margin-top: 18px; display: flex; justify-content: flex-end;">
+            <button class="btn-primary" id="btnSavePipelinePrefs" style="padding: 10px 20px;">💾 Save All Pipeline Preferences</button>
+          </div>
+        </div>
+
       </div>
     </div>
   </main>
