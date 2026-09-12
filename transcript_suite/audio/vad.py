@@ -5,8 +5,11 @@ Safely bounds speech segments to 15-25s for 8GB VRAM safety.
 
 from dataclasses import dataclass
 from typing import List, Dict, Any
+from pathlib import Path
 import torch
 import numpy as np
+
+from ..config import config
 
 
 @dataclass
@@ -46,15 +49,38 @@ class SileroVADSegmenter:
 
     def _load_model(self):
         if self._model is None:
-            model, utils = torch.hub.load(
-                repo_or_dir="snakers4/silero-vad",
-                model="silero_vad",
-                force_reload=False,
-                onnx=False
-            )
-            self._model = model.to(self.device)
-            self._model.eval()
-            self._utils = utils
+            local_candidates = [
+                config.torch_home / "hub" / "snakers4_silero-vad_master",
+                Path.home() / ".cache" / "torch" / "hub" / "snakers4_silero-vad_master"
+            ]
+            loaded = False
+            for p in local_candidates:
+                if p.exists():
+                    try:
+                        model, utils = torch.hub.load(
+                            repo_or_dir=str(p),
+                            model="silero_vad",
+                            source="local",
+                            force_reload=False,
+                            onnx=False
+                        )
+                        self._model = model.to(self.device)
+                        self._model.eval()
+                        self._utils = utils
+                        loaded = True
+                        break
+                    except Exception as e:
+                        print(f"[VAD Warning] Failed loading local hub repo from {p}: {e}")
+            if not loaded:
+                model, utils = torch.hub.load(
+                    repo_or_dir="snakers4/silero-vad",
+                    model="silero_vad",
+                    force_reload=False,
+                    onnx=False
+                )
+                self._model = model.to(self.device)
+                self._model.eval()
+                self._utils = utils
 
     def segment(self, waveform: torch.Tensor, total_duration: float) -> List[SpeechSegment]:
         """

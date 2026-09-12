@@ -170,6 +170,8 @@ function switchTab(tabId) {
   });
 
   if (tabId === "paneTelemetry") {
+    fetchSupervisorData();
+    fetchJournalData();
     setTimeout(() => {
       if (cachedTraceSamples && cachedTraceSamples.length > 0) renderTraceGraph(cachedTraceSamples);
     }, 60);
@@ -2257,8 +2259,6 @@ async function initModelManager() {
   if (btnCopyMemoryAudit) {
     btnCopyMemoryAudit.addEventListener("click", (e) => copyProcessAndMemoryToClipboard(e.currentTarget));
   }
-
-  await fetchModelData();
 }
 
 async function fetchModelData() {
@@ -3481,7 +3481,6 @@ initJournalControls();
 initSettingsTab();
 startTelemetryPolling();
 fetchTelemetryData();
-fetchPyAnnoteStatus();
-fetchSettingsData();
+
 
 
