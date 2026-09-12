@@ -164,6 +164,7 @@ function switchTab(tabId) {
     }, 60);
   } else if (tabId === "paneModels") {
     fetchModelData();
+    fetchPyAnnoteStatus();
   }
 }
 
@@ -1333,15 +1334,17 @@ const btnClearMemTelemetry = document.getElementById("btnClearMemTelemetry");
 
 const tabBtnDeepMem = document.getElementById("tabBtnDeepMem");
 const paneDeepMem = document.getElementById("paneDeepMem");
+const tabBtnSupervisor = document.getElementById("tabBtnSupervisor");
+const paneSupervisor = document.getElementById("paneSupervisor");
 
 function initTelemetryTabs() {
   if (!tabBtnTrace || !tabBtnLogs) return;
 
   const setTelemetrySubTab = (activeBtn, activePane) => {
-    [tabBtnTrace, tabBtnLogs, tabBtnDeepMem].forEach(btn => {
+    [tabBtnTrace, tabBtnLogs, tabBtnDeepMem, tabBtnSupervisor].forEach(btn => {
       if (btn) btn.classList.toggle("active", btn === activeBtn);
     });
-    [paneTrace, paneLogs, paneDeepMem].forEach(pane => {
+    [paneTrace, paneLogs, paneDeepMem, paneSupervisor].forEach(pane => {
       if (pane) pane.classList.toggle("active", pane === activePane);
     });
   };
@@ -1361,6 +1364,15 @@ function initTelemetryTabs() {
     tabBtnDeepMem.addEventListener("click", () => {
       setTelemetrySubTab(tabBtnDeepMem, paneDeepMem);
       fetchDeepMemoryTrace();
+    });
+  }
+
+  if (tabBtnSupervisor) {
+    tabBtnSupervisor.addEventListener("click", () => {
+      setTelemetrySubTab(tabBtnSupervisor, paneSupervisor);
+      fetchSupervisorData();
+      fetchStorageBreakdown();
+      fetchJournalData();
     });
   }
 }
@@ -2155,6 +2167,533 @@ async function deleteCheckpoint(checkpointId, displayName) {
   }
 }
 
+// --- 11. Upgraded Notification & Emergency HUD Manager ---
+const btnToggleNotifDrawer = document.getElementById("btnToggleNotifDrawer");
+const notifCountBadge = document.getElementById("notifCountBadge");
+const notifDrawer = document.getElementById("notifDrawer");
+const notifDrawerOverlay = document.getElementById("notifDrawerOverlay");
+const notifDrawerList = document.getElementById("notifDrawerList");
+const drawerNotifCount = document.getElementById("drawerNotifCount");
+const btnClearNotifHistory = document.getElementById("btnClearNotifHistory");
+const btnCloseNotifDrawer = document.getElementById("btnCloseNotifDrawer");
+
+const emergencyHudBanner = document.getElementById("emergencyHudBanner");
+const emergencyHudTitle = document.getElementById("emergencyHudTitle");
+const emergencyHudMessage = document.getElementById("emergencyHudMessage");
+const btnEmergencyAbortBanner = document.getElementById("btnEmergencyAbortBanner");
+const btnDismissEmergencyHud = document.getElementById("btnDismissEmergencyHud");
+
+const NOTIFICATION_HISTORY = [];
+let unreadNotifCount = 0;
+
+function addNotification(title, message, severity = "info", details = null) {
+  const notif = {
+    id: "notif_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
+    title,
+    message,
+    severity: severity.toLowerCase(),
+    details,
+    time: new Date().toLocaleTimeString()
+  };
+  NOTIFICATION_HISTORY.unshift(notif);
+  unreadNotifCount++;
+  updateNotifBadge();
+  renderNotificationList();
+
+  if (severity.toLowerCase() === "emergency") {
+    showEmergencyHud(title, message);
+  }
+}
+
+function updateNotifBadge() {
+  if (!notifCountBadge) return;
+  notifCountBadge.textContent = unreadNotifCount;
+  notifCountBadge.style.display = unreadNotifCount > 0 ? "inline-block" : "none";
+  if (drawerNotifCount) drawerNotifCount.textContent = `${NOTIFICATION_HISTORY.length} events`;
+}
+
+function showEmergencyHud(title, message) {
+  if (!emergencyHudBanner) return;
+  if (emergencyHudTitle) emergencyHudTitle.textContent = title || "Emergency Intervention Triggered";
+  if (emergencyHudMessage) emergencyHudMessage.textContent = message || "VRAM velocity or memory watermark triggered protective governor.";
+  emergencyHudBanner.style.display = "block";
+}
+
+function dismissEmergencyHud() {
+  if (emergencyHudBanner) emergencyHudBanner.style.display = "none";
+}
+
+function renderNotificationList() {
+  if (!notifDrawerList) return;
+  if (NOTIFICATION_HISTORY.length === 0) {
+    notifDrawerList.innerHTML = `<div class="notif-empty">No notifications yet.</div>`;
+    return;
+  }
+  notifDrawerList.innerHTML = NOTIFICATION_HISTORY.map(n => `
+    <div class="notif-item notif-item-${n.severity}">
+      <div class="notif-item-header">
+        <span class="notif-item-title">${escapeHtml(n.title)}</span>
+        <span class="notif-item-time">${escapeHtml(n.time)}</span>
+      </div>
+      <div class="notif-item-msg">${escapeHtml(n.message)}</div>
+    </div>
+  `).join("");
+}
+
+function initNotificationSystem() {
+  if (btnToggleNotifDrawer && notifDrawer && notifDrawerOverlay) {
+    btnToggleNotifDrawer.addEventListener("click", () => {
+      notifDrawer.classList.toggle("active");
+      notifDrawerOverlay.classList.toggle("active");
+      unreadNotifCount = 0;
+      updateNotifBadge();
+    });
+  }
+  if (btnCloseNotifDrawer && notifDrawer && notifDrawerOverlay) {
+    btnCloseNotifDrawer.addEventListener("click", () => {
+      notifDrawer.classList.remove("active");
+      notifDrawerOverlay.classList.remove("active");
+    });
+  }
+  if (notifDrawerOverlay && notifDrawer) {
+    notifDrawerOverlay.addEventListener("click", () => {
+      notifDrawer.classList.remove("active");
+      notifDrawerOverlay.classList.remove("active");
+    });
+  }
+  if (btnClearNotifHistory) {
+    btnClearNotifHistory.addEventListener("click", () => {
+      NOTIFICATION_HISTORY.length = 0;
+      unreadNotifCount = 0;
+      updateNotifBadge();
+      renderNotificationList();
+    });
+  }
+  if (btnDismissEmergencyHud) {
+    btnDismissEmergencyHud.addEventListener("click", dismissEmergencyHud);
+  }
+  if (btnEmergencyAbortBanner) {
+    btnEmergencyAbortBanner.addEventListener("click", emergencyAbortTask);
+  }
+}
+
+// --- 12. PyAnnote Audio 3.1 Setup & Verification ---
+const pyannoteStatusPill = document.getElementById("pyannoteStatusPill");
+const hfTokenInput = document.getElementById("hfTokenInput");
+const btnToggleTokenVisibility = document.getElementById("btnToggleTokenVisibility");
+const btnVerifyHfToken = document.getElementById("btnVerifyHfToken");
+const pyannoteFeedbackText = document.getElementById("pyannoteFeedbackText");
+
+async function fetchPyAnnoteStatus() {
+  if (!pyannoteStatusPill) return;
+  try {
+    const res = await fetch("/api/pyannote/status");
+    if (!res.ok) return;
+    const data = await res.json();
+    updatePyAnnoteUI(data);
+  } catch (err) {
+    console.warn("PyAnnote status check error:", err);
+  }
+}
+
+function updatePyAnnoteUI(data) {
+  if (!pyannoteStatusPill) return;
+  pyannoteStatusPill.className = "pyannote-status-pill";
+  if (data.ready) {
+    pyannoteStatusPill.classList.add("ready");
+    pyannoteStatusPill.textContent = `✅ Ready (@${data.username || "User"})`;
+    if (pyannoteFeedbackText) {
+      pyannoteFeedbackText.style.color = "#10b981";
+      pyannoteFeedbackText.textContent = `Verified! PyAnnote Audio 3.1 is authenticated and ready for speaker diarization.`;
+    }
+  } else if (data.token_valid && (!data.diarization_access || !data.segmentation_access)) {
+    pyannoteStatusPill.classList.add("warning");
+    pyannoteStatusPill.textContent = "⚠️ Gated Agreement Required";
+    if (pyannoteFeedbackText) {
+      pyannoteFeedbackText.style.color = "#f59e0b";
+      pyannoteFeedbackText.textContent = data.message || "Please accept user agreements on Hugging Face to unlock model weights.";
+    }
+  } else if (data.token_provided) {
+    pyannoteStatusPill.classList.add("error");
+    pyannoteStatusPill.textContent = "❌ Invalid Token";
+    if (pyannoteFeedbackText) {
+      pyannoteFeedbackText.style.color = "#ef4444";
+      pyannoteFeedbackText.textContent = data.message || "Token verification failed. Check permissions.";
+    }
+  } else {
+    pyannoteStatusPill.textContent = "⚠️ Token Not Set";
+    if (pyannoteFeedbackText) {
+      pyannoteFeedbackText.style.color = "var(--text-muted)";
+      pyannoteFeedbackText.textContent = "Defaulting to NeMo TitaNet. Provide HF Token to enable PyAnnote.";
+    }
+  }
+}
+
+function initPyAnnoteVerifier() {
+  if (btnToggleTokenVisibility && hfTokenInput) {
+    btnToggleTokenVisibility.addEventListener("click", () => {
+      hfTokenInput.type = hfTokenInput.type === "password" ? "text" : "password";
+      btnToggleTokenVisibility.textContent = hfTokenInput.type === "password" ? "👁️" : "🙈";
+    });
+  }
+
+  if (btnVerifyHfToken && hfTokenInput) {
+    btnVerifyHfToken.addEventListener("click", async () => {
+      const token = hfTokenInput.value.trim();
+      btnVerifyHfToken.disabled = true;
+      btnVerifyHfToken.textContent = "Verifying...";
+      try {
+        const res = await fetch("/api/pyannote/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token })
+        });
+        const data = await res.json();
+        updatePyAnnoteUI(data);
+        if (data.ready) {
+          addNotification("PyAnnote Verified", `PyAnnote Audio 3.1 verified for @${data.username}`, "success");
+        } else {
+          addNotification("PyAnnote Notice", data.message, data.token_valid ? "warning" : "error");
+        }
+      } catch (err) {
+        alert("Token verification failed: " + err.message);
+      } finally {
+        btnVerifyHfToken.disabled = false;
+        btnVerifyHfToken.textContent = "🔍 Test & Save Token";
+      }
+    });
+  }
+}
+
+// --- 13. Subsystem Supervisor & Predictive Emergency Governor ---
+const govStatusPill = document.getElementById("govStatusPill");
+const govCeilingVal = document.getElementById("govCeilingVal");
+const govCeilingSlider = document.getElementById("govCeilingSlider");
+const govVelocityVal = document.getElementById("govVelocityVal");
+const govProjectedVal = document.getElementById("govProjectedVal");
+const btnSupervisorEmergencyAbort = document.getElementById("btnSupervisorEmergencyAbort");
+const btnSupervisorEjectAll = document.getElementById("btnSupervisorEjectAll");
+const subsystemsGrid = document.getElementById("subsystemsGrid");
+
+async function fetchSupervisorData() {
+  try {
+    const res = await fetch("/api/supervisor/subsystems");
+    if (!res.ok) return;
+    const data = await res.json();
+    renderSupervisorUI(data);
+  } catch (err) {
+    console.warn("Supervisor fetch error:", err);
+  }
+}
+
+function renderSupervisorUI(data) {
+  if (!data) return;
+
+  // 1. Governor Metrics
+  const gov = data.governor || {};
+  if (govStatusPill) {
+    govStatusPill.className = "gov-status-pill";
+    const st = (gov.status || "NORMAL").toUpperCase();
+    govStatusPill.textContent = st;
+    if (st === "EMERGENCY") govStatusPill.classList.add("emergency");
+    else if (st === "WARNING") govStatusPill.classList.add("warning");
+  }
+
+  if (govCeilingVal) govCeilingVal.textContent = `${gov.ceiling_gb || 5.5} GB`;
+  if (govCeilingSlider && !govCeilingSlider.matches(":focus")) {
+    govCeilingSlider.value = gov.ceiling_gb || 5.5;
+  }
+
+  if (govVelocityVal) {
+    const vel = gov.velocity_mb_s || 0;
+    govVelocityVal.textContent = `${vel >= 0 ? "+" : ""}${vel} MB/s`;
+    govVelocityVal.style.color = vel > 100 ? "#ef4444" : (vel > 30 ? "#f59e0b" : "var(--text-primary)");
+  }
+
+  if (govProjectedVal) {
+    const projGb = (gov.projected_5s_mb || 0) / 1024;
+    govProjectedVal.textContent = `${projGb.toFixed(2)} GB`;
+    govProjectedVal.style.color = projGb > (gov.ceiling_gb || 5.5) ? "#ef4444" : "var(--text-primary)";
+  }
+
+  // 2. Alert Handling
+  if (data.active_alert) {
+    showEmergencyHud(data.active_alert.title, data.active_alert.message);
+  }
+
+  // 3. Subsystem Cards Grid
+  if (subsystemsGrid && data.subsystems) {
+    subsystemsGrid.innerHTML = data.subsystems.map(sub => {
+      const state = (sub.state || "idle").toLowerCase();
+      const vramMb = sub.vram_allocated_mb || 0;
+      const peakMb = sub.vram_peak_mb || 0;
+      const ramMb = sub.ram_rss_mb || 0;
+      const rtfx = sub.rtfx ? `${sub.rtfx}x` : "--";
+      const dur = sub.last_runtime_sec ? `${sub.last_runtime_sec}s` : "--";
+
+      return `
+        <div class="subsystem-card ${state}">
+          <div class="subsystem-header">
+            <div class="subsystem-name-group">
+              <span class="subsystem-name">${escapeHtml(sub.name)}</span>
+              <span class="subsystem-model">${escapeHtml(sub.active_model || "--")}</span>
+            </div>
+            <span class="subsystem-state-badge ${state}">${state}</span>
+          </div>
+          <div class="subsystem-metrics">
+            <div class="subsystem-metric-row">
+              <span>Active VRAM:</span>
+              <span class="subsystem-metric-val" style="color: #a855f7;">${vramMb.toFixed(1)} MB</span>
+            </div>
+            <div class="subsystem-metric-row">
+              <span>Peak VRAM:</span>
+              <span class="subsystem-metric-val">${peakMb.toFixed(1)} MB</span>
+            </div>
+            <div class="subsystem-metric-row">
+              <span>Process RAM:</span>
+              <span class="subsystem-metric-val" style="color: #10b981;">${ramMb.toFixed(1)} MB</span>
+            </div>
+            <div class="subsystem-metric-row">
+              <span>Last Runtime / RTFx:</span>
+              <span class="subsystem-metric-val">${dur} / ${rtfx}</span>
+            </div>
+          </div>
+          ${sub.can_eject ? `
+            <button class="btn-subsystem-eject" onclick="forceEjectSubsystem('${sub.id}', '${escapeHtml(sub.name)}')">
+              ⚡ Force Eject
+            </button>
+          ` : ''}
+        </div>
+      `;
+    }).join("");
+  }
+}
+
+async function forceEjectSubsystem(stageId, name) {
+  try {
+    const res = await fetch("/api/supervisor/unload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stage: stageId })
+    });
+    const data = await res.json();
+    addNotification("Model Ejected", `Force ejected ${name || stageId}. Free VRAM: ${data.free_vram_gb} GB`, "info");
+    await fetchSupervisorData();
+    await fetchTelemetryData();
+  } catch (err) {
+    alert("Eject failed: " + err.message);
+  }
+}
+
+async function emergencyAbortTask() {
+  const ok = confirm("🚨 Are you sure you want to EMERGENCY ABORT the running pipeline?\nThis will stop all processing immediately and free GPU memory.");
+  if (!ok) return;
+
+  try {
+    const res = await fetch("/api/supervisor/abort", { method: "POST" });
+    const data = await res.json();
+    dismissEmergencyHud();
+    addNotification("Emergency Abort", "Active transcription task was forcefully aborted.", "emergency");
+    await fetchSupervisorData();
+    await fetchTelemetryData();
+    await fetchJournalData();
+  } catch (err) {
+    alert("Emergency abort error: " + err.message);
+  }
+}
+
+function initSupervisorControls() {
+  if (govCeilingSlider) {
+    govCeilingSlider.addEventListener("change", async (e) => {
+      const ceiling = parseFloat(e.target.value);
+      try {
+        await fetch("/api/supervisor/governor", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ceiling_gb: ceiling })
+        });
+        if (govCeilingVal) govCeilingVal.textContent = `${ceiling} GB`;
+        addNotification("Governor Updated", `Safety ceiling set to ${ceiling} GB`, "info");
+      } catch (err) {
+        console.warn("Governor update failed:", err);
+      }
+    });
+    govCeilingSlider.addEventListener("input", (e) => {
+      if (govCeilingVal) govCeilingVal.textContent = `${parseFloat(e.target.value)} GB`;
+    });
+  }
+
+  if (btnSupervisorEmergencyAbort) {
+    btnSupervisorEmergencyAbort.addEventListener("click", emergencyAbortTask);
+  }
+
+  if (btnSupervisorEjectAll) {
+    btnSupervisorEjectAll.addEventListener("click", () => forceEjectSubsystem("all", "All Pipeline Models"));
+  }
+}
+
+// --- 14. Advanced Storage Breakdown & Granular Purge ---
+const storageTotalManagedVal = document.getElementById("storageTotalManagedVal");
+const storageTargetsGrid = document.getElementById("storageTargetsGrid");
+
+async function fetchStorageBreakdown() {
+  if (!storageTargetsGrid) return;
+  try {
+    const res = await fetch("/api/storage/detailed");
+    if (!res.ok) return;
+    const data = await res.json();
+    if (storageTotalManagedVal) storageTotalManagedVal.textContent = `${data.total_gb || 0} GB`;
+    renderStorageTargets(data.targets || []);
+  } catch (err) {
+    console.warn("Storage breakdown fetch error:", err);
+  }
+}
+
+function renderStorageTargets(targets) {
+  if (!storageTargetsGrid) return;
+  storageTargetsGrid.innerHTML = targets.map(t => `
+    <div class="storage-target-card">
+      <div class="storage-card-header">
+        <span class="storage-card-title">${escapeHtml(t.name)}</span>
+        <span class="storage-badge-cat">${escapeHtml(t.category)}</span>
+      </div>
+      <div class="storage-card-hint">${escapeHtml(t.hint || t.path)}</div>
+      <div class="storage-card-footer">
+        <span class="storage-size-val">${t.size_mb >= 1024 ? t.size_gb + " GB" : t.size_mb + " MB"} (${t.file_count} files)</span>
+        ${t.can_purge ? `
+          <button class="btn-storage-purge" onclick="purgeStorageTarget('${t.id}', '${escapeHtml(t.name)}')">
+            🗑️ Purge
+          </button>
+        ` : '<span style="font-size: 10px; color: var(--text-muted);">Protected</span>'}
+      </div>
+    </div>
+  `).join("");
+}
+
+async function purgeStorageTarget(targetId, name) {
+  const ok = confirm(`Purge "${name || targetId}" to free disk space?`);
+  if (!ok) return;
+
+  try {
+    const res = await fetch("/api/storage/purge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target: targetId })
+    });
+    const data = await res.json();
+    addNotification("Storage Purged", data.message || `Cleaned ${targetId}`, "info");
+    await fetchStorageBreakdown();
+    await fetchCacheBreakdown();
+  } catch (err) {
+    alert("Purge error: " + err.message);
+  }
+}
+
+// --- 15. Supervisor Audit Event Journal ---
+let activeJournalSeverity = "ALL";
+let journalSearchQuery = "";
+const journalFilterGroup = document.getElementById("journalFilterGroup");
+const journalSearchInput = document.getElementById("journalSearchInput");
+const journalTableBody = document.getElementById("journalTableBody");
+const btnExportJournalCsv = document.getElementById("btnExportJournalCsv");
+const btnExportJournalJson = document.getElementById("btnExportJournalJson");
+const btnClearJournal = document.getElementById("btnClearJournal");
+
+async function fetchJournalData() {
+  if (!journalTableBody) return;
+  try {
+    const params = new URLSearchParams();
+    params.append("limit", "100");
+    if (activeJournalSeverity && activeJournalSeverity !== "ALL") {
+      params.append("severity", activeJournalSeverity);
+    }
+    if (journalSearchQuery) {
+      params.append("search", journalSearchQuery);
+    }
+
+    const res = await fetch(`/api/supervisor/journal?${params.toString()}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    renderJournalTable(data.events || []);
+  } catch (err) {
+    console.warn("Journal fetch error:", err);
+  }
+}
+
+function renderJournalTable(events) {
+  if (!journalTableBody) return;
+  if (events.length === 0) {
+    journalTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">No audit journal records found.</td></tr>`;
+    return;
+  }
+
+  journalTableBody.innerHTML = events.map(e => {
+    const sev = (e.severity || "INFO").toUpperCase();
+    const sevClass = sev.toLowerCase();
+    const timeStr = e.timestamp ? e.timestamp.replace("T", " ").substring(0, 19) : "--";
+
+    return `
+      <tr>
+        <td style="font-family: var(--font-mono, monospace); font-size: 11px;">${escapeHtml(timeStr)}</td>
+        <td><span class="journal-severity-badge ${sevClass}">${escapeHtml(sev)}</span></td>
+        <td style="font-weight: 600;">${escapeHtml(e.subsystem || "--")}</td>
+        <td style="font-family: var(--font-mono, monospace); font-size: 11px; color: var(--accent-light);">${escapeHtml(e.event_type || "--")}</td>
+        <td>${escapeHtml(e.message || "")}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function initJournalControls() {
+  if (journalFilterGroup) {
+    const btns = journalFilterGroup.querySelectorAll(".journal-filter-btn");
+    btns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        btns.forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        activeJournalSeverity = btn.dataset.severity || "ALL";
+        fetchJournalData();
+      });
+    });
+  }
+
+  if (journalSearchInput) {
+    let debounceTimer = null;
+    journalSearchInput.addEventListener("input", (e) => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        journalSearchQuery = e.target.value.trim();
+        fetchJournalData();
+      }, 250);
+    });
+  }
+
+  if (btnExportJournalCsv) {
+    btnExportJournalCsv.addEventListener("click", () => {
+      window.open("/api/supervisor/journal/export?format=csv", "_blank");
+    });
+  }
+
+  if (btnExportJournalJson) {
+    btnExportJournalJson.addEventListener("click", () => {
+      window.open("/api/supervisor/journal/export?format=json", "_blank");
+    });
+  }
+
+  if (btnClearJournal) {
+    btnClearJournal.addEventListener("click", async () => {
+      const ok = confirm("Clear all supervisor audit journal entries?");
+      if (!ok) return;
+      try {
+        await fetch("/api/supervisor/journal/clear", { method: "POST" });
+        await fetchJournalData();
+      } catch (err) {
+        alert("Clear journal failed: " + err.message);
+      }
+    });
+  }
+}
+
 // Initialize Everything on Load
 initTheme();
 initCacheDropdown();
@@ -2164,5 +2703,11 @@ initCadenceSelector();
 initLogLevelFilters();
 initTelemetryExports();
 initModelManager();
+initNotificationSystem();
+initPyAnnoteVerifier();
+initSupervisorControls();
+initJournalControls();
 startTelemetryPolling();
 fetchTelemetryData();
+fetchPyAnnoteStatus();
+

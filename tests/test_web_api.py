@@ -289,6 +289,67 @@ def test_models_and_deep_memory_api():
     assert res_del_bad.status_code == 403
 
 
+def test_pyannote_and_supervisor_api():
+    client = TestClient(app)
+
+    # 1. PyAnnote status and token configuration
+    res_py_status = client.get("/api/pyannote/status")
+    assert res_py_status.status_code == 200
+    assert "installed" in res_py_status.json()
+
+    res_py_token = client.post("/api/pyannote/token", json={"token": None})
+    assert res_py_token.status_code == 200
+
+    # 2. Supervisor Subsystems
+    res_subsystems = client.get("/api/supervisor/subsystems")
+    assert res_subsystems.status_code == 200
+    sub_data = res_subsystems.json()
+    assert "subsystems" in sub_data
+    assert "governor" in sub_data
+    assert len(sub_data["subsystems"]) >= 7
+
+    # 3. Supervisor Governor Update
+    res_gov = client.post("/api/supervisor/governor", json={"ceiling_gb": 6.0, "enabled": True})
+    assert res_gov.status_code == 200
+    assert res_gov.json()["status"] == "updated"
+
+    # Reset back to 5.5
+    client.post("/api/supervisor/governor", json={"ceiling_gb": 5.5, "enabled": True})
+
+    # 4. Supervisor Force Unload
+    res_unload = client.post("/api/supervisor/unload", json={"stage": "whisper"})
+    assert res_unload.status_code == 200
+    assert res_unload.json()["success"] is True
+
+    # 5. Supervisor Journal Endpoints
+    res_journal = client.get("/api/supervisor/journal?limit=20")
+    assert res_journal.status_code == 200
+    assert "events" in res_journal.json()
+
+    res_export_json = client.get("/api/supervisor/journal/export?format=json")
+    assert res_export_json.status_code == 200
+    assert res_export_json.headers["content-type"].startswith("application/json")
+
+    res_export_csv = client.get("/api/supervisor/journal/export?format=csv")
+    assert res_export_csv.status_code == 200
+    assert "text/csv" in res_export_csv.headers["content-type"]
+
+    res_clear_journal = client.post("/api/supervisor/journal/clear")
+    assert res_clear_journal.status_code == 200
+    assert res_clear_journal.json()["status"] == "cleared"
+
+    # 6. Detailed Storage Endpoints
+    res_storage = client.get("/api/storage/detailed")
+    assert res_storage.status_code == 200
+    storage_data = res_storage.json()
+    assert "targets" in storage_data
+    assert "total_gb" in storage_data
+
+    # 7. Storage Purge (guarded check)
+    res_purge_guarded = client.post("/api/storage/purge", json={"target": "hf_cache"})
+    assert res_purge_guarded.status_code == 400
+
+
 if __name__ == "__main__":
     test_web_endpoints()
     test_task_control_endpoints()
@@ -296,7 +357,8 @@ if __name__ == "__main__":
     test_telemetry_endpoints()
     test_cache_and_segment_management()
     test_models_and_deep_memory_api()
-    print("\nAll Web API, models, and deep memory tests passed!")
+    test_pyannote_and_supervisor_api()
+    print("\nAll Web API, models, deep memory, PyAnnote, and supervisor tests passed!")
 
 
 

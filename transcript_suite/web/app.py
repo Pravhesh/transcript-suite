@@ -18,9 +18,10 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from ..config import config
-from ..pipeline import TranscriptionPipeline
-from ..asr.memory import VRAMManager
+from ..pipeline import TranscriptionPipeline, get_active_pipeline
+from ..asr.memory import VRAMManager, get_subsystem_supervisor
 from ..asr.model_manager import model_manager
+from ..diarization.pyannote import verify_pyannote_access
 from ..export import TranscriptExporter
 
 app = FastAPI(title="Transcript Suite API")
@@ -429,6 +430,190 @@ async def delete_model_checkpoint(request: Request):
         raise HTTPException(status_code=403, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+# --- PyAnnote & Supervisor Endpoints ---
+
+@app.get("/api/pyannote/status")
+async def get_pyannote_status():
+    """Returns PyAnnote installation status and Hugging Face token verification details."""
+    return verify_pyannote_access(config.hf_token)
+
+
+@app.post("/api/pyannote/token")
+async def configure_pyannote_token(request: Request):
+    """Saves Hugging Face token and tests access against gated PyAnnote models."""
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    raw_tok = payload.get("token")
+    token = raw_tok.strip() if isinstance(raw_tok, str) and raw_tok.strip() else None
+    config.save_persistent_settings({"hf_token": token})
+    status = verify_pyannote_access(token)
+    supervisor = get_subsystem_supervisor()
+    supervisor.log_journal(
+        severity="INFO" if status.get("ready") else "WARNING",
+        subsystem="diarizer",
+        event_type="PYANNOTE_TOKEN_UPDATE",
+        message=f"PyAnnote token updated. Status: {status.get('message')}",
+        details={"ready": status.get("ready"), "username": status.get("username")}
+    )
+    return status
+
+
+@app.get("/api/supervisor/subsystems")
+async def get_supervisor_subsystems():
+    """Returns real-time internal subsystem status, VRAM footprints, and governor metrics."""
+    supervisor = get_subsystem_supervisor()
+    return supervisor.sample_telemetry()
+
+
+@app.post("/api/supervisor/unload")
+async def supervisor_force_unload(request: Request):
+    """Forces immediate eviction of a specific model stage to free VRAM."""
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    stage = payload.get("stage", "all")
+    pipeline = get_active_pipeline()
+    supervisor = get_subsystem_supervisor()
+
+    if pipeline:
+        res = pipeline.force_eject(stage)
+    else:
+        vram_manager.clear_cache()
+        stats = vram_manager.get_stats()
+        res = {
+            "success": True,
+            "ejected_models": [stage],
+            "current_vram_gb": stats.get("reserved_gb", 0.0),
+            "free_vram_gb": stats.get("free_gb", 0.0),
+            "app_ram_gb": stats.get("proc_ram_used_gb", 0.0)
+        }
+
+    supervisor.log_journal(
+        severity="INFO",
+        subsystem="supervisor",
+        event_type="MANUAL_FORCE_UNLOAD",
+        message=f"Manual force unload executed for stage '{stage}'.",
+        details=res
+    )
+    return res
+
+
+@app.post("/api/supervisor/abort")
+async def supervisor_emergency_abort():
+    """Emergency aborts any active transcription task and clears memory."""
+    supervisor = get_subsystem_supervisor()
+    aborted_tasks = []
+    for tid, ctrl in TASK_CONTROLS.items():
+        if "stop_event" in ctrl and not ctrl["stop_event"].is_set():
+            ctrl["stop_event"].set()
+            aborted_tasks.append(tid)
+        if tid in TASKS and TASKS[tid]["status"] in ("running", "queued"):
+            TASKS[tid]["status"] = "cancelled"
+            TASKS[tid]["error"] = "Emergency aborted by user via Supervisor Control."
+
+    pipeline = get_active_pipeline()
+    if pipeline:
+        pipeline.force_eject("all")
+    else:
+        vram_manager.clear_cache()
+
+    supervisor.log_journal(
+        severity="EMERGENCY",
+        subsystem="supervisor",
+        event_type="EMERGENCY_ABORT",
+        message=f"Emergency abort triggered. Aborted tasks: {aborted_tasks}."
+    )
+    return {"success": True, "aborted_tasks": aborted_tasks, "message": "Emergency abort signal dispatched."}
+
+
+@app.post("/api/supervisor/governor")
+async def update_supervisor_governor(request: Request):
+    """Updates governor safety ceiling threshold and predictive throttling state."""
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    ceiling = payload.get("ceiling_gb")
+    enabled = payload.get("enabled")
+    updates = {}
+    if ceiling is not None:
+        updates["vram_governor_threshold_gb"] = float(ceiling)
+    if enabled is not None:
+        updates["predictive_emergency_enabled"] = bool(enabled)
+
+    saved = config.save_persistent_settings(updates)
+    supervisor = get_subsystem_supervisor()
+    supervisor.log_journal(
+        severity="INFO",
+        subsystem="governor",
+        event_type="GOVERNOR_SETTINGS_UPDATED",
+        message=f"Governor settings updated: ceiling={config.vram_governor_threshold_gb} GB, predictive={config.predictive_emergency_enabled}.",
+        details=updates
+    )
+    return {"status": "updated", "governor": saved}
+
+
+@app.get("/api/supervisor/journal")
+async def get_supervisor_journal(
+    limit: int = Query(50, ge=1, le=500),
+    severity: Optional[str] = Query(None),
+    search: Optional[str] = Query(None)
+):
+    """Returns filtered supervisor audit journal entries."""
+    supervisor = get_subsystem_supervisor()
+    return {
+        "events": supervisor.get_journal(limit=limit, severity=severity, search=search),
+        "active_alert": supervisor.active_emergency_alert
+    }
+
+
+@app.get("/api/supervisor/journal/export")
+async def export_supervisor_journal(format: str = Query("json")):
+    """Exports supervisor journal as downloadable JSON or CSV."""
+    supervisor = get_subsystem_supervisor()
+    content = supervisor.export_journal(export_format=format)
+    media_type = "text/csv" if format.lower() == "csv" else "application/json"
+    filename = f"supervisor_journal_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{format}"
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@app.post("/api/supervisor/journal/clear")
+async def clear_supervisor_journal():
+    """Clears the supervisor journal history."""
+    supervisor = get_subsystem_supervisor()
+    supervisor.clear_journal()
+    return {"status": "cleared", "message": "Supervisor journal log cleared."}
+
+
+@app.get("/api/storage/detailed")
+async def get_detailed_storage():
+    """Returns granular disk consumption across model hub, nemo, temp audio, exports, and kernels."""
+    supervisor = get_subsystem_supervisor()
+    return supervisor.get_detailed_storage_breakdown()
+
+
+@app.post("/api/storage/purge")
+async def purge_storage_target(request: Request):
+    """Purges selected cache or temp storage target."""
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    target = payload.get("target", "temp_audio")
+    supervisor = get_subsystem_supervisor()
+    res = supervisor.purge_storage(target)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("message"))
+    return res
 
 
 @app.post("/api/transcribe")

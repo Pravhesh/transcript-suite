@@ -34,8 +34,10 @@ class SuiteConfig:
     vad_padding_s: float = 0.3
     vocal_boost_level: str = "adaptive"  # standard, adaptive, high, max
     
-    # Memory safety
+    # Memory safety & Predictive Governor
     vram_alert_threshold_gb: float = 7.0  # Max safe threshold on 8GB GPU
+    vram_governor_threshold_gb: float = 5.5  # Predictive Emergency Ceiling
+    predictive_emergency_enabled: bool = True  # Dynamic auto-throttling & pre-emptive eviction
     auto_empty_cache_interval: int = 2     # Clear cache every N chunks
     
     # Diarization
@@ -80,7 +82,10 @@ class SuiteConfig:
                     "parakeet_model",
                     "default_diarizer",
                     "nemo_diarizer_model",
-                    "vocal_boost_level"
+                    "vocal_boost_level",
+                    "hf_token",
+                    "vram_governor_threshold_gb",
+                    "predictive_emergency_enabled"
                 }
                 for k, v in data.items():
                     if k in allowed_keys and v is not None:
@@ -101,7 +106,10 @@ class SuiteConfig:
             "parakeet_model",
             "default_diarizer",
             "nemo_diarizer_model",
-            "vocal_boost_level"
+            "vocal_boost_level",
+            "hf_token",
+            "vram_governor_threshold_gb",
+            "predictive_emergency_enabled"
         }
         for k, v in updates.items():
             if k in allowed_keys and v is not None:

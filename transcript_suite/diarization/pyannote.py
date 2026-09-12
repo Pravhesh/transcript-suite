@@ -6,15 +6,97 @@ Requires pyannote.audio package and a valid Hugging Face token (HF_TOKEN).
 import os
 import tempfile
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import torch
 import soundfile as sf
 from .base import BaseDiarizer, SpeakerTurn
 
 
+def ensure_pyannote_compatibility():
+    """
+    Applies compatibility shims for torchaudio 2.10+ / 2.11+ where AudioMetaData
+    and list_audio_backends were removed from the public module root.
+    """
+    import torchaudio
+    if not hasattr(torchaudio, "AudioMetaData"):
+        from dataclasses import dataclass
+        @dataclass
+        class AudioMetaData:
+            sample_rate: int = 16000
+            num_frames: int = 0
+            num_channels: int = 1
+            bits_per_sample: int = 16
+            encoding: str = "PCM_S"
+        torchaudio.AudioMetaData = AudioMetaData
+
+    if not hasattr(torchaudio, "list_audio_backends"):
+        torchaudio.list_audio_backends = lambda: ["soundfile"]
+
+
+def verify_pyannote_access(token: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Checks if Hugging Face token is valid and grants access to pyannote models.
+    """
+    token = token or os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
+    result: Dict[str, Any] = {
+        "installed": True,
+        "token_provided": bool(token),
+        "token_valid": False,
+        "username": None,
+        "diarization_access": False,
+        "segmentation_access": False,
+        "ready": False,
+        "message": ""
+    }
+    try:
+        ensure_pyannote_compatibility()
+        import pyannote.audio  # noqa: F401
+    except Exception as e:
+        result["installed"] = False
+        result["message"] = f"pyannote.audio not available: {e}"
+        return result
+
+    if not token:
+        result["message"] = "No Hugging Face token configured. Provide token to enable PyAnnote."
+        return result
+
+    try:
+        from huggingface_hub import HfApi, hf_hub_download
+        api = HfApi()
+        user_info = api.whoami(token=token)
+        result["token_valid"] = True
+        result["username"] = user_info.get("name") or user_info.get("preferred_username")
+
+        # Test diarization-3.1
+        try:
+            hf_hub_download(repo_id="pyannote/speaker-diarization-3.1", filename="config.yaml", token=token)
+            result["diarization_access"] = True
+        except Exception:
+            result["diarization_access"] = False
+
+        # Test segmentation-3.0
+        try:
+            hf_hub_download(repo_id="pyannote/segmentation-3.0", filename="config.yaml", token=token)
+            result["segmentation_access"] = True
+        except Exception:
+            result["segmentation_access"] = False
+
+        if result["diarization_access"] and result["segmentation_access"]:
+            result["ready"] = True
+            result["message"] = f"PyAnnote is verified and ready for @{result['username']}."
+        elif not result["diarization_access"]:
+            result["message"] = "Token is valid, but access to pyannote/speaker-diarization-3.1 is required. Accept agreement on Hugging Face."
+        elif not result["segmentation_access"]:
+            result["message"] = "Token is valid, but access to pyannote/segmentation-3.0 is required. Accept agreement on Hugging Face."
+    except Exception as e:
+        result["message"] = f"Token validation failed: {e}"
+
+    return result
+
+
 class PyAnnoteDiarizer(BaseDiarizer):
     def __init__(self, hf_token: Optional[str] = None, device: str = "cuda" if torch.cuda.is_available() else "cpu"):
-        self.hf_token = hf_token or os.getenv("HF_TOKEN")
+        self.hf_token = hf_token or os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
         self.device = device
         self.pipeline = None
         self._is_loaded = False
@@ -26,23 +108,39 @@ class PyAnnoteDiarizer(BaseDiarizer):
         if not self.hf_token:
             raise ValueError(
                 "PyAnnote requires a Hugging Face token. Provide it via HF_TOKEN environment variable "
-                "or pass it via --hf-token argument."
+                "or configure it in the Models & Checkpoints tab."
             )
+
+        ensure_pyannote_compatibility()
 
         try:
             from pyannote.audio import Pipeline
-            self.pipeline = Pipeline.from_pretrained(
-                "pyannote/speaker-diarization-3.1",
-                use_auth_token=self.hf_token
-            )
+            try:
+                self.pipeline = Pipeline.from_pretrained(
+                    "pyannote/speaker-diarization-3.1",
+                    token=self.hf_token
+                )
+            except TypeError:
+                self.pipeline = Pipeline.from_pretrained(
+                    "pyannote/speaker-diarization-3.1",
+                    use_auth_token=self.hf_token
+                )
             if self.device.startswith("cuda") and torch.cuda.is_available():
                 self.pipeline.to(torch.device(self.device))
             self._is_loaded = True
             print("[PyAnnote] Pipeline successfully loaded.")
-        except ImportError:
-            raise ImportError("pyannote.audio is not installed. Install via `uv pip install pyannote.audio`")
+        except ImportError as e:
+            raise ImportError(f"pyannote.audio is not installed: {e}") from e
         except Exception as e:
-            raise RuntimeError(f"Failed to load PyAnnote pipeline: {e}")
+            err_msg = str(e)
+            if any(k in err_msg.lower() for k in ["gated", "401", "403", "restricted"]):
+                raise PermissionError(
+                    "Access denied to PyAnnote models. Please accept agreements on Hugging Face:\n"
+                    "1. https://huggingface.co/pyannote/speaker-diarization-3.1\n"
+                    "2. https://huggingface.co/pyannote/segmentation-3.0\n"
+                    "and ensure your HF token has Read permissions."
+                ) from e
+            raise RuntimeError(f"Failed to load PyAnnote pipeline: {e}") from e
 
     def diarize(self, waveform: torch.Tensor, sample_rate: int = 16000) -> List[SpeakerTurn]:
         """
@@ -67,3 +165,15 @@ class PyAnnoteDiarizer(BaseDiarizer):
             speaker_turns.append(SpeakerTurn(start=turn.start, end=turn.end, speaker=normalized_spk))
 
         return speaker_turns
+
+    def unload(self):
+        """
+        Releases pipeline memory and CUDA tensors.
+        """
+        if self.pipeline is not None:
+            del self.pipeline
+            self.pipeline = None
+            self._is_loaded = False
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            print("[PyAnnote] Pipeline successfully unloaded.")

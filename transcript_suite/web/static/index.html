@@ -101,7 +101,9 @@
             </button>
           </div>
         </div>
-      </div>
+      <button class="btn-notif-header" id="btnToggleNotifDrawer" title="View notification history and alerts">
+        🔔 <span class="notif-badge" id="notifCountBadge">0</span>
+      </button>
 
       <select class="theme-select" id="themeSelect">
         <option value="foggy-woodland">🌲 Foggy Woodland</option>
@@ -111,6 +113,21 @@
       </select>
     </div>
   </header>
+
+  <!-- Emergency Notification HUD Banner -->
+  <div class="emergency-hud-banner" id="emergencyHudBanner" style="display: none;">
+    <div class="emergency-hud-content">
+      <span class="emergency-hud-icon" id="emergencyHudIcon">🚨</span>
+      <div class="emergency-hud-text">
+        <strong id="emergencyHudTitle">Emergency Intervention Triggered</strong>
+        <span id="emergencyHudMessage">VRAM velocity exceeded safety threshold.</span>
+      </div>
+      <div class="emergency-hud-actions">
+        <button class="btn-hud-action" id="btnEmergencyAbortBanner">🚨 Abort Task</button>
+        <button class="btn-hud-dismiss" id="btnDismissEmergencyHud">✕</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Primary Tab Navigation Bar -->
   <nav class="main-tabs-bar">
@@ -449,6 +466,44 @@
         </div>
       </div>
 
+      <!-- PyAnnote Audio 3.1 Setup & Verification Card -->
+      <div class="model-manager-card" id="pyannoteSetupCard">
+        <div class="model-card-header">
+          <div class="model-card-title-group">
+            <span class="model-badge">🎙️ PYANNOTE AUDIO 3.1 SETUP & TOKEN VERIFIER</span>
+            <span class="model-card-subtitle">Connect Hugging Face Token to unlock neural speaker diarization</span>
+          </div>
+          <div class="pyannote-status-pill" id="pyannoteStatusPill">Checking Status...</div>
+        </div>
+
+        <div class="pyannote-guide-box">
+          <div class="pyannote-guide-step">
+            <strong>Step 1:</strong> Log in to Hugging Face and accept the user agreements for both gated models:
+            <div class="pyannote-links">
+              <a href="https://huggingface.co/pyannote/speaker-diarization-3.1" target="_blank" rel="noreferrer" class="pyannote-link">🔗 1. pyannote/speaker-diarization-3.1 (Click to Accept)</a>
+              <a href="https://huggingface.co/pyannote/segmentation-3.0" target="_blank" rel="noreferrer" class="pyannote-link">🔗 2. pyannote/segmentation-3.0 (Click to Accept)</a>
+            </div>
+          </div>
+          <div class="pyannote-guide-step">
+            <strong>Step 2:</strong> Generate a User Access Token (Read permission) at <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noreferrer" class="pyannote-link">huggingface.co/settings/tokens</a>.
+          </div>
+        </div>
+
+        <div class="install-form-row" style="margin-top: 14px;">
+          <div class="install-input-group" style="flex: 1;">
+            <label class="install-label" for="hfTokenInput">Hugging Face Access Token (HF_TOKEN):</label>
+            <div class="token-input-wrap">
+              <input type="password" class="text-input" id="hfTokenInput" placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+              <button type="button" class="btn-toggle-token" id="btnToggleTokenVisibility" title="Show/Hide Token">👁️</button>
+            </div>
+          </div>
+          <div style="display: flex; align-items: flex-end; gap: 8px;">
+            <button class="btn-primary" id="btnVerifyHfToken">🔍 Test & Save Token</button>
+          </div>
+        </div>
+        <div class="pyannote-feedback" id="pyannoteFeedbackText"></div>
+      </div>
+
       <!-- 2. Install / Download Model Checkpoint -->
       <div class="model-manager-card">
         <div class="model-card-header">
@@ -537,6 +592,7 @@
             <button class="tab-btn active" id="tabBtnTrace">📈 Memory Trace</button>
             <button class="tab-btn" id="tabBtnLogs">📜 Live Execution Logs</button>
             <button class="tab-btn" id="tabBtnDeepMem">🔍 Deep Memory & Processes</button>
+            <button class="tab-btn" id="tabBtnSupervisor">🛡️ Subsystem Supervisor & Control</button>
             <span class="pulse-indicator" id="telemetryPulse" title="Live telemetry active">● Live</span>
           </div>
 
@@ -748,6 +804,110 @@
             </div>
           </div>
         </div>
+
+        <!-- SUBTAB 4: SUBSYSTEM SUPERVISOR & PREDICTIVE GOVERNOR -->
+        <div class="telemetry-tab-pane" id="paneSupervisor">
+          <!-- Section A: Predictive Governor & Emergency Actions -->
+          <div class="supervisor-governor-card">
+            <div class="gov-header">
+              <div class="gov-title-group">
+                <span class="gov-badge">⚡ PREDICTIVE EMERGENCY GOVERNOR</span>
+                <span class="gov-subtitle">Continuous tensor allocation velocity monitoring and pre-emptive OOM guardrails</span>
+              </div>
+              <div class="gov-status-pill" id="govStatusPill">NORMAL</div>
+            </div>
+
+            <div class="gov-controls-grid">
+              <div class="gov-control-item">
+                <div class="gov-control-label">
+                  <span>VRAM Safety Ceiling:</span>
+                  <span class="gov-control-val" id="govCeilingVal">5.5 GB</span>
+                </div>
+                <input type="range" class="gov-slider" id="govCeilingSlider" min="3.5" max="7.5" step="0.1" value="5.5">
+                <div class="gov-control-hint">Auto-flushes cache & throttles batches if VRAM breaches or approaches this ceiling.</div>
+              </div>
+
+              <div class="gov-control-item">
+                <div class="gov-control-label">
+                  <span>Predictive Velocity:</span>
+                  <span class="gov-control-val" id="govVelocityVal">0.0 MB/s</span>
+                </div>
+                <div class="gov-control-label" style="margin-top: 6px;">
+                  <span>5s Projected VRAM:</span>
+                  <span class="gov-control-val" id="govProjectedVal">-- GB</span>
+                </div>
+                <div class="gov-control-hint">Growth rate calculated over 60-second sliding window.</div>
+              </div>
+
+              <div class="gov-actions-group">
+                <button class="btn-emergency-abort" id="btnSupervisorEmergencyAbort" title="Cancel active transcription task immediately and reset hardware state">
+                  🚨 Emergency Abort
+                </button>
+                <button class="btn-supervisor-eject-all" id="btnSupervisorEjectAll" title="Force unload all models from GPU & trim glibc memory heap">
+                  ⚡ Force Unload All Models
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section B: Internal Subsystem Process Fleet -->
+          <div class="supervisor-subsystems-section">
+            <div class="deep-proc-header">
+              <div class="deep-proc-title">🧩 Internal Pipeline Subsystems & Memory Footprints</div>
+              <span class="subsystems-hint">Monitors each component of Transcript Suite with individual model eject controls</span>
+            </div>
+            <div class="subsystems-grid" id="subsystemsGrid">
+              <!-- Dynamically populated subsystem cards -->
+            </div>
+          </div>
+
+          <!-- Section C: Advanced Storage Breakdown & Granular Purge -->
+          <div class="supervisor-storage-section">
+            <div class="deep-proc-header">
+              <div class="deep-proc-title">💾 Advanced Storage Footprint & Granular Purge</div>
+              <div class="storage-header-total">
+                <span>Total Managed Storage:</span>
+                <span class="storage-total-val" id="storageTotalManagedVal">-- GB</span>
+              </div>
+            </div>
+            <div class="storage-targets-grid" id="storageTargetsGrid">
+              <!-- Dynamically populated storage targets -->
+            </div>
+          </div>
+
+          <!-- Section D: Supervisor Audit Event Journal -->
+          <div class="supervisor-journal-section">
+            <div class="deep-proc-header">
+              <div class="deep-proc-title">📜 Supervisor Audit Event Journal</div>
+              <div class="journal-actions">
+                <div class="journal-filter-group" id="journalFilterGroup">
+                  <button class="journal-filter-btn active" data-severity="ALL">All</button>
+                  <button class="journal-filter-btn" data-severity="EMERGENCY">🚨 Emergency</button>
+                  <button class="journal-filter-btn" data-severity="WARNING">⚠️ Warning</button>
+                  <button class="journal-filter-btn" data-severity="INFO">ℹ️ Info</button>
+                </div>
+                <input type="text" class="journal-search-input" id="journalSearchInput" placeholder="Filter journal...">
+                <button class="btn-telemetry" id="btnExportJournalCsv" title="Export audit journal as CSV">📥 CSV</button>
+                <button class="btn-telemetry" id="btnExportJournalJson" title="Export audit journal as JSON">📥 JSON</button>
+                <button class="btn-telemetry btn-telemetry-clear" id="btnClearJournal" title="Clear journal history">🗑️ Clear</button>
+              </div>
+            </div>
+            <div class="trace-table-container">
+              <table class="trace-table">
+                <thead>
+                  <tr>
+                    <th style="width: 140px;">Timestamp</th>
+                    <th style="width: 100px;">Severity</th>
+                    <th style="width: 150px;">Subsystem</th>
+                    <th style="width: 190px;">Event Type</th>
+                    <th>Message & Audit Details</th>
+                  </tr>
+                </thead>
+                <tbody id="journalTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </main>
@@ -763,6 +923,24 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=2.1"></script>
+  <!-- Notification History Drawer -->
+  <div class="notif-drawer-overlay" id="notifDrawerOverlay"></div>
+  <div class="notif-drawer" id="notifDrawer">
+    <div class="notif-drawer-header">
+      <div class="notif-drawer-title">
+        <span>🔔 Notification & Alert Center</span>
+        <span class="notif-drawer-count" id="drawerNotifCount">0 events</span>
+      </div>
+      <div class="notif-drawer-controls">
+        <button class="btn-secondary btn-sm" id="btnClearNotifHistory">Clear All</button>
+        <button class="btn-close-drawer" id="btnCloseNotifDrawer">✕</button>
+      </div>
+    </div>
+    <div class="notif-drawer-list" id="notifDrawerList">
+      <div class="notif-empty">No notifications yet.</div>
+    </div>
+  </div>
+
+  <script src="/static/app.js?v=2.2"></script>
 </body>
 </html>

@@ -15,13 +15,21 @@ from .audio.loader import AudioLoader
 from .audio.vad import SileroVADSegmenter
 from .audio.enhancer import GPUSpeechEnhancer
 from .asr.canary import CanaryQwenTranscriber
-from .asr.memory import VRAMManager
+from .asr.memory import VRAMManager, get_subsystem_supervisor
 from .asr.ambiguity import AmbiguityResolver
 from .asr.council import ModelCouncil
 from .diarization.nemo_titanet import NeMoTitaNetDiarizer
 from .diarization.pyannote import PyAnnoteDiarizer
 from .diarization.base import SpeakerTurn
 from .export import TranscriptExporter
+
+_active_pipeline: Optional["TranscriptionPipeline"] = None
+
+
+def get_active_pipeline() -> Optional["TranscriptionPipeline"]:
+    """Returns the currently instantiated pipeline instance if available."""
+    global _active_pipeline
+    return _active_pipeline
 
 
 class TranscriptionPipeline:
@@ -63,6 +71,7 @@ class TranscriptionPipeline:
             device=config.device
         )
         self.vram_manager = VRAMManager()
+        self.supervisor = get_subsystem_supervisor()
         
         # Select diarizer route
         active_diarizer = diarizer_type or config.default_diarizer
@@ -70,6 +79,9 @@ class TranscriptionPipeline:
             self.diarizer = PyAnnoteDiarizer(hf_token=hf_token or config.hf_token, device=config.device)
         else:
             self.diarizer = NeMoTitaNetDiarizer(model_name=config.nemo_diarizer_model, device=config.device)
+
+        global _active_pipeline
+        _active_pipeline = self
 
     def _reclaim_memory(self):
         """
@@ -91,14 +103,16 @@ class TranscriptionPipeline:
         model_name: str,
         unload_fn: Callable[[], None],
         report_cb: Optional[Callable[[str, float], None]] = None,
-        progress_frac: Optional[float] = None
+        progress_frac: Optional[float] = None,
+        subsystem_id: Optional[str] = None
     ):
         """
         Unloads model, aggressively clears caches, calculates reclaimed VRAM delta,
-        and emits an explicit [MEM] log message.
+        and emits an explicit [MEM] log message. Also updates SubsystemSupervisor.
         """
         before_stats = self.vram_manager.get_stats()
         before_res = before_stats.get("reserved_gb", 0.0)
+        before_ram = before_stats.get("proc_ram_used_gb", 0.0)
 
         try:
             unload_fn()
@@ -109,18 +123,95 @@ class TranscriptionPipeline:
 
         after_stats = self.vram_manager.get_stats()
         after_res = after_stats.get("reserved_gb", 0.0)
-        reclaimed = max(0.0, round(before_res - after_res, 2))
+        after_ram = after_stats.get("proc_ram_used_gb", 0.0)
+        reclaimed_vram = max(0.0, round(before_res - after_res, 2))
+        reclaimed_ram = max(0.0, round((before_ram - after_ram) * 1024, 1))
         curr_vram = after_stats.get("reserved_gb", 0.0)
         tot_vram = after_stats.get("total_gb", 0.0)
         app_ram = after_stats.get("proc_ram_used_gb", 0.0)
 
-        log_msg = f"[MEM] 🔄 Unloaded {model_name}. Reclaimed {reclaimed:.2f} GB VRAM. Current VRAM: {curr_vram:.2f}G / {tot_vram:.2f}G | App RAM: {app_ram:.2f} GB."
+        if subsystem_id:
+            self.supervisor.record_stage_unload(
+                subsystem_id,
+                reclaimed_vram_mb=reclaimed_vram * 1024,
+                reclaimed_ram_mb=reclaimed_ram
+            )
+
+        log_msg = f"[MEM] 🔄 Unloaded {model_name}. Reclaimed {reclaimed_vram:.2f} GB VRAM. Current VRAM: {curr_vram:.2f}G / {tot_vram:.2f}G | App RAM: {app_ram:.2f} GB."
         print(log_msg)
         if report_cb and progress_frac is not None:
             try:
                 report_cb(log_msg, progress_frac)
             except Exception:
                 pass
+
+    def force_eject(self, stage: str = "all") -> Dict[str, Any]:
+        """
+        Force unloads a specific model stage or all models to reclaim VRAM immediately.
+        """
+        stage_clean = stage.lower().strip()
+        ejected = []
+
+        if stage_clean in ("canary", "stage_1_canary", "all"):
+            if hasattr(self.transcriber, "unload_model"):
+                self._unload_and_log(
+                    "Canary-Qwen (Lead Justice)",
+                    self.transcriber.unload_model,
+                    subsystem_id="stage_1_canary"
+                )
+                ejected.append("Canary-Qwen")
+
+        if stage_clean in ("whisper", "stage_2_whisper", "all"):
+            if hasattr(self.council, "unload_whisper"):
+                self._unload_and_log(
+                    "Whisper (Cross-Examiner)",
+                    self.council.unload_whisper,
+                    subsystem_id="stage_2_whisper"
+                )
+                ejected.append("Whisper")
+
+        if stage_clean in ("conformer", "stage_3a_conformer", "all"):
+            if hasattr(self.council, "unload_conformer"):
+                self._unload_and_log(
+                    "Conformer-CTC (Anchor)",
+                    self.council.unload_conformer,
+                    subsystem_id="stage_3a_conformer"
+                )
+                ejected.append("Conformer-CTC")
+
+        if stage_clean in ("parakeet", "stage_3b_parakeet", "all"):
+            if hasattr(self.council, "unload_parakeet"):
+                self._unload_and_log(
+                    "Parakeet-TDT (Transducer)",
+                    self.council.unload_parakeet,
+                    subsystem_id="stage_3b_parakeet"
+                )
+                ejected.append("Parakeet-TDT")
+
+        if stage_clean in ("diarizer", "stage_4_diarizer", "all"):
+            unload_fn = getattr(self.diarizer, "unload_model", getattr(self.diarizer, "unload", None))
+            if unload_fn:
+                self._unload_and_log(
+                    "Speaker Diarizer",
+                    unload_fn,
+                    subsystem_id="stage_4_diarizer"
+                )
+                ejected.append("Diarizer")
+
+        if stage_clean in ("vad", "all"):
+            if hasattr(self.vad, "unload_model"):
+                self._unload_and_log("Silero VAD", self.vad.unload_model)
+                ejected.append("VAD")
+
+        self._reclaim_memory()
+        stats = self.vram_manager.get_stats()
+        return {
+            "success": True,
+            "ejected_models": ejected,
+            "current_vram_gb": stats.get("reserved_gb", 0.0),
+            "free_vram_gb": stats.get("free_gb", 0.0),
+            "app_ram_gb": stats.get("proc_ram_used_gb", 0.0)
+        }
 
     def _assign_speaker_to_segment(self, seg_start: float, seg_end: float, speaker_turns: List[SpeakerTurn]) -> str:
         """
@@ -178,6 +269,8 @@ class TranscriptionPipeline:
 
         try:
             # 1. Load and normalize audio
+            t_prep_start = time.time()
+            self.supervisor.record_stage_start("audio_preprocessor")
             report("Loading audio & converting to 16kHz mono...", 0.04)
             waveform, sr, duration = self.audio_loader.load_audio(file_path)
             check_stop()
@@ -197,6 +290,7 @@ class TranscriptionPipeline:
                 waveform = self.enhancer.enhance(waveform, boost_level=self.vocal_boost_level)
                 check_stop()
             self._reclaim_memory()
+            self.supervisor.record_stage_end("audio_preprocessor", time.time() - t_prep_start, duration)
 
             # Save processed waveform for UI playback and synchronization
             saved_processed_path = None
@@ -232,6 +326,8 @@ class TranscriptionPipeline:
             # 4. Speaker Diarization
             speaker_turns = []
             if enable_diarization:
+                t_diar_start = time.time()
+                self.supervisor.record_stage_start("stage_4_diarizer", self.diarizer.__class__.__name__)
                 report("Performing Speaker Diarization...", 0.24)
                 try:
                     speaker_turns = self.diarizer.diarize(waveform, sr)
@@ -239,9 +335,16 @@ class TranscriptionPipeline:
                     print(f"[Diarization Warning] Diarization failed ({e}), falling back to single speaker.")
                     speaker_turns = [SpeakerTurn(start=0.0, end=duration, speaker="Speaker 0")]
                 finally:
+                    self.supervisor.record_stage_end("stage_4_diarizer", time.time() - t_diar_start, duration)
                     # Crucial RAM optimization: unload diarizer model immediately with explicit log
                     diar_name = f"Speaker Diarizer ({self.diarizer.__class__.__name__})"
-                    self._unload_and_log(diar_name, getattr(self.diarizer, "unload_model", lambda: None), report, 0.25)
+                    self._unload_and_log(
+                        diar_name,
+                        getattr(self.diarizer, "unload_model", getattr(self.diarizer, "unload", lambda: None)),
+                        report,
+                        0.25,
+                        subsystem_id="stage_4_diarizer"
+                    )
             else:
                 speaker_turns = [SpeakerTurn(start=0.0, end=duration, speaker="Speaker 0")]
 
@@ -257,6 +360,8 @@ class TranscriptionPipeline:
 
             if enable_council:
                 if council_mode == "sequential":
+                    t_c1_start = time.time()
+                    self.supervisor.record_stage_start("stage_1_canary", self.transcriber.model_name)
                     report("Pass 1/3: Canary-Qwen Context Pass...", 0.38)
                     canary_hyps = []
                     chunk_wavs = []
@@ -288,15 +393,26 @@ class TranscriptionPipeline:
                         frac = 0.38 + ((idx + 1) / total_chunks) * 0.18
                         report(f"Pass 1/3 (Canary-Qwen): Chunk {idx + 1}/{total_chunks}", frac)
 
+                    self.supervisor.record_stage_end("stage_1_canary", time.time() - t_c1_start, duration)
+
                     # Unload Canary-Qwen with explicit log to reclaim VRAM for Pass 2
                     canary_display = self.transcriber.model_name.split("/")[-1].title()
-                    self._unload_and_log(f"{canary_display} (Lead Justice)", getattr(self.transcriber, "unload_model", lambda: None), report, 0.56)
+                    self._unload_and_log(
+                        f"{canary_display} (Lead Justice)",
+                        getattr(self.transcriber, "unload_model", lambda: None),
+                        report,
+                        0.56,
+                        subsystem_id="stage_1_canary"
+                    )
 
                     # 2. Pass 2/3: Whisper Cross-Examination (Batched)
+                    t_w_start = time.time()
+                    self.supervisor.record_stage_start("stage_2_whisper", str(self.council.whisper_model_id))
                     report("Pass 2/3: Whisper Cross-Examination (Batched)...", 0.56)
                     check_stop()
                     try:
-                        w_batch = 4 if "large" in str(self.council.whisper_model_id).lower() else 8
+                        base_w = 4 if "large" in str(self.council.whisper_model_id).lower() else 8
+                        w_batch = self.supervisor.get_suggested_batch_size("whisper", base_w)
                         whisper_hyps = self.council.transcribe_batch_whisper(chunk_wavs, batch_size=w_batch)
                     except Exception as e:
                         print(f"[Pipeline Warning] Batched Whisper error ({e}), falling back to sequential...")
@@ -311,16 +427,27 @@ class TranscriptionPipeline:
                             frac = 0.56 + ((idx + 1) / total_chunks) * 0.18
                             report(f"Pass 2/3 (Whisper): Chunk {idx + 1}/{total_chunks}", frac)
 
+                    self.supervisor.record_stage_end("stage_2_whisper", time.time() - t_w_start, duration)
+
                     # Unload Whisper with explicit log
                     whisper_display = self.council.whisper_model_id.split("/")[-1].title()
-                    self._unload_and_log(f"{whisper_display} (Cross-Examiner)", self.council.unload_whisper, report, 0.74)
+                    self._unload_and_log(
+                        f"{whisper_display} (Cross-Examiner)",
+                        self.council.unload_whisper,
+                        report,
+                        0.74,
+                        subsystem_id="stage_2_whisper"
+                    )
 
                     # 3. Pass 3/3: Acoustic Anchor & Transducer Verification (Staged, Batched)
                     # Phase 3A: Conformer-CTC Acoustic Anchor
+                    t_c_start = time.time()
+                    self.supervisor.record_stage_start("stage_3a_conformer", str(self.council.conformer_model_id))
                     report("Pass 3/3 (Phase A): Conformer-CTC Acoustic Anchor (Batched)...", 0.74)
                     check_stop()
                     try:
-                        c_batch = 8 if "xlarge" in str(self.council.conformer_model_id).lower() else 16
+                        base_c = 8 if "xlarge" in str(self.council.conformer_model_id).lower() else 16
+                        c_batch = self.supervisor.get_suggested_batch_size("conformer", base_c)
                         ctc_hyps = self.council.transcribe_batch_conformer(chunk_wavs, batch_size=c_batch)
                     except Exception as e:
                         print(f"[Pipeline Warning] Batched Conformer error ({e}), falling back to sequential...")
@@ -335,15 +462,26 @@ class TranscriptionPipeline:
                             frac = 0.74 + ((idx + 1) / total_chunks) * 0.07
                             report(f"Pass 3/3 (Conformer): Chunk {idx + 1}/{total_chunks}", frac)
 
+                    self.supervisor.record_stage_end("stage_3a_conformer", time.time() - t_c_start, duration)
+
                     # Immediately unload Conformer before loading Parakeet (prevents VRAM co-location)
                     conf_display = self.council.conformer_model_id.split("/")[-1].title()
-                    self._unload_and_log(f"{conf_display} (Acoustic Anchor)", self.council.unload_conformer, report, 0.81)
+                    self._unload_and_log(
+                        f"{conf_display} (Acoustic Anchor)",
+                        self.council.unload_conformer,
+                        report,
+                        0.81,
+                        subsystem_id="stage_3a_conformer"
+                    )
 
                     # Phase 3B: Parakeet-TDT Transducer Verification
+                    t_p_start = time.time()
+                    self.supervisor.record_stage_start("stage_3b_parakeet", str(self.council.parakeet_model_id))
                     report("Pass 3/3 (Phase B): Parakeet-TDT Transducer Verification (Batched)...", 0.81)
                     check_stop()
                     try:
-                        parakeet_hyps = self.council.transcribe_batch_parakeet(chunk_wavs, batch_size=16)
+                        p_batch = self.supervisor.get_suggested_batch_size("parakeet", 16)
+                        parakeet_hyps = self.council.transcribe_batch_parakeet(chunk_wavs, batch_size=p_batch)
                     except Exception as e:
                         print(f"[Pipeline Warning] Batched Parakeet error ({e}), falling back to sequential...")
                         parakeet_hyps = []
@@ -357,9 +495,17 @@ class TranscriptionPipeline:
                             frac = 0.81 + ((idx + 1) / total_chunks) * 0.07
                             report(f"Pass 3/3 (Parakeet): Chunk {idx + 1}/{total_chunks}", frac)
 
+                    self.supervisor.record_stage_end("stage_3b_parakeet", time.time() - t_p_start, duration)
+
                     # Unload Parakeet transducer
                     pk_display = self.council.parakeet_model_id.split("/")[-1].title()
-                    self._unload_and_log(f"{pk_display} (Transducer)", self.council.unload_parakeet, report, 0.88)
+                    self._unload_and_log(
+                        f"{pk_display} (Transducer)",
+                        self.council.unload_parakeet,
+                        report,
+                        0.88,
+                        subsystem_id="stage_3b_parakeet"
+                    )
 
                     # 4. Adjudication & Consensus Synthesis
                     report("Adjudicating Supreme Council Consensus...", 0.88)
