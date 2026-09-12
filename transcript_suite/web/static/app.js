@@ -470,15 +470,21 @@ async function pollTaskStatus(taskId) {
         progressCard.style.display = "none";
         btnStart.disabled = false;
         onTranscriptionSuccess(data);
+        fetchSupervisorData();
+        fetchJournalData();
       } else if (data.status === "stopped") {
         clearInterval(pollTimer);
         progressCard.style.display = "none";
         btnStart.disabled = false;
+        fetchSupervisorData();
+        fetchJournalData();
       } else if (data.status === "failed") {
         clearInterval(pollTimer);
         alert("Transcription failed: " + data.message);
         btnStart.disabled = false;
         progressCard.style.display = "none";
+        fetchSupervisorData();
+        fetchJournalData();
       }
     } catch (e) {
       // Continue polling
@@ -1395,6 +1401,8 @@ function startTelemetryPolling() {
   telemetryTimer = setInterval(fetchTelemetryData, telemetryCadenceSeconds * 1000);
 }
 
+let supervisorTelemetryTicks = 0;
+
 async function fetchTelemetryData() {
   try {
     const tidParam = currentTaskId ? `&task_id=${currentTaskId}` : "";
@@ -1418,6 +1426,24 @@ async function fetchTelemetryData() {
       if (logsData.logs && (cachedLogEntries.length === 0 || logsData.logs.length !== cachedLogEntries.length)) {
         cachedLogEntries = logsData.logs;
         renderTerminalLogs(cachedLogEntries);
+      }
+    }
+
+    // Always fetch supervisor data so cards, metrics, and governor stay in real-time sync
+    await fetchSupervisorData();
+
+    supervisorTelemetryTicks++;
+    if (paneSupervisor && paneSupervisor.classList.contains("active")) {
+      // If user is watching the supervisor tab, update journal every 3s and storage every 10s
+      if (supervisorTelemetryTicks % 2 === 0) {
+        fetchJournalData();
+      }
+      if (supervisorTelemetryTicks % 5 === 0) {
+        fetchStorageBreakdown();
+      }
+    } else if (paneDeepMem && paneDeepMem.classList.contains("active")) {
+      if (supervisorTelemetryTicks % 2 === 0) {
+        fetchDeepMemoryTrace();
       }
     }
   } catch (err) {
@@ -2423,49 +2449,81 @@ function renderSupervisorUI(data) {
 
   // 3. Subsystem Cards Grid
   if (subsystemsGrid && data.subsystems) {
-    subsystemsGrid.innerHTML = data.subsystems.map(sub => {
-      const state = (sub.state || "idle").toLowerCase();
-      const vramMb = sub.vram_allocated_mb || 0;
-      const peakMb = sub.vram_peak_mb || 0;
-      const ramMb = sub.ram_rss_mb || 0;
-      const rtfx = sub.rtfx ? `${sub.rtfx}x` : "--";
-      const dur = sub.last_runtime_sec ? `${sub.last_runtime_sec}s` : "--";
+    const existingCards = subsystemsGrid.querySelectorAll(".subsystem-card[data-subsystem-id]");
+    if (existingCards.length === data.subsystems.length) {
+      // In-place update to prevent DOM flicker and preserving click handlers
+      data.subsystems.forEach(sub => {
+        const card = subsystemsGrid.querySelector(`.subsystem-card[data-subsystem-id="${sub.id}"]`);
+        if (!card) return;
+        const state = (sub.state || "idle").toLowerCase();
+        card.className = `subsystem-card ${state}`;
+        const modelEl = card.querySelector(".subsystem-model");
+        if (modelEl) modelEl.textContent = sub.active_model || "--";
+        const badgeEl = card.querySelector(".subsystem-state-badge");
+        if (badgeEl) {
+          badgeEl.className = `subsystem-state-badge ${state}`;
+          badgeEl.innerHTML = state === "running" ? '<span class="pulse-dot"></span> RUNNING' : state.toUpperCase();
+        }
+        const valAlloc = card.querySelector(".val-vram-alloc");
+        if (valAlloc) valAlloc.textContent = `${(sub.vram_allocated_mb || 0).toFixed(1)} MB`;
+        const valPeak = card.querySelector(".val-vram-peak");
+        if (valPeak) valPeak.textContent = `${(sub.vram_peak_mb || 0).toFixed(1)} MB`;
+        const valRam = card.querySelector(".val-proc-ram");
+        if (valRam) valRam.textContent = `${(sub.ram_rss_mb || 0).toFixed(1)} MB`;
+        const valRt = card.querySelector(".val-runtime-rtfx");
+        if (valRt) {
+          const rtfx = sub.rtfx ? `${sub.rtfx}x` : "--";
+          const dur = sub.last_runtime_sec ? `${sub.last_runtime_sec}s` : "--";
+          valRt.textContent = state === "running" ? `${dur} (live)` : `${dur} / ${rtfx}`;
+        }
+      });
+    } else {
+      subsystemsGrid.innerHTML = data.subsystems.map(sub => {
+        const state = (sub.state || "idle").toLowerCase();
+        const vramMb = sub.vram_allocated_mb || 0;
+        const peakMb = sub.vram_peak_mb || 0;
+        const ramMb = sub.ram_rss_mb || 0;
+        const rtfx = sub.rtfx ? `${sub.rtfx}x` : "--";
+        const dur = sub.last_runtime_sec ? `${sub.last_runtime_sec}s` : "--";
+        const badgeHtml = state === "running" ? '<span class="pulse-dot"></span> RUNNING' : state.toUpperCase();
+        const timeDisplay = state === "running" ? `${dur} (live)` : `${dur} / ${rtfx}`;
 
-      return `
-        <div class="subsystem-card ${state}">
-          <div class="subsystem-header">
-            <div class="subsystem-name-group">
-              <span class="subsystem-name">${escapeHtml(sub.name)}</span>
-              <span class="subsystem-model">${escapeHtml(sub.active_model || "--")}</span>
+        return `
+          <div class="subsystem-card ${state}" data-subsystem-id="${sub.id}">
+            <div class="subsystem-header">
+              <div class="subsystem-name-group">
+                <span class="subsystem-name">${escapeHtml(sub.name)}</span>
+                <span class="subsystem-model">${escapeHtml(sub.active_model || "--")}</span>
+              </div>
+              <span class="subsystem-state-badge ${state}">${badgeHtml}</span>
             </div>
-            <span class="subsystem-state-badge ${state}">${state}</span>
+            <div class="subsystem-metrics">
+              <div class="subsystem-metric-row">
+                <span>Active VRAM:</span>
+                <span class="subsystem-metric-val val-vram-alloc" style="color: #a855f7;">${vramMb.toFixed(1)} MB</span>
+              </div>
+              <div class="subsystem-metric-row">
+                <span>Peak VRAM:</span>
+                <span class="subsystem-metric-val val-vram-peak">${peakMb.toFixed(1)} MB</span>
+              </div>
+              <div class="subsystem-metric-row">
+                <span>Process RAM:</span>
+                <span class="subsystem-metric-val val-proc-ram" style="color: #10b981;">${ramMb.toFixed(1)} MB</span>
+              </div>
+              <div class="subsystem-metric-row">
+                <span>Last Runtime / RTFx:</span>
+                <span class="subsystem-metric-val val-runtime-rtfx">${timeDisplay}</span>
+              </div>
+            </div>
+            ${sub.can_eject ? `
+              <button class="btn-subsystem-eject" onclick="forceEjectSubsystem('${sub.id}', '${escapeHtml(sub.name)}')">
+                ⚡ Force Eject
+              </button>
+            ` : ''}
           </div>
-          <div class="subsystem-metrics">
-            <div class="subsystem-metric-row">
-              <span>Active VRAM:</span>
-              <span class="subsystem-metric-val" style="color: #a855f7;">${vramMb.toFixed(1)} MB</span>
-            </div>
-            <div class="subsystem-metric-row">
-              <span>Peak VRAM:</span>
-              <span class="subsystem-metric-val">${peakMb.toFixed(1)} MB</span>
-            </div>
-            <div class="subsystem-metric-row">
-              <span>Process RAM:</span>
-              <span class="subsystem-metric-val" style="color: #10b981;">${ramMb.toFixed(1)} MB</span>
-            </div>
-            <div class="subsystem-metric-row">
-              <span>Last Runtime / RTFx:</span>
-              <span class="subsystem-metric-val">${dur} / ${rtfx}</span>
-            </div>
-          </div>
-          ${sub.can_eject ? `
-            <button class="btn-subsystem-eject" onclick="forceEjectSubsystem('${sub.id}', '${escapeHtml(sub.name)}')">
-              ⚡ Force Eject
-            </button>
-          ` : ''}
-        </div>
-      `;
-    }).join("");
+        `;
+      }).join("");
+    }
   }
 }
 

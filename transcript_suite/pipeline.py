@@ -264,6 +264,10 @@ class TranscriptionPipeline:
 
         def report(stage: str, frac: float, current_seg: Optional[Dict[str, Any]] = None):
             check_stop()
+            try:
+                self.supervisor.sample_telemetry()
+            except Exception:
+                pass
             if progress_callback:
                 progress_callback(stage, frac, current_seg)
 
@@ -666,3 +670,5 @@ class TranscriptionPipeline:
             if hasattr(self.transcriber, "unload_model"):
                 self.transcriber.unload_model()
             self.vram_manager.clear_cache()
+            if hasattr(self, "supervisor"):
+                self.supervisor.finalize_pipeline()

@@ -887,10 +887,16 @@ def run_transcription_worker(
     finally:
         # Aggressive memory cleanup when worker finishes or stops
         if ctrl and ctrl.get("pipeline"):
-            if hasattr(ctrl["pipeline"].transcriber, "unload_model"):
-                ctrl["pipeline"].transcriber.unload_model()
-            if hasattr(ctrl["pipeline"], "council") and hasattr(ctrl["pipeline"].council, "unload_members"):
-                ctrl["pipeline"].council.unload_members()
+            p = ctrl["pipeline"]
+            if hasattr(p, "force_eject"):
+                try:
+                    p.force_eject("all")
+                except Exception:
+                    pass
+            elif hasattr(p, "council") and hasattr(p.council, "unload_members"):
+                p.council.unload_members()
+            if hasattr(p, "supervisor"):
+                p.supervisor.finalize_pipeline()
         vram_manager.clear_cache()
         add_log(task_id, "MEM", "Task worker terminated: models unloaded, caches cleared, heap trimmed.")
         add_trace_sample(task_id)

@@ -44,6 +44,27 @@ def test_subsystem_stage_lifecycle():
     assert sub["vram_allocated_mb"] == 0.0
 
 
+def test_supervisor_running_live_metrics_and_finalize():
+    """Verify live metric updating during stage execution and finalize_pipeline cleanup."""
+    sup = get_subsystem_supervisor()
+
+    # 1. Start stage
+    sup.record_stage_start("stage_2_whisper", active_model="openai/whisper-large-v3")
+    assert sup.subsystems["stage_2_whisper"]["state"] == "running"
+
+    # 2. Sample telemetry while running
+    report = sup.sample_telemetry()
+    running_sub = next(s for s in report["subsystems"] if s["id"] == "stage_2_whisper")
+    assert running_sub["state"] == "running"
+    assert "last_runtime_sec" in running_sub
+
+    # 3. Finalize pipeline
+    sup.finalize_pipeline()
+    assert sup.subsystems["stage_2_whisper"]["state"] == "evicted"
+    assert sup.subsystems["stage_2_whisper"]["vram_allocated_mb"] == 0.0
+
+
+
 def test_predictive_governor_telemetry():
     """Verify telemetry sampling, governor ceiling, and velocity metrics."""
     sup = get_subsystem_supervisor()

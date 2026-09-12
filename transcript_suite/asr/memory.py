@@ -435,6 +435,8 @@ class SubsystemSupervisor:
 
         sub = self.subsystems[subsystem_id]
         sub["state"] = "running"
+        sub["start_time"] = time.time()
+        sub["last_runtime_sec"] = 0.0
         if active_model:
             sub["active_model"] = active_model
         sub["last_updated"] = datetime.now().isoformat()
@@ -488,6 +490,8 @@ class SubsystemSupervisor:
         except Exception:
             pass
 
+        sub.pop("start_time", None)
+
         self.log_journal(
             severity="INFO",
             subsystem=subsystem_id,
@@ -508,6 +512,7 @@ class SubsystemSupervisor:
         sub = self.subsystems[subsystem_id]
         sub["state"] = "evicted"
         sub["vram_allocated_mb"] = 0.0
+        sub.pop("start_time", None)
         if torch.cuda.is_available():
             sub["vram_reserved_mb"] = round(torch.cuda.memory_reserved(0) / (1024 * 1024), 1)
         sub["last_updated"] = datetime.now().isoformat()
@@ -529,6 +534,19 @@ class SubsystemSupervisor:
             }
         )
 
+    def finalize_pipeline(self):
+        """
+        Ensures all running or loaded pipeline stages are cleanly transitioned to evicted
+        upon pipeline completion, user stop, or error.
+        """
+        now = datetime.now().isoformat()
+        for sub_id, sub in self.subsystems.items():
+            if sub.get("category") == "pipeline_stage" and sub.get("state") in ("running", "loaded"):
+                sub["state"] = "evicted"
+                sub["vram_allocated_mb"] = 0.0
+                sub.pop("start_time", None)
+                sub["last_updated"] = now
+
     def sample_telemetry(self) -> Dict[str, Any]:
         """
         Samples real-time VRAM velocity and evaluates predictive emergency interventions.
@@ -540,11 +558,23 @@ class SubsystemSupervisor:
         reserved_mb = round(vram_stats.get("reserved_gb", 0.0) * 1024, 1)
         total_mb = round(vram_stats.get("total_gb", 0.0) * 1024, 1)
         free_mb = max(0.0, total_mb - reserved_mb)
+        proc_ram_mb = round(vram_stats.get("proc_ram_used_gb", 0.0) * 1024, 1)
 
         # Update server subsystem memory
         if "web_server" in self.subsystems:
-            self.subsystems["web_server"]["ram_rss_mb"] = round(vram_stats.get("proc_ram_used_gb", 0.0) * 1024, 1)
+            self.subsystems["web_server"]["ram_rss_mb"] = proc_ram_mb
             self.subsystems["web_server"]["last_updated"] = datetime.now().isoformat()
+
+        # Update any currently running subsystems in real-time
+        for sub_id, sub in self.subsystems.items():
+            if sub.get("state") == "running":
+                sub["vram_allocated_mb"] = allocated_mb
+                sub["vram_reserved_mb"] = reserved_mb
+                sub["vram_peak_mb"] = max(sub.get("vram_peak_mb", 0.0), allocated_mb, reserved_mb)
+                sub["ram_rss_mb"] = proc_ram_mb
+                if "start_time" in sub and sub["start_time"] > 0:
+                    sub["last_runtime_sec"] = round(now - sub["start_time"], 1)
+                sub["last_updated"] = datetime.now().isoformat()
 
         # Track velocity
         if self.vram_history:
