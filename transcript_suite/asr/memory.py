@@ -113,6 +113,7 @@ class VRAMManager:
         3. Detailed GPU VRAM breakdown (Allocated, Reserved, OS/External, Free Headroom).
         """
         trace: Dict[str, Any] = {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "process": {
                 "pid": os.getpid(),
                 "name": "transcript-suite",
@@ -270,7 +271,8 @@ def format_memory_audit_text(trace: Optional[Dict[str, Any]] = None) -> str:
     lines = []
     lines.append("=" * 80)
     lines.append("TRANSCRIPT SUITE - SYSTEM MEMORY & PROCESS AUDIT")
-    lines.append(f"Timestamp: {trace.get('timestamp', 'N/A')}")
+    ts = trace.get("timestamp") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    lines.append(f"Timestamp: {ts}")
     lines.append("=" * 80)
     lines.append("")
 
