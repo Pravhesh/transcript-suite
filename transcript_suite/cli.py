@@ -145,7 +145,17 @@ def serve(
         f"[dim]Theme: Foggy Woodland (Cloudy Day Forest)[/dim]",
         border_style="green"
     ))
-    uvicorn.run("transcript_suite.web.app:app", host=host, port=port, reload=reload)
+    try:
+        uvicorn.run("transcript_suite.web.app:app", host=host, port=port, reload=reload)
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    except RuntimeError as e:
+        if "event loop" in str(e).lower():
+            pass
+        else:
+            raise
+    finally:
+        console.print("[dim green]Transcript Suite server stopped cleanly.[/dim green]")
 
 
 @app.command(name="monitor")
