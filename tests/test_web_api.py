@@ -310,24 +310,24 @@ def test_pyannote_and_supervisor_api():
     client = TestClient(app)
 
     # 1. PyAnnote status and token configuration
-    res_py_status = client.get("/api/pyannote/status")
-    assert res_py_status.status_code == 200
-    assert "installed" in res_py_status.json()
+    orig_token = getattr(config, "hf_token", None)
+    try:
+        res_py_status = client.get("/api/pyannote/status")
+        assert res_py_status.status_code == 200
+        assert "installed" in res_py_status.json()
 
-    # Test saving a persistent token
-    res_py_set = client.post("/api/pyannote/token", json={"token": "hf_persistent_test_token"})
-    assert res_py_set.status_code == 200
-    assert res_py_set.json()["token_provided"] is True
-    assert res_py_set.json()["token"] == "hf_persistent_test_token"
+        # Test saving a persistent token
+        res_py_set = client.post("/api/pyannote/token", json={"token": "hf_persistent_test_token"})
+        assert res_py_set.status_code == 200
+        assert res_py_set.json()["token_provided"] is True
+        assert res_py_set.json()["token"] == "hf_persistent_test_token"
 
-    res_py_check = client.get("/api/pyannote/status")
-    assert res_py_check.status_code == 200
-    assert res_py_check.json()["token"] == "hf_persistent_test_token"
-
-    # Reset token back to None
-    res_py_token = client.post("/api/pyannote/token", json={"token": None})
-    assert res_py_token.status_code == 200
-    assert res_py_token.json()["token_provided"] is False
+        res_py_check = client.get("/api/pyannote/status")
+        assert res_py_check.status_code == 200
+        assert res_py_check.json()["token"] == "hf_persistent_test_token"
+    finally:
+        # Restore original token
+        client.post("/api/pyannote/token", json={"token": orig_token})
 
     # 2. Supervisor Subsystems
     res_subsystems = client.get("/api/supervisor/subsystems")

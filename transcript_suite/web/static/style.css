@@ -2626,6 +2626,83 @@ main {
   color: var(--text-muted);
 }
 
+.download-telemetry-badge {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 500;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.btn-cancel-download {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #f87171;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-cancel-download:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #ef4444;
+  color: #fff;
+}
+
+.queue-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.queue-chip-pos {
+  color: #fbbf24;
+  font-weight: 700;
+  font-size: 10px;
+}
+
+.queue-chip-btn-remove {
+  cursor: pointer;
+  color: #f87171;
+  font-weight: bold;
+  margin-left: 2px;
+  padding: 0 3px;
+  border-radius: 2px;
+}
+
+.queue-chip-btn-remove:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.btn-preset-downloading {
+  background: rgba(56, 189, 248, 0.2) !important;
+  border: 1px solid #38bdf8 !important;
+  color: #38bdf8 !important;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.btn-preset-queued {
+  background: rgba(251, 191, 36, 0.15) !important;
+  border: 1px solid rgba(251, 191, 36, 0.4) !important;
+  color: #fbbf24 !important;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 /* Curated 1-Click Presets */
 .presets-section-title {
   font-size: 12px;

@@ -22,10 +22,20 @@ from ..config import config
 from ..pipeline import TranscriptionPipeline, get_active_pipeline
 from ..asr.memory import VRAMManager, get_subsystem_supervisor, format_memory_audit_text, purge_page_cache
 from ..asr.model_manager import model_manager
-from ..diarization.pyannote import verify_pyannote_access
+from contextlib import asynccontextmanager
+from ..diarization.pyannote import verify_pyannote_access, auto_verify_on_startup
 from ..export import TranscriptExporter
 
-app = FastAPI(title="Transcript Suite API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Warms up background caches and verifies Hugging Face credentials on startup."""
+    auto_verify_on_startup()
+    yield
+
+
+app = FastAPI(title="Transcript Suite API", lifespan=lifespan)
+
 
 # Mount static files
 static_dir = Path(__file__).parent / "static"
@@ -422,7 +432,7 @@ async def update_roster(request: Request):
 
 @app.post("/api/models/install")
 async def install_model(request: Request):
-    """Starts background download of a Hugging Face or NeMo model checkpoint."""
+    """Starts or queues background download of a Hugging Face or NeMo model checkpoint."""
     try:
         payload = await request.json()
     except Exception:
@@ -434,16 +444,26 @@ async def install_model(request: Request):
     role = payload.get("role")
 
     result = model_manager.start_download_task(model_id=model_id, framework=framework, role=role)
-    if result.get("status") == "busy":
-        raise HTTPException(status_code=409, detail=result.get("message"))
+    add_log(None, "DOWNLOAD", result.get("message", f"Initiated install of '{model_id}' ({framework})."))
+    return result
 
-    add_log(None, "DOWNLOAD", f"Initiated background install of '{model_id}' ({framework}).")
+
+@app.post("/api/models/install/cancel")
+async def cancel_model_install(request: Request):
+    """Cancels active model download or removes an item from the download queue."""
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    model_id = payload.get("model_id")
+    result = model_manager.cancel_download(model_id=model_id)
+    add_log(None, "DOWNLOAD", result.get("message", f"Cancelled download for {model_id}"))
     return result
 
 
 @app.get("/api/models/install/status")
 async def get_model_install_status():
-    """Polls background model download status."""
+    """Polls background model download status and queued items."""
     return model_manager.get_download_status()
 
 
@@ -510,7 +530,7 @@ async def configure_pyannote_token(request: Request):
         except Exception:
             pass
 
-    status = verify_pyannote_access(token)
+    status = verify_pyannote_access(token, force_refresh=True)
     supervisor = get_subsystem_supervisor()
     supervisor.log_journal(
         severity="INFO" if status.get("ready") else ("WARNING" if status.get("token_provided") else "INFO"),

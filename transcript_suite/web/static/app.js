@@ -2277,8 +2277,9 @@ async function fetchModelData() {
       totalBadge.innerText = `Total: ${data.total_checkpoint_gb || 0} GB`;
     }
 
-    if (data.install_status && data.install_status.is_downloading) {
+    if (data.install_status && (data.install_status.is_downloading || (data.install_status.queue && data.install_status.queue.length > 0))) {
       showDownloadProgress(data.install_status);
+      updatePresetButtonStates(data.install_status);
       startDownloadPolling();
     }
   } catch (err) {
@@ -2380,6 +2381,9 @@ function renderPresetCatalog(presets) {
 
     container.appendChild(card);
   });
+  if (modelCatalogData && modelCatalogData.install_status) {
+    updatePresetButtonStates(modelCatalogData.install_status);
+  }
 }
 
 function renderCheckpointsTable(checkpoints, roster) {
@@ -2483,15 +2487,78 @@ async function startModelInstall(modelId, framework, role) {
       return;
     }
 
-    showDownloadProgress({
-      model_id: modelId,
-      progress: 5.0,
-      message: `Initiating download of ${modelId}...`
-    });
+    if (data.status === "queued") {
+      addNotification("Download Queued", `${modelId} queued for sequential download (position #${data.position}).`, "info");
+    } else {
+      showDownloadProgress({
+        is_downloading: true,
+        model_id: modelId,
+        progress: 0.0,
+        message: `Contacting registry for ${modelId}...`
+      });
+    }
+
     startDownloadPolling();
+    fetchModelData();
   } catch (err) {
     alert("Install error: " + err.message);
   }
+}
+
+async function cancelModelInstall(modelId) {
+  try {
+    const res = await fetch("/api/models/install/cancel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model_id: modelId })
+    });
+    const data = await res.json();
+    addNotification("Download Cancelled", data.message || `Cancelled download for ${modelId || "model"}.`, "info");
+    const statusRes = await fetch("/api/models/install/status");
+    if (statusRes.ok) {
+      const st = await statusRes.json();
+      showDownloadProgress(st);
+      updatePresetButtonStates(st);
+    }
+    fetchModelData();
+  } catch (err) {
+    console.warn("Cancel download error:", err);
+  }
+}
+
+function updatePresetButtonStates(status) {
+  if (!status) return;
+  const buttons = document.querySelectorAll(".btn-preset-install");
+  buttons.forEach(btn => {
+    const mid = btn.getAttribute("data-id");
+    if (!mid) return;
+    const cleanMid = mid.replace("nvidia/", "");
+    const activeClean = status.model_id ? status.model_id.replace("nvidia/", "") : "";
+
+    if (status.is_downloading && (mid === status.model_id || cleanMid === activeClean)) {
+      btn.className = "btn-preset-install btn-preset-downloading";
+      btn.innerText = `⏳ Downloading (${Math.round(status.progress || 0)}%)`;
+      btn.disabled = true;
+    } else {
+      const queuedItem = (status.queue || []).find(q => q.model_id === mid || q.model_id === cleanMid || (q.model_id && cleanMid.includes(q.model_id)));
+      if (queuedItem) {
+        btn.className = "btn-preset-install btn-preset-queued";
+        btn.innerText = `🕒 Queued (#${queuedItem.position})`;
+        btn.disabled = false;
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          cancelModelInstall(mid);
+        };
+      } else {
+        btn.className = "btn-preset-install";
+        btn.innerText = "⬇️ Install";
+        btn.disabled = false;
+        btn.onclick = () => {
+          startModelInstall(mid, btn.getAttribute("data-fw"), btn.getAttribute("data-role"));
+        };
+      }
+    }
+  });
 }
 
 function showDownloadProgress(status) {
@@ -2500,13 +2567,110 @@ function showDownloadProgress(status) {
   const pct = document.getElementById("downloadProgressPct");
   const fill = document.getElementById("downloadProgressFill");
   const msg = document.getElementById("downloadProgressMsg");
+  const speed = document.getElementById("downloadProgressSpeed");
+  const eta = document.getElementById("downloadProgressEta");
+  const bytes = document.getElementById("downloadProgressBytes");
+  const indicator = document.getElementById("downloadStatusIndicator");
+  const btnCancel = document.getElementById("btnCancelDownload");
+  const queueContainer = document.getElementById("downloadQueueContainer");
+  const queueChips = document.getElementById("downloadQueueChips");
 
   if (!box) return;
+
+  const hasActive = Boolean(status.is_downloading);
+  const hasQueue = Boolean(status.queue && status.queue.length > 0);
+
+  if (!hasActive && !hasQueue && status.status === "idle") {
+    box.style.display = "none";
+    return;
+  }
+
   box.style.display = "block";
-  if (title) title.innerText = `Downloading ${status.model_id || "Checkpoint"}...`;
-  if (pct) pct.innerText = `${Math.round(status.progress || 0)}%`;
-  if (fill) fill.style.width = `${Math.round(status.progress || 0)}%`;
-  if (msg) msg.innerText = status.message || "Downloading...";
+
+  if (hasActive) {
+    if (indicator) indicator.innerText = "⏳";
+    if (title) title.innerText = `Downloading ${status.model_id || "Checkpoint"}...`;
+    const numPct = typeof status.progress === "number" ? status.progress : 0;
+    if (pct) pct.innerText = `${numPct.toFixed(1)}%`;
+    if (fill) fill.style.width = `${Math.min(100, Math.max(0, numPct))}%`;
+    if (msg) msg.innerText = status.message || "Downloading...";
+
+    if (speed) {
+      if (status.speed_str) {
+        speed.innerText = `⚡ ${status.speed_str}`;
+        speed.style.display = "inline-block";
+      } else {
+        speed.style.display = "none";
+      }
+    }
+
+    if (eta) {
+      if (status.eta_str) {
+        eta.innerText = `⏳ ETA: ${status.eta_str}`;
+        eta.style.display = "inline-block";
+      } else {
+        eta.style.display = "none";
+      }
+    }
+
+    if (bytes) {
+      bytes.innerText = status.downloaded_str || "";
+    }
+
+    if (btnCancel) {
+      btnCancel.style.display = "inline-block";
+      btnCancel.onclick = () => cancelModelInstall(status.model_id);
+    }
+  } else if (status.status === "completed") {
+    if (indicator) indicator.innerText = "✅";
+    if (title) title.innerText = `Completed: ${status.model_id || "Checkpoint"}`;
+    if (pct) pct.innerText = "100%";
+    if (fill) fill.style.width = "100%";
+    if (msg) msg.innerText = status.message || "Download complete!";
+    if (speed) speed.style.display = "none";
+    if (eta) eta.style.display = "none";
+    if (btnCancel) btnCancel.style.display = "none";
+  } else if (status.status === "failed") {
+    if (indicator) indicator.innerText = "❌";
+    if (title) title.innerText = `Failed: ${status.model_id || "Checkpoint"}`;
+    if (msg) msg.innerText = status.error || status.message || "Download failed.";
+    if (speed) speed.style.display = "none";
+    if (eta) eta.style.display = "none";
+    if (btnCancel) btnCancel.style.display = "none";
+  } else if (status.status === "cancelled") {
+    if (indicator) indicator.innerText = "⏹️";
+    if (title) title.innerText = `Cancelled: ${status.model_id || "Checkpoint"}`;
+    if (msg) msg.innerText = status.message || "Download cancelled.";
+    if (speed) speed.style.display = "none";
+    if (eta) eta.style.display = "none";
+    if (btnCancel) btnCancel.style.display = "none";
+  }
+
+  // Render Queue Chips
+  if (queueContainer && queueChips) {
+    if (hasQueue) {
+      queueContainer.style.display = "block";
+      queueChips.innerHTML = "";
+      status.queue.forEach(item => {
+        const chip = document.createElement("div");
+        chip.className = "queue-chip";
+        chip.innerHTML = `
+          <span class="queue-chip-pos">#${item.position}</span>
+          <span>${escapeHtml(item.name || item.model_id)}</span>
+          <span style="color: var(--text-muted); font-size: 10px;">(~${item.size_gb || 0} GB)</span>
+          <span class="queue-chip-btn-remove" title="Remove from queue">✕</span>
+        `;
+        chip.querySelector(".queue-chip-btn-remove").onclick = (e) => {
+          e.stopPropagation();
+          cancelModelInstall(item.model_id);
+        };
+        queueChips.appendChild(chip);
+      });
+    } else {
+      queueContainer.style.display = "none";
+      queueChips.innerHTML = "";
+    }
+  }
 }
 
 function startDownloadPolling() {
@@ -2518,29 +2682,33 @@ function startDownloadPolling() {
       const status = await res.json();
 
       showDownloadProgress(status);
+      updatePresetButtonStates(status);
 
-      if (status.status === "completed") {
+      const hasActive = Boolean(status.is_downloading);
+      const hasQueue = Boolean(status.queue && status.queue.length > 0);
+
+      if (!hasActive && !hasQueue) {
         clearInterval(downloadStatusTimer);
         downloadStatusTimer = null;
-        setTimeout(() => {
-          const box = document.getElementById("downloadProgressBox");
-          if (box) box.style.display = "none";
-        }, 3000);
-        fetchModelData();
-        fetchCacheBreakdown();
-      } else if (status.status === "failed") {
-        clearInterval(downloadStatusTimer);
-        downloadStatusTimer = null;
-        alert(`Download failed: ${status.error || status.message}`);
-        setTimeout(() => {
-          const box = document.getElementById("downloadProgressBox");
-          if (box) box.style.display = "none";
-        }, 4000);
+        if (status.status === "completed") {
+          setTimeout(() => {
+            const box = document.getElementById("downloadProgressBox");
+            if (box) box.style.display = "none";
+          }, 3500);
+          fetchModelData();
+          fetchCacheBreakdown();
+        } else if (status.status === "failed" || status.status === "cancelled") {
+          setTimeout(() => {
+            const box = document.getElementById("downloadProgressBox");
+            if (box) box.style.display = "none";
+          }, 4500);
+          fetchModelData();
+        }
       }
     } catch (err) {
       console.warn("Poll error:", err);
     }
-  }, 1500);
+  }, 1000);
 }
 
 async function deleteCheckpoint(checkpointId, displayName) {

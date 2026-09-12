@@ -563,13 +563,32 @@
         <!-- Download Status Box -->
         <div class="download-progress-box" id="downloadProgressBox" style="display: none;">
           <div class="download-progress-header">
-            <div class="download-progress-title" id="downloadProgressTitle">Downloading Checkpoint...</div>
-            <span class="download-progress-pct" id="downloadProgressPct">0%</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="download-status-indicator" id="downloadStatusIndicator">⏳</span>
+              <div class="download-progress-title" id="downloadProgressTitle">Downloading Checkpoint...</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="download-telemetry-badge" id="downloadProgressSpeed" title="Real-time download throughput" style="display: none;"></span>
+              <span class="download-telemetry-badge" id="downloadProgressEta" title="Estimated remaining time" style="display: none;"></span>
+              <span class="download-progress-pct" id="downloadProgressPct">0%</span>
+              <button type="button" class="btn-cancel-download" id="btnCancelDownload" title="Cancel active download">✕ Cancel</button>
+            </div>
           </div>
           <div class="download-progress-track">
             <div class="download-progress-fill" id="downloadProgressFill"></div>
           </div>
-          <div class="download-progress-msg" id="downloadProgressMsg">Contacting registry...</div>
+          <div class="download-progress-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 11px;">
+            <div class="download-progress-msg" id="downloadProgressMsg">Contacting registry...</div>
+            <div class="download-progress-bytes" id="downloadProgressBytes" style="font-family: monospace; color: var(--text-muted);"></div>
+          </div>
+
+          <!-- Sequential Queue List -->
+          <div class="download-queue-box" id="downloadQueueContainer" style="display: none; margin-top: 10px; padding-top: 8px; border-top: 1px dashed rgba(255, 255, 255, 0.1);">
+            <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 6px;">
+              🕒 Queued for Sequential Download:
+            </div>
+            <div class="download-queue-chips" id="downloadQueueChips" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+          </div>
         </div>
 
         <!-- Curated 1-Click Install Presets -->

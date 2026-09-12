@@ -60,11 +60,29 @@ def ensure_pyannote_compatibility():
         pass
 
 
-def verify_pyannote_access(token: Optional[str] = None) -> Dict[str, Any]:
+import threading
+import time
+
+_cached_verification_result: Optional[Dict[str, Any]] = None
+_cached_verification_token: Optional[str] = None
+_cached_verification_time: float = 0.0
+_verification_lock = threading.Lock()
+
+
+def verify_pyannote_access(token: Optional[str] = None, force_refresh: bool = False) -> Dict[str, Any]:
     """
     Checks if Hugging Face token is valid and grants access to pyannote models.
+    Caches verification for 5 minutes unless force_refresh is True.
     """
+    global _cached_verification_result, _cached_verification_token, _cached_verification_time
     token = token or os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
+
+    with _verification_lock:
+        now = time.time()
+        if not force_refresh and _cached_verification_result is not None:
+            if token == _cached_verification_token and (now - _cached_verification_time < 300):
+                return dict(_cached_verification_result)
+
     result: Dict[str, Any] = {
         "installed": True,
         "token_provided": bool(token),
@@ -83,10 +101,18 @@ def verify_pyannote_access(token: Optional[str] = None) -> Dict[str, Any]:
     except Exception as e:
         result["installed"] = False
         result["message"] = f"pyannote.audio not available: {e}"
+        with _verification_lock:
+            _cached_verification_result = dict(result)
+            _cached_verification_token = token
+            _cached_verification_time = time.time()
         return result
 
     if not token:
         result["message"] = "No Hugging Face token configured. Provide token to enable PyAnnote."
+        with _verification_lock:
+            _cached_verification_result = dict(result)
+            _cached_verification_token = token
+            _cached_verification_time = time.time()
         return result
 
     try:
@@ -120,7 +146,30 @@ def verify_pyannote_access(token: Optional[str] = None) -> Dict[str, Any]:
     except Exception as e:
         result["message"] = f"Token validation failed: {e}"
 
+    with _verification_lock:
+        _cached_verification_result = dict(result)
+        _cached_verification_token = token
+        _cached_verification_time = time.time()
+
     return result
+
+
+def auto_verify_on_startup():
+    """
+    Asynchronously verifies the configured Hugging Face token in a background thread
+    on server boot so the status is cached before user interactions.
+    """
+    def _worker():
+        try:
+            from ..config import config
+            tok = getattr(config, "hf_token", None) or os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
+            if tok:
+                verify_pyannote_access(tok, force_refresh=True)
+        except Exception:
+            pass
+
+    t = threading.Thread(target=_worker, daemon=True, name="pyannote-startup-verifier")
+    t.start()
 
 
 class PyAnnoteDiarizer(BaseDiarizer):
