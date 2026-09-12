@@ -798,11 +798,23 @@
               </div>
               <div class="deep-stat-row">
                 <span>Used RAM (OS + Apps):</span>
-                <span class="deep-val" id="deepSysUsed">-- GB</span>
+                <span class="deep-val" id="deepSysUsed" style="color: #f59e0b;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>↳ Suite App RAM (RSS):</span>
+                <span class="deep-val" id="deepSysAppRss" style="color: #10b981;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>↳ Other Apps &amp; Daemons:</span>
+                <span class="deep-val" id="deepSysOtherRss" style="color: #38bdf8;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>↳ Kernel Zswap &amp; Shared:</span>
+                <span class="deep-val" id="deepSysKernelZswap" style="color: #a78bfa;">-- GB</span>
               </div>
               <div class="deep-stat-row">
                 <span>Available / Free RAM:</span>
-                <span class="deep-val" id="deepSysFree">-- GB</span>
+                <span class="deep-val" id="deepSysFree" style="color: #34d399;">-- GB</span>
               </div>
               <div class="deep-stat-row">
                 <span>Host RAM Utilization:</span>
@@ -814,7 +826,10 @@
           <!-- Top System Processes Table -->
           <div class="deep-proc-section">
             <div class="deep-proc-header">
-              <div class="deep-proc-title">⚡ Top 10 Memory-Consuming Processes (Live Machine Inspection)</div>
+              <div>
+                <div class="deep-proc-title">⚡ Top 10 Memory-Consuming Processes (Live Machine Inspection)</div>
+                <div id="deepProcSummary" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 3px;">Aggregating system process tree...</div>
+              </div>
               <button class="btn-telemetry" id="btnRefreshDeepMem" title="Poll active processes from psutil">🔄 Refresh Processes</button>
             </div>
             <div class="trace-table-container">

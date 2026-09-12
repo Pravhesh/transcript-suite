@@ -138,15 +138,16 @@ class VRAMManager:
         }
 
         # 1. Current process memory
+        proc_rss_mb = 0.0
         try:
             p = psutil.Process()
             minfo = p.memory_info()
-            rss_mb = round(minfo.rss / (1024 * 1024), 1)
+            proc_rss_mb = round(minfo.rss / (1024 * 1024), 1)
             trace["process"] = {
                 "pid": p.pid,
                 "name": p.name(),
-                "rss_mb": rss_mb,
-                "rss_gb": round(rss_mb / 1024, 2),
+                "rss_mb": proc_rss_mb,
+                "rss_gb": round(proc_rss_mb / 1024, 2),
                 "vms_mb": round(minfo.vms / (1024 * 1024), 1),
                 "shared_mb": round(getattr(minfo, "shared", 0) / (1024 * 1024), 1),
                 "data_mb": round(getattr(minfo, "data", 0) / (1024 * 1024), 1),
@@ -154,27 +155,19 @@ class VRAMManager:
         except Exception:
             pass
 
-        # 2. Host system memory
+        # 2. Top system processes & sum of all processes across OS
+        total_procs_count = 0
+        total_all_procs_rss_mb = 0.0
+        procs = []
         try:
-            mem = psutil.virtual_memory()
-            trace["system_ram"] = {
-                "total_gb": round(mem.total / (1024 ** 3), 2),
-                "used_gb": round(mem.used / (1024 ** 3), 2),
-                "free_gb": round(mem.available / (1024 ** 3), 2),
-                "percent": round(mem.percent, 1)
-            }
-        except Exception:
-            pass
-
-        # 3. Top system processes by RAM
-        try:
-            procs = []
             for proc in psutil.process_iter(["pid", "name", "username", "memory_info", "memory_percent"]):
+                total_procs_count += 1
                 try:
                     info = proc.info
                     p_minfo = info.get("memory_info")
                     if p_minfo:
                         p_rss_mb = round(p_minfo.rss / (1024 * 1024), 1)
+                        total_all_procs_rss_mb += p_rss_mb
                         procs.append({
                             "pid": info["pid"],
                             "name": info.get("name") or "unknown",
@@ -187,6 +180,42 @@ class VRAMManager:
                     continue
             procs.sort(key=lambda x: x["rss_mb"], reverse=True)
             trace["top_processes"] = procs[:10]
+        except Exception:
+            pass
+
+        # 3. Host system memory & breakdown (Kernel Zswap, Shared, Cache)
+        try:
+            mem = psutil.virtual_memory()
+            zswap_mb = 0.0
+            try:
+                with open("/proc/meminfo", "r") as f:
+                    for line in f:
+                        if line.startswith("Zswap:"):
+                            zswap_mb = round(int(line.split()[1]) / 1024, 1)
+                            break
+            except Exception:
+                pass
+
+            app_rss_gb = round(proc_rss_mb / 1024, 2)
+            all_procs_gb = round(total_all_procs_rss_mb / 1024, 2)
+            other_procs_gb = max(0.0, round((total_all_procs_rss_mb - proc_rss_mb) / 1024, 2))
+            shared_gb = round(getattr(mem, "shared", 0) / (1024 ** 3), 2)
+            cached_gb = round(getattr(mem, "cached", 0) / (1024 ** 3), 2)
+            zswap_gb = round(zswap_mb / 1024, 2)
+
+            trace["system_ram"] = {
+                "total_gb": round(mem.total / (1024 ** 3), 2),
+                "used_gb": round(mem.used / (1024 ** 3), 2),
+                "free_gb": round(mem.available / (1024 ** 3), 2),
+                "percent": round(mem.percent, 1),
+                "app_rss_gb": app_rss_gb,
+                "all_procs_gb": all_procs_gb,
+                "other_procs_gb": other_procs_gb,
+                "shared_gb": shared_gb,
+                "cached_gb": cached_gb,
+                "zswap_gb": zswap_gb,
+                "total_procs_count": total_procs_count
+            }
         except Exception:
             pass
 

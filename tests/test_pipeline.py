@@ -86,9 +86,31 @@ def test_processed_audio_export():
         assert info.channels == 1
         print("✓ Processed model-ingested audio export test passed.")
 
+def test_transcription_pipeline_attributes():
+    from unittest.mock import patch
+    from transcript_suite.pipeline import TranscriptionPipeline
+    from transcript_suite.config import config
+
+    with patch("transcript_suite.pipeline.SileroVADSegmenter"), \
+         patch("transcript_suite.pipeline.CanaryQwenTranscriber"), \
+         patch("transcript_suite.pipeline.ModelCouncil"), \
+         patch("transcript_suite.pipeline.NeMoTitaNetDiarizer"), \
+         patch("transcript_suite.pipeline.GPUSpeechEnhancer"):
+
+        pipeline = TranscriptionPipeline()
+        assert hasattr(pipeline, "config")
+        assert pipeline.config == config
+        assert hasattr(pipeline, "device")
+        assert hasattr(pipeline, "enable_audex_adjudicator")
+        assert hasattr(pipeline, "audex_model_id")
+        assert pipeline.audex_model_id == "nvidia/Nemotron-Labs-Audex-2B"
+        print("✓ TranscriptionPipeline attributes and config attachment verified.")
+
+
 if __name__ == "__main__":
     test_audio_loader_and_ffmpeg()
     test_export_formatting()
     test_vram_manager()
     test_processed_audio_export()
+    test_transcription_pipeline_attributes()
     print("\nAll component smoke tests passed successfully!")

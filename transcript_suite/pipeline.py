@@ -42,44 +42,56 @@ class TranscriptionPipeline:
         whisper_model: Optional[str] = None,
         conformer_model: Optional[str] = None,
         parakeet_model: Optional[str] = None,
-        vocal_boost_level: Optional[str] = None
+        vocal_boost_level: Optional[str] = None,
+        enable_audex_adjudicator: Optional[bool] = None,
+        audex_model_id: Optional[str] = None,
+        pipeline_config: Optional[Any] = None
     ):
-        self.vocal_boost_level = vocal_boost_level or config.vocal_boost_level
-        self.audio_loader = AudioLoader(target_sr=config.sample_rate)
+        self.config = pipeline_config or config
+        self.device = getattr(self.config, "device", "cuda" if torch.cuda.is_available() else "cpu")
+        self.vocal_boost_level = vocal_boost_level or getattr(self.config, "vocal_boost_level", "adaptive")
+        self.enable_audex_adjudicator = (
+            enable_audex_adjudicator
+            if enable_audex_adjudicator is not None
+            else getattr(self.config, "enable_audex_adjudicator", False)
+        )
+        self.audex_model_id = audex_model_id or getattr(self.config, "audex_model_id", "nvidia/Nemotron-Labs-Audex-2B")
+
+        self.audio_loader = AudioLoader(target_sr=getattr(self.config, "sample_rate", 16000))
         self.enhancer = GPUSpeechEnhancer(
-            sample_rate=config.sample_rate,
-            device=config.device,
+            sample_rate=getattr(self.config, "sample_rate", 16000),
+            device=self.device,
             boost_level=self.vocal_boost_level
         )
-        self.ambiguity_resolver = AmbiguityResolver(sample_rate=config.sample_rate)
+        self.ambiguity_resolver = AmbiguityResolver(sample_rate=getattr(self.config, "sample_rate", 16000))
         self.vad = SileroVADSegmenter(
-            sample_rate=config.sample_rate,
-            max_chunk_duration=config.max_chunk_duration_s,
-            min_chunk_duration=config.min_chunk_duration_s,
-            padding_duration=config.vad_padding_s,
-            device=config.device
+            sample_rate=getattr(self.config, "sample_rate", 16000),
+            max_chunk_duration=getattr(self.config, "max_chunk_duration_s", 25.0),
+            min_chunk_duration=getattr(self.config, "min_chunk_duration_s", 1.0),
+            padding_duration=getattr(self.config, "vad_padding_s", 0.3),
+            device=self.device
         )
         self.transcriber = CanaryQwenTranscriber(
-            model_name=model_name or config.model_name,
-            device=config.device,
-            dtype=config.dtype
+            model_name=model_name or getattr(self.config, "model_name", "nvidia/canary-qwen-2.5b"),
+            device=self.device,
+            dtype=getattr(self.config, "dtype", torch.float16)
         )
         self.council = ModelCouncil(
             canary_transcriber=self.transcriber,
-            whisper_model_id=whisper_model or config.whisper_model,
-            parakeet_model_id=parakeet_model or config.parakeet_model,
-            conformer_model_id=conformer_model or config.conformer_model,
-            device=config.device
+            whisper_model_id=whisper_model or getattr(self.config, "whisper_model", "openai/whisper-large-v3"),
+            parakeet_model_id=parakeet_model or getattr(self.config, "parakeet_model", "nvidia/parakeet-tdt-1.1b"),
+            conformer_model_id=conformer_model or getattr(self.config, "conformer_model", "nvidia/stt_en_conformer_ctc_xlarge"),
+            device=self.device
         )
         self.vram_manager = VRAMManager()
         self.supervisor = get_subsystem_supervisor()
         
         # Select diarizer route
-        active_diarizer = diarizer_type or config.default_diarizer
+        active_diarizer = diarizer_type or getattr(self.config, "default_diarizer", "nemo")
         if active_diarizer == "pyannote":
-            self.diarizer = PyAnnoteDiarizer(hf_token=hf_token or config.hf_token, device=config.device)
+            self.diarizer = PyAnnoteDiarizer(hf_token=hf_token or getattr(self.config, "hf_token", None), device=self.device)
         else:
-            self.diarizer = NeMoTitaNetDiarizer(model_name=config.nemo_diarizer_model, device=config.device)
+            self.diarizer = NeMoTitaNetDiarizer(model_name=getattr(self.config, "nemo_diarizer_model", "titanet_large"), device=self.device)
 
         global _active_pipeline
         _active_pipeline = self
@@ -559,10 +571,10 @@ class TranscriptionPipeline:
                             disputed_indices.append(idx)
 
                     # Stage 5: Audex-2B Supreme Audio Adjudicator (if enabled and disputes exist)
-                    enable_audex = getattr(self.config, "enable_audex_adjudicator", False)
+                    enable_audex = getattr(self, "enable_audex_adjudicator", getattr(self.config, "enable_audex_adjudicator", False))
                     if enable_audex and disputed_indices:
                         t_audex_start = time.time()
-                        audex_id = getattr(self.config, "audex_model_id", "nvidia/Nemotron-Labs-Audex-2B")
+                        audex_id = getattr(self, "audex_model_id", getattr(self.config, "audex_model_id", "nvidia/Nemotron-Labs-Audex-2B"))
                         self.supervisor.record_stage_start("stage_5_audex", audex_id)
                         report(f"Stage 5: Audex-2B Adjudicating {len(disputed_indices)} disputed segments...", 0.90)
                         try:

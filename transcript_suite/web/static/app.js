@@ -1968,10 +1968,23 @@ async function fetchDeepMemoryTrace() {
     const sys = data.system_ram || {};
     const deepSysTotal = document.getElementById("deepSysTotal");
     const deepSysUsed = document.getElementById("deepSysUsed");
+    const deepSysAppRss = document.getElementById("deepSysAppRss");
+    const deepSysOtherRss = document.getElementById("deepSysOtherRss");
+    const deepSysKernelZswap = document.getElementById("deepSysKernelZswap");
     const deepSysFree = document.getElementById("deepSysFree");
     const deepSysPct = document.getElementById("deepSysPct");
+    const deepProcSummary = document.getElementById("deepProcSummary");
+
     if (deepSysTotal) deepSysTotal.innerText = `${sys.total_gb || 0} GB`;
     if (deepSysUsed) deepSysUsed.innerText = `${sys.used_gb || 0} GB`;
+    if (deepSysAppRss) deepSysAppRss.innerText = `${sys.app_rss_gb || proc.rss_gb || 0} GB (${proc.rss_mb || 0} MB)`;
+    if (deepSysOtherRss) deepSysOtherRss.innerText = `${sys.other_procs_gb || 0} GB (across other apps)`;
+    if (deepSysKernelZswap) {
+      const parts = [];
+      if (sys.zswap_gb) parts.push(`zswap: ${sys.zswap_gb} GB`);
+      if (sys.shared_gb) parts.push(`shm: ${sys.shared_gb} GB`);
+      deepSysKernelZswap.innerText = parts.length > 0 ? parts.join(" | ") : `~${Math.max(0, (sys.used_gb - (sys.all_procs_gb || 0)).toFixed(2))} GB`;
+    }
     if (deepSysFree) deepSysFree.innerText = `${sys.free_gb || 0} GB`;
     if (deepSysPct) deepSysPct.innerText = `${sys.percent || 0}%`;
 
@@ -1979,7 +1992,9 @@ async function fetchDeepMemoryTrace() {
     const tbody = document.getElementById("deepProcessesBody");
     if (tbody && data.top_processes) {
       tbody.innerHTML = "";
+      let top10SumMb = 0;
       data.top_processes.forEach((p) => {
+        top10SumMb += (p.rss_mb || 0);
         const tr = document.createElement("tr");
         const isSuite = (p.pid === proc.pid) || (p.name && p.name.includes("transcript"));
         if (isSuite) {
@@ -1996,6 +2011,13 @@ async function fetchDeepMemoryTrace() {
         `;
         tbody.appendChild(tr);
       });
+
+      if (deepProcSummary) {
+        const top10Gb = (top10SumMb / 1024).toFixed(2);
+        const allGb = sys.all_procs_gb ? `${sys.all_procs_gb} GB` : `${top10Gb} GB`;
+        const totalCount = sys.total_procs_count || data.top_processes.length;
+        deepProcSummary.innerText = `Top 10 processes: ${top10Gb} GB | All ${totalCount} active processes: ${allGb}`;
+      }
     }
   } catch (err) {
     console.warn("Failed to fetch deep memory trace:", err);

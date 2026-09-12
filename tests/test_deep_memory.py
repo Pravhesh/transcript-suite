@@ -28,6 +28,10 @@ def test_deep_memory_trace_structure():
     assert "used_gb" in sys
     assert "free_gb" in sys
     assert sys["total_gb"] > 0
+    assert "all_procs_gb" in sys
+    assert "app_rss_gb" in sys
+    assert "total_procs_count" in sys
+    assert sys["total_procs_count"] > 0
 
     # Top processes
     top = trace["top_processes"]
