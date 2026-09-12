@@ -131,11 +131,16 @@ class ModelCouncil:
                 from transformers import pipeline
                 torch_dtype = torch.float16 if "cuda" in str(self.device) else torch.float32
                 print(f"[Council] Loading Cross-Examiner ({self.whisper_model_id}) onto {self.device}...")
+                model_kwargs = {}
+                if "cuda" in str(self.device):
+                    model_kwargs["attn_implementation"] = "sdpa"
+
                 self._whisper_pipeline = pipeline(
                     "automatic-speech-recognition",
                     model=self.whisper_model_id,
                     dtype=torch_dtype,
-                    device=self.device
+                    device=self.device,
+                    model_kwargs=model_kwargs
                 )
                 self._is_whisper_loaded = True
             except Exception as e:
@@ -192,11 +197,13 @@ class ModelCouncil:
             else:
                 audio_input = audio_data.astype(np.float32) if audio_data.dtype != np.float32 else audio_data
 
-            kwargs = {}
+            kwargs = {"generate_kwargs": {"num_beams": 1}}
             if hasattr(pipe.model, "generation_config") and getattr(pipe.model.generation_config, "is_multilingual", False):
-                kwargs["generate_kwargs"] = {"language": "en", "task": "transcribe"}
+                kwargs["generate_kwargs"]["language"] = "en"
+                kwargs["generate_kwargs"]["task"] = "transcribe"
 
-            res = pipe(audio_input, **kwargs)
+            with torch.inference_mode():
+                res = pipe(audio_input, **kwargs)
             text = res.get("text", "").strip() if isinstance(res, dict) else str(res).strip()
             return text.strip()
         except Exception as e:
@@ -211,14 +218,16 @@ class ModelCouncil:
         if pipe is None:
             return [""] * len(wav_paths)
         if batch_size is None:
-            batch_size = 4 if "large" in str(self.whisper_model_id).lower() else 8
+            batch_size = 2 if "large" in str(self.whisper_model_id).lower() else 4
         try:
             resolved_paths = [str(Path(p).resolve()) for p in wav_paths]
-            kwargs = {}
+            kwargs = {"generate_kwargs": {"num_beams": 1}}
             if hasattr(pipe.model, "generation_config") and getattr(pipe.model.generation_config, "is_multilingual", False):
-                kwargs["generate_kwargs"] = {"language": "en", "task": "transcribe"}
+                kwargs["generate_kwargs"]["language"] = "en"
+                kwargs["generate_kwargs"]["task"] = "transcribe"
 
-            results = pipe(resolved_paths, batch_size=batch_size, **kwargs)
+            with torch.inference_mode():
+                results = pipe(resolved_paths, batch_size=batch_size, **kwargs)
             texts = []
             for r in results:
                 t = r.get("text", "") if isinstance(r, dict) else str(r)

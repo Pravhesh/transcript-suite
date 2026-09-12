@@ -415,7 +415,7 @@ class TranscriptionPipeline:
                     report("Pass 2/3: Whisper Cross-Examination (Batched)...", 0.56)
                     check_stop()
                     try:
-                        base_w = 4 if "large" in str(self.council.whisper_model_id).lower() else 8
+                        base_w = 2 if "large" in str(self.council.whisper_model_id).lower() else 4
                         w_batch = self.supervisor.get_suggested_batch_size("whisper", base_w)
                         whisper_hyps = self.council.transcribe_batch_whisper(chunk_wavs, batch_size=w_batch)
                     except Exception as e:
