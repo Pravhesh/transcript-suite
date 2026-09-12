@@ -4,6 +4,7 @@ FastAPI endpoints and Web UI asset test.
 
 from fastapi.testclient import TestClient
 from transcript_suite.web.app import app
+from transcript_suite.config import config
 
 def test_web_endpoints():
     client = TestClient(app)

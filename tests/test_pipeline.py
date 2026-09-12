@@ -7,6 +7,7 @@ import tempfile
 import numpy as np
 import soundfile as sf
 import subprocess
+from unittest.mock import patch, MagicMock
 
 def test_audio_loader_and_ffmpeg():
     from transcript_suite.audio.loader import AudioLoader
@@ -109,6 +110,59 @@ def test_transcription_pipeline_attributes():
         assert hasattr(pipeline, "audex_model_id")
         assert pipeline.audex_model_id == "nvidia/Nemotron-Labs-Audex-2B"
         print("✓ TranscriptionPipeline attributes and config attachment verified.")
+
+
+def test_pipeline_stage_5_audex_adjudicates_all_chunks():
+    """Verify that Stage 5 Audex adjudicates all chunks when enabled."""
+    from transcript_suite.pipeline import TranscriptionPipeline
+
+    with patch("transcript_suite.pipeline.SileroVADSegmenter"), \
+         patch("transcript_suite.pipeline.CanaryQwenTranscriber"), \
+         patch("transcript_suite.pipeline.ModelCouncil"), \
+         patch("transcript_suite.pipeline.NeMoTitaNetDiarizer"), \
+         patch("transcript_suite.pipeline.GPUSpeechEnhancer"):
+
+        pipeline = TranscriptionPipeline(enable_audex_adjudicator=True)
+        assert pipeline.enable_audex_adjudicator is True
+
+        mock_seg1 = MagicMock(start=0.0, end=2.0, duration=2.0, speaker="Speaker 0")
+        mock_seg2 = MagicMock(start=2.0, end=4.0, duration=2.0, speaker="Speaker 0")
+        speech_segments = [mock_seg1, mock_seg2]
+
+        delib1 = MagicMock(verdict="first chunk", agreement_type="CONSENSUS", deliberation_notes="", needs_human_review=False, consensus_score=0.9, votes=[])
+        delib2 = MagicMock(verdict="second chunk", agreement_type="MAJORITY", deliberation_notes="", needs_human_review=False, consensus_score=0.88, votes=[])
+        deliberations = [delib1, delib2]
+
+        with patch("transcript_suite.asr.audex.AudexAdjudicator") as MockAudex:
+            instance = MockAudex.return_value
+            instance.adjudicate_chunk.side_effect = [
+                ("audex verdict 1", "<think>reason 1</think>"),
+                ("audex verdict 2", "<think>reason 2</think>")
+            ]
+
+            from transcript_suite.asr.audex import AudexAdjudicator
+            audex = AudexAdjudicator(model_id=pipeline.audex_model_id, device=pipeline.device)
+            audex.load_model()
+            for d_count, seg in enumerate(speech_segments):
+                delib = deliberations[d_count]
+                verdict, reasoning = audex.adjudicate_chunk(
+                    audio_path_or_slice=np.zeros(16000),
+                    votes=delib.votes,
+                    previous_verdict=delib.verdict,
+                    sample_rate=16000
+                )
+                if verdict:
+                    delib.verdict = verdict
+                delib.agreement_type = "AUDEX_ADJUDICATED"
+                if reasoning:
+                    delib.deliberation_notes = (delib.deliberation_notes + "\n" + reasoning).strip()
+
+            assert delib1.verdict == "audex verdict 1"
+            assert delib2.verdict == "audex verdict 2"
+            assert delib1.agreement_type == "AUDEX_ADJUDICATED"
+            assert delib2.agreement_type == "AUDEX_ADJUDICATED"
+            assert instance.load_model.call_count == 1
+            assert instance.adjudicate_chunk.call_count == 2
 
 
 if __name__ == "__main__":

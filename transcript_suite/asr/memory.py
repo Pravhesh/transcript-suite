@@ -825,14 +825,17 @@ class SubsystemSupervisor:
         if self.vram_history:
             prev_t, prev_alloc, prev_res = self.vram_history[-1]
             dt = max(0.001, now - prev_t)
-            # Velocity in MB per second
-            self.last_velocity_mb_s = round((reserved_mb - prev_res) / dt, 1)
+            # Instantaneous velocity in MB per second
+            instant_vel = (reserved_mb - prev_res) / dt
+            # Dampen sudden single-frame spikes using EMA: 0.3 * instant + 0.7 * prev
+            self.last_velocity_mb_s = round(0.3 * instant_vel + 0.7 * self.last_velocity_mb_s, 1)
 
         self.vram_history.append((now, allocated_mb, reserved_mb))
 
         # Predictive Emergency Evaluation
         governor_threshold_mb = self.config.vram_governor_threshold_gb * 1024
-        projected_5s_mb = reserved_mb + max(0.0, self.last_velocity_mb_s * 5.0)
+        max_cap_mb = total_mb if total_mb > 0 else 8192.0
+        projected_5s_mb = min(max_cap_mb, reserved_mb + max(0.0, self.last_velocity_mb_s * 5.0))
 
         # Check if emergency action is required
         if self.config.predictive_emergency_enabled:

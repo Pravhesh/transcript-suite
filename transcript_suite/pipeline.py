@@ -470,7 +470,7 @@ class TranscriptionPipeline:
                     report("Pass 3/3 (Phase A): Conformer-CTC Acoustic Anchor (Batched)...", 0.74)
                     check_stop()
                     try:
-                        base_c = 8 if "xlarge" in str(self.council.conformer_model_id).lower() else 16
+                        base_c = 4 if "xlarge" in str(self.council.conformer_model_id).lower() else 8
                         c_batch = self.supervisor.get_suggested_batch_size("conformer", base_c)
                         def on_conformer_prog(completed: int, total: int, ratio: float):
                             check_stop()
@@ -570,20 +570,20 @@ class TranscriptionPipeline:
                         if delib.needs_human_review or delib.consensus_score < 0.85:
                             disputed_indices.append(idx)
 
-                    # Stage 5: Audex-2B Supreme Audio Adjudicator (if enabled and disputes exist)
+                    # Stage 5: Audex-2B Supreme Audio Adjudicator (if enabled, adjudicates all chunks)
                     enable_audex = getattr(self, "enable_audex_adjudicator", getattr(self.config, "enable_audex_adjudicator", False))
-                    if enable_audex and disputed_indices:
+                    if enable_audex and speech_segments:
                         t_audex_start = time.time()
                         audex_id = getattr(self, "audex_model_id", getattr(self.config, "audex_model_id", "nvidia/Nemotron-Labs-Audex-2B"))
                         self.supervisor.record_stage_start("stage_5_audex", audex_id)
-                        report(f"Stage 5: Audex-2B Adjudicating {len(disputed_indices)} disputed segments...", 0.90)
+                        report(f"Stage 5: Audex-2B Adjudicating all {len(speech_segments)} segments...", 0.88)
                         try:
                             from .asr.audex import AudexAdjudicator
                             audex = AudexAdjudicator(model_id=audex_id, device=self.device)
-                            for d_count, d_idx in enumerate(disputed_indices):
+                            audex.load_model()
+                            for d_count, seg in enumerate(speech_segments):
                                 check_stop()
-                                seg = speech_segments[d_idx]
-                                delib = deliberations[d_idx]
+                                delib = deliberations[d_count]
                                 start_sample = max(0, int(seg.start * sr))
                                 end_sample = min(waveform.shape[1], int(seg.end * sr))
                                 chunk_slice = waveform[:, start_sample:end_sample]
@@ -594,12 +594,14 @@ class TranscriptionPipeline:
                                     previous_verdict=delib.verdict,
                                     sample_rate=sr
                                 )
-                                delib.verdict = verdict
+                                if verdict:
+                                    delib.verdict = verdict
                                 delib.agreement_type = "AUDEX_ADJUDICATED"
-                                delib.deliberation_notes = (delib.deliberation_notes + "\n" + reasoning).strip()
+                                if reasoning:
+                                    delib.deliberation_notes = (delib.deliberation_notes + "\n" + reasoning).strip()
                                 delib.needs_human_review = False
-                                frac = 0.90 + ((d_count + 1) / len(disputed_indices)) * 0.05
-                                report(f"Audex adjudicated disputed chunk {d_count + 1}/{len(disputed_indices)}", frac)
+                                frac = 0.88 + ((d_count + 1) / len(speech_segments)) * 0.07
+                                report(f"Stage 5 (Audex): Adjudicated chunk {d_count + 1}/{len(speech_segments)}", frac)
 
                             self._unload_and_log(
                                 "Audex-2B Adjudicator",
