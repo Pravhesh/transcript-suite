@@ -36,11 +36,22 @@ def test_prompt_leak_sanitization():
         "That is your work.",
         "and fit for this implementation, you will have to detail it out in your work.",
         "Hello everyone, can you hear me?",
-        "We are discussing the FYP project architecture."
+        "We are discussing the FYP project architecture.",
+        "Diane is in New Jersey and Sheila moved to New Jersey and they both like New Jersey."  # Repeated phrase in natural dialog
     ]
     for g in genuine:
         res = sanitize_canary_output(g)
         assert res == g, f"Expected '{g}' to remain unchanged, got '{res}'"
+
+    # Prefix stripping tests
+    assert sanitize_canary_output("Transcript: Hello world") == "Hello world"
+    assert sanitize_canary_output("Transcription: Good morning team") == "Good morning team"
+    assert sanitize_canary_output("Transcribe: Testing audio input") == "Testing audio input"
+    assert sanitize_canary_output("Transcript:") == ""
+
+    # Severe loop suppression
+    assert sanitize_canary_output("bye bye bye bye bye") == ""
+    assert sanitize_canary_output("I know I know I know I know") == ""
 
     # Silence waveform with filler token
     silence_wav = torch.zeros(1, 16000 * 2)

@@ -27,10 +27,26 @@ PROMPT_LEAK_PATTERNS = [
 _PROMPT_REGEXES = [re.compile(p, re.IGNORECASE) for p in PROMPT_LEAK_PATTERNS]
 
 
+def has_consecutive_repetition(words: List[str], n: int = 2, min_repeats: int = 3) -> bool:
+    """Check if an n-gram repeats consecutively min_repeats or more times."""
+    if len(words) < n * min_repeats:
+        return False
+    ngram_strs = [" ".join(words[i:i+n]).lower().strip(".,!?") for i in range(len(words) - n + 1)]
+    streak = 1
+    for i in range(n, len(ngram_strs), n):
+        if ngram_strs[i] == ngram_strs[i - n]:
+            streak += 1
+            if streak >= min_repeats:
+                return True
+        else:
+            streak = 1
+    return False
+
+
 def sanitize_canary_output(text: str, chunk_waveform: Optional[torch.Tensor] = None) -> str:
     """
     Sanitizes Canary-Qwen output by detecting and neutralizing:
-    1. Conditioning prompt leakage (e.g. 'Transcript the', 'Transcript the following text and put it in the box').
+    1. Conditioning prompt leakage (e.g. 'Transcript', 'Transcript the following text').
     2. Silence/noise hallucinations when RMS energy is near zero.
     3. Severe single-word or short-phrase repetition loops.
     """
@@ -38,23 +54,35 @@ def sanitize_canary_output(text: str, chunk_waveform: Optional[torch.Tensor] = N
         return ""
     cleaned = text.strip()
 
+    # Strip conditioning prefixes if model echoed its instruction (e.g. 'Transcript: ...', 'Transcription: ...')
+    cleaned = re.sub(r"^(?:Transcript|Transcription|Transcribe)\s*:\s*", "", cleaned, flags=re.IGNORECASE).strip()
+    if not cleaned:
+        return ""
+
     # 1. Prompt Leak Match
     for rx in _PROMPT_REGEXES:
         if rx.match(cleaned):
             return ""
 
     words = cleaned.split()
-    # If phrase starts with transcribe/transcript and is short (<= 3 words), it is conditioning leakage
-    if len(words) <= 3 and words and words[0].lower().strip(".,:;!?").startswith("transcri"):
+    # If phrase is just 'transcript' or 'transcribe' or 'transcription' (<= 2 words), it is conditioning leakage
+    if len(words) <= 2 and words and words[0].lower().strip(".,:;!?") in {"transcribe", "transcript", "transcription"}:
         return ""
+
+    # 2. Severe repetition loops
     if len(words) >= 4:
         from collections import Counter
-        if Counter(w.lower().strip(".,!?") for w in words).most_common(1)[0][1] / len(words) > 0.45:
+        # Single-word domination (e.g. 'the the the the the' or 60%+ identical token)
+        most_common_word_count = Counter(w.lower().strip(".,!?") for w in words).most_common(1)[0][1]
+        if most_common_word_count / len(words) > 0.60:
             return ""
-        if len(words) >= 6:
-            bigrams = [f"{words[i].lower().strip('.,!?')} {words[i+1].lower().strip('.,!?')}" for i in range(len(words) - 1)]
-            if Counter(bigrams).most_common(1)[0][1] >= 3:
-                return ""
+        # Consecutive n-gram loops (e.g. 1-gram 4x, 2-gram 3x, 3-gram 3x)
+        if (
+            has_consecutive_repetition(words, n=1, min_repeats=4)
+            or has_consecutive_repetition(words, n=2, min_repeats=3)
+            or has_consecutive_repetition(words, n=3, min_repeats=3)
+        ):
+            return ""
 
     # 3. RMS energy threshold check on silence/background flutter
     if chunk_waveform is not None:
@@ -62,7 +90,7 @@ def sanitize_canary_output(text: str, chunk_waveform: Optional[torch.Tensor] = N
             rms = torch.sqrt(torch.mean(chunk_waveform.float() ** 2)).item()
             if rms < 0.003 and len(words) <= 2:
                 # Digital silence or extremely faint room tone with stray filler token
-                if cleaned.lower().strip(".,!?") in {"you", "yeah", "transcript", "transcribe", "we", "the", "a", "it"}:
+                if cleaned.lower().strip(".,!?") in {"you", "yeah", "transcript", "transcribe", "we", "the", "a", "it", "so", "oh"}:
                     return ""
         except Exception:
             pass
@@ -147,7 +175,19 @@ class CanaryQwenTranscriber:
                 elif hasattr(self.model.llm, 'model'):
                     self.model.llm.lm_head.weight = self.model.embed_tokens.weight
 
-                # 5. Move any remaining meta buffers to target device
+                # 5. Restore Conformer relative positional encodings
+                # Since init_empty_weights creates non-persistent buffers on the meta device,
+                # we must recreate the sinusoidal positional encodings table rather than zeroing it out.
+                if hasattr(self.model, "perception") and hasattr(self.model.perception, "encoder"):
+                    encoder = self.model.perception.encoder
+                    if hasattr(encoder, "pos_enc"):
+                        length = getattr(encoder.pos_enc, "max_len", 5000)
+                        positions = torch.arange(
+                            length - 1, -length, -1, dtype=torch.float32, device=self.device
+                        ).unsqueeze(1)
+                        encoder.pos_enc.create_pe(positions=positions, dtype=self.dtype)
+
+                # 6. Move any remaining meta buffers to target device
                 for name, buf in list(self.model.named_buffers()):
                     if buf.device.type == 'meta':
                         set_module_tensor_to_device(
@@ -250,11 +290,14 @@ class CanaryQwenTranscriber:
                 "role": "user",
                 "content": f"Transcribe the following: {self.model.audio_locator_tag}"
             }]]
-            # Audio input for perception: float32 on target device
-            if chunk_waveform.ndim == 1:
-                audio_tensor = chunk_waveform.unsqueeze(0).to(device=self.device, dtype=torch.float32)
-            else:
-                audio_tensor = chunk_waveform.to(device=self.device, dtype=torch.float32)
+            # Audio input for perception: ensure mono 2D tensor (1, samples) in float32
+            wf = chunk_waveform
+            if wf.ndim == 2:
+                if wf.shape[0] > 1:
+                    wf = torch.mean(wf, dim=0, keepdim=True)
+            elif wf.ndim == 1:
+                wf = wf.unsqueeze(0)
+            audio_tensor = wf.to(device=self.device, dtype=torch.float32)
             audio_lens = torch.tensor([audio_tensor.shape[1]], dtype=torch.int64, device=self.device)
 
             autocast_device = "cuda" if self.device.startswith("cuda") and torch.cuda.is_available() else "cpu"
