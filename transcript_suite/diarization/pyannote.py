@@ -48,10 +48,17 @@ def ensure_pyannote_compatibility():
         pass
 
     try:
+        import torch.torch_version
+        if hasattr(torch.serialization, "add_safe_globals"):
+            torch.serialization.add_safe_globals([torch.torch_version.TorchVersion])
+    except Exception:
+        pass
+
+    try:
         if not getattr(torch, "_pyannote_torch_load_patched", False):
             orig_torch_load = torch.load
             def patched_torch_load(*args, **kwargs):
-                if "weights_only" not in kwargs:
+                if kwargs.get("weights_only") is None or kwargs.get("weights_only") is False:
                     kwargs["weights_only"] = False
                 return orig_torch_load(*args, **kwargs)
             torch.load = patched_torch_load
@@ -260,15 +267,29 @@ class PyAnnoteDiarizer(BaseDiarizer):
                 diarization_result = self.pipeline(wav_path)
 
         speaker_map = {}
-        speaker_turns: List[SpeakerTurn] = []
+        raw_turns: List[SpeakerTurn] = []
 
         for turn, _, speaker in diarization_result.itertracks(yield_label=True):
             if speaker not in speaker_map:
                 speaker_map[speaker] = f"Speaker {len(speaker_map)}"
             normalized_spk = speaker_map[speaker]
-            speaker_turns.append(SpeakerTurn(start=turn.start, end=turn.end, speaker=normalized_spk))
+            raw_turns.append(SpeakerTurn(start=turn.start, end=turn.end, speaker=normalized_spk))
 
-        return speaker_turns
+        # Coalesce adjacent turns of the same speaker and drop micro-glitches (< 0.25s)
+        merged_turns: List[SpeakerTurn] = []
+        for t in raw_turns:
+            if (t.end - t.start) < 0.25 and merged_turns:
+                continue
+            if merged_turns and merged_turns[-1].speaker == t.speaker and (t.start - merged_turns[-1].end) < 0.8:
+                merged_turns[-1] = SpeakerTurn(
+                    start=merged_turns[-1].start,
+                    end=max(merged_turns[-1].end, t.end),
+                    speaker=t.speaker
+                )
+            else:
+                merged_turns.append(SpeakerTurn(start=t.start, end=t.end, speaker=t.speaker))
+
+        return merged_turns if merged_turns else raw_turns
 
     def unload(self):
         """

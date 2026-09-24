@@ -165,6 +165,36 @@ def test_pipeline_stage_5_audex_adjudicates_all_chunks():
             assert instance.adjudicate_chunk.call_count == 2
 
 
+def test_reconcile_segments_with_speaker_turns():
+    """Verify that multi-speaker VAD segments are partitioned at speaker transitions."""
+    from transcript_suite.pipeline import TranscriptionPipeline
+    from transcript_suite.audio.vad import SpeechSegment
+    from transcript_suite.diarization.base import SpeakerTurn
+
+    pipeline = TranscriptionPipeline.__new__(TranscriptionPipeline)
+
+    # 1. Single speaker keeps original segments
+    vad_segs = [SpeechSegment(start=0.0, end=5.0, duration=5.0)]
+    turns_single = [SpeakerTurn(start=0.0, end=5.0, speaker="Speaker 0")]
+    res_single = pipeline._reconcile_segments_with_speaker_turns(vad_segs, turns_single)
+    assert len(res_single) == 1
+    assert res_single[0].speaker == "Speaker 0"
+
+    # 2. Multi-speaker conversation partitions monolithic VAD segment
+    monolithic_vad = [SpeechSegment(start=0.0, end=10.0, duration=10.0)]
+    turns_multi = [
+        SpeakerTurn(start=0.0, end=4.0, speaker="Speaker 0"),
+        SpeakerTurn(start=4.5, end=10.0, speaker="Speaker 1")
+    ]
+    res_multi = pipeline._reconcile_segments_with_speaker_turns(monolithic_vad, turns_multi)
+    assert len(res_multi) >= 2
+    speakers = [s.speaker for s in res_multi]
+    assert "Speaker 0" in speakers
+    assert "Speaker 1" in speakers
+    assert res_multi[0].start == 0.0
+    assert res_multi[-1].end == 10.0
+
+
 if __name__ == "__main__":
     test_audio_loader_and_ffmpeg()
     test_export_formatting()

@@ -13,7 +13,7 @@ import numpy as np
 
 from .config import config
 from .audio.loader import AudioLoader
-from .audio.vad import SileroVADSegmenter
+from .audio.vad import SileroVADSegmenter, SpeechSegment
 from .audio.chunker import PseudoStreamChunker, StreamChunk
 from .audio.enhancer import GPUSpeechEnhancer
 from .asr.canary import CanaryQwenTranscriber
@@ -249,6 +249,85 @@ class TranscriptionPipeline:
 
         return best_speaker
 
+    def _reconcile_segments_with_speaker_turns(
+        self,
+        speech_segments: List[SpeechSegment],
+        speaker_turns: List[SpeakerTurn],
+        min_duration: float = 0.8
+    ) -> List[SpeechSegment]:
+        """
+        Sub-splits monolithic VAD speech segments at speaker turn boundaries.
+        Prevents continuous multi-speaker conversations from collapsing into a single speaker.
+        """
+        if not speaker_turns:
+            for s in speech_segments:
+                s.speaker = "Speaker 0"
+            return speech_segments
+
+        # If only 1 speaker detected across entire file, assign and keep segments
+        unique_speakers = {t.speaker for t in speaker_turns}
+        if len(unique_speakers) <= 1:
+            spk = next(iter(unique_speakers)) if unique_speakers else "Speaker 0"
+            for s in speech_segments:
+                s.speaker = spk
+            return speech_segments
+
+        reconciled: List[SpeechSegment] = []
+        for seg in speech_segments:
+            # Find all speaker turns that overlap with this VAD segment
+            overlapping = [
+                t for t in speaker_turns
+                if max(seg.start, t.start) < min(seg.end, t.end)
+            ]
+            if not overlapping:
+                seg.speaker = self._assign_speaker_to_segment(seg.start, seg.end, speaker_turns)
+                reconciled.append(seg)
+                continue
+
+            # If all overlapping turns are the same speaker, no sub-splitting needed
+            turn_speakers = {t.speaker for t in overlapping}
+            if len(turn_speakers) == 1:
+                seg.speaker = overlapping[0].speaker
+                reconciled.append(seg)
+                continue
+
+            # Multiple speakers in this VAD chunk: partition chunk at speaker boundaries
+            curr_start = seg.start
+            for i, t in enumerate(overlapping):
+                is_last = (i == len(overlapping) - 1)
+                if is_last:
+                    sub_end = seg.end
+                else:
+                    next_t = overlapping[i + 1]
+                    if t.speaker == next_t.speaker:
+                        continue  # Same speaker continues
+                    midpoint = (t.end + next_t.start) / 2.0
+                    sub_end = max(t.start + min_duration, min(midpoint, next_t.start))
+                    sub_end = min(seg.end, max(curr_start + min_duration, sub_end))
+
+                dur = round(sub_end - curr_start, 2)
+                if dur >= min_duration or is_last:
+                    reconciled.append(SpeechSegment(
+                        start=round(curr_start, 2),
+                        end=round(sub_end, 2),
+                        duration=dur,
+                        speaker=t.speaker
+                    ))
+                    curr_start = sub_end
+                if curr_start >= seg.end:
+                    break
+
+        # Coalesce contiguous segments of the same speaker if gap < 0.5s
+        coalesced: List[SpeechSegment] = []
+        for s in reconciled:
+            if coalesced and coalesced[-1].speaker == s.speaker and (s.start - coalesced[-1].end) < 0.5:
+                coalesced[-1].end = s.end
+                coalesced[-1].duration = round(coalesced[-1].end - coalesced[-1].start, 2)
+            else:
+                coalesced.append(s)
+
+        return coalesced if coalesced else speech_segments
+
     def process_file(
         self,
         file_path: str | Path,
@@ -368,9 +447,12 @@ class TranscriptionPipeline:
 
             check_stop()
 
-            # Assign speakers to VAD speech segments
-            for seg in speech_segments:
-                seg.speaker = self._assign_speaker_to_segment(seg.start, seg.end, speaker_turns)
+            # Reconcile speech segments with speaker turns if diarization is enabled
+            if enable_diarization and speaker_turns:
+                speech_segments = self._reconcile_segments_with_speaker_turns(speech_segments, speaker_turns)
+            else:
+                for seg in speech_segments:
+                    seg.speaker = self._assign_speaker_to_segment(seg.start, seg.end, speaker_turns)
 
             # 5. Multi-Model Inference Council Transcription
             total_chunks = len(speech_segments)
