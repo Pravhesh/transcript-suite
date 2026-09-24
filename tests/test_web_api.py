@@ -380,7 +380,7 @@ def test_pyannote_and_supervisor_api():
     assert res_purge_guarded.status_code == 400
 
 
-def test_settings_and_storage_endpoints():
+def test_settings_and_storage_endpoints(monkeypatch):
     """Tests /api/settings GET & POST and /api/storage/purge-all clean slate endpoint."""
     client = TestClient(app)
     # 1. GET /api/settings
@@ -405,11 +405,14 @@ def test_settings_and_storage_endpoints():
     assert up_data["status"] == "updated"
     assert up_data["settings"]["vocal_boost_level"] == "adaptive"
 
-    # 3. POST /api/storage/purge-all
+    # 3. POST /api/storage/purge-all (mock rmtree so pytest never deletes live persistent models)
+    rmtree_calls = []
+    monkeypatch.setattr("shutil.rmtree", lambda path, ignore_errors=False: rmtree_calls.append(path))
     res_purge = client.post("/api/storage/purge-all")
     assert res_purge.status_code == 200
     purge_data = res_purge.json()
     assert purge_data["status"] == "purged"
+    assert len(rmtree_calls) > 0
 
 
 if __name__ == "__main__":
