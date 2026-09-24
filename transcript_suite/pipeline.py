@@ -377,7 +377,6 @@ class TranscriptionPipeline:
             if output_orig_path:
                 out_orig_p = Path(output_orig_path).resolve()
                 out_orig_p.parent.mkdir(parents=True, exist_ok=True)
-                import soundfile as sf
                 sf.write(str(out_orig_p), waveform.squeeze(0).cpu().numpy(), sr, subtype="PCM_16")
                 saved_orig_path = str(out_orig_p)
 
@@ -394,7 +393,6 @@ class TranscriptionPipeline:
             if output_processed_path:
                 out_p = Path(output_processed_path).resolve()
                 out_p.parent.mkdir(parents=True, exist_ok=True)
-                import soundfile as sf
                 sf.write(str(out_p), waveform.squeeze(0).cpu().numpy(), sr, subtype="PCM_16")
                 saved_processed_path = str(out_p)
             self._reclaim_memory()

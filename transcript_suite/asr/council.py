@@ -15,6 +15,8 @@ import torch
 import numpy as np
 import soundfile as sf
 from .canary import sanitize_canary_output
+from .lattice import TokenLattice
+from .phonetics import are_homophones, double_metaphone
 
 
 @dataclass
@@ -41,6 +43,9 @@ class CouncilDeliberation:
     disputed_tokens: List[str]
     needs_human_review: bool
     deliberation_notes: str
+    lattice_bins: Optional[List[Dict[str, Any]]] = None
+    homophone_resolutions: int = 0
+    ctc_vetoes: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
@@ -479,86 +484,26 @@ class ModelCouncil:
                         deliberation_notes="Acoustic Anchor (CTC) verified non-speech. Short token hallucination suppressed."
                     )
 
-        # Case B: Canary Prompt Leak Neutralization
-        if not h_canary and (h_whisper or h_parakeet):
-            primary_alt = h_whisper or h_parakeet
-            sim_w_c = calculate_similarity(primary_alt, h_conformer)
-            verdict = primary_alt
-            notes = f"Canary prompt leak neutralized. Adopted Cross-Examiner anchored by Conformer-CTC ({round(sim_w_c * 100)}% acoustic match)."
-            return CouncilDeliberation(
-                verdict=verdict,
-                consensus_score=round(max(0.85, sim_w_c), 3),
-                agreement_type="MAJORITY",
-                votes=[v.to_dict() for v in votes],
-                disputed_tokens=find_disputed_words([primary_alt, h_conformer]),
-                needs_human_review=False,
-                deliberation_notes=notes
-            )
-
-        # Case C: High Agreement between Canary & Cross-Examiner
-        sim_canary_whisper = calculate_similarity(h_canary, h_whisper)
-        sim_canary_conformer = calculate_similarity(h_canary, h_conformer)
-        sim_whisper_conformer = calculate_similarity(h_whisper, h_conformer)
-
+        # Unified Token & Acoustic Lattice (Confusion Network Alignment)
         active_hyps = [h for h in [h_canary, h_whisper, h_parakeet, h_conformer] if h]
-        avg_consensus = (sim_canary_whisper + sim_canary_conformer + sim_whisper_conformer) / 3.0
-
-        if sim_canary_whisper >= 0.85 and canary_conf >= 0.75 and whisper_conf >= 0.75:
-            verdict = h_canary if len(h_canary) >= len(h_whisper) else h_whisper
-            agreement_type = "UNANIMOUS" if (sim_canary_conformer >= 0.70 or sim_whisper_conformer >= 0.70) else "MAJORITY"
-            return CouncilDeliberation(
-                verdict=verdict,
-                consensus_score=round(sim_canary_whisper, 3),
-                agreement_type=agreement_type,
-                votes=[v.to_dict() for v in votes],
-                disputed_tokens=find_disputed_words(active_hyps),
-                needs_human_review=False,
-                deliberation_notes=f"{agreement_type} consensus ({round(sim_canary_whisper * 100)}%) across Lead Justice and Cross-Examiner."
-            )
-
-        # Whisper + Conformer overrule Canary
-        if sim_whisper_conformer >= 0.65 and sim_canary_whisper < 0.65:
-            return CouncilDeliberation(
-                verdict=h_whisper,
-                consensus_score=round(sim_whisper_conformer, 3),
-                agreement_type="MAJORITY",
-                votes=[v.to_dict() for v in votes],
-                disputed_tokens=find_disputed_words(active_hyps),
-                needs_human_review=False,
-                deliberation_notes=f"Majority consensus ({round(sim_whisper_conformer * 100)}%): Whisper supported by Conformer-CTC overrules Canary."
-            )
-
-        # Canary + Conformer overrule Whisper
-        if sim_canary_conformer >= 0.65 and sim_canary_whisper < 0.65:
-            return CouncilDeliberation(
-                verdict=h_canary,
-                consensus_score=round(sim_canary_conformer, 3),
-                agreement_type="MAJORITY",
-                votes=[v.to_dict() for v in votes],
-                disputed_tokens=find_disputed_words(active_hyps),
-                needs_human_review=False,
-                deliberation_notes=f"Majority consensus ({round(sim_canary_conformer * 100)}%): Canary supported by Conformer-CTC overrules Whisper."
-            )
-
-        # Case D: Parakeet alignment
+        lattice = TokenLattice()
+        lattice.add_hypothesis("Canary-Qwen-2.5B", h_canary, canary_conf, weight=1.5)
+        lattice.add_hypothesis("Whisper-CrossExaminer", h_whisper, whisper_conf, weight=1.2)
+        lattice.add_hypothesis("Conformer-CTC-Anchor", h_conformer, conformer_conf, weight=1.3)
         if h_parakeet:
-            sim_parakeet_whisper = calculate_similarity(h_parakeet, h_whisper)
-            sim_parakeet_canary = calculate_similarity(h_parakeet, h_canary)
-            if sim_parakeet_whisper >= 0.80:
-                return CouncilDeliberation(
-                    verdict=h_whisper,
-                    consensus_score=round(sim_parakeet_whisper, 3),
-                    agreement_type="MAJORITY",
-                    votes=[v.to_dict() for v in votes],
-                    disputed_tokens=find_disputed_words(active_hyps),
-                    needs_human_review=False,
-                    deliberation_notes=f"Majority consensus ({round(sim_parakeet_whisper * 100)}%): Parakeet-TDT confirmed Whisper hypothesis."
-                )
+            lattice.add_hypothesis("Parakeet-TDT-1.1B", h_parakeet, parakeet_conf, weight=1.3)
 
-        # Case E: Low Consensus -> Invoke Auditor if audio available
+        synth = lattice.synthesize()
+        verdict = synth["verdict"]
+        consensus_score = synth["consensus_score"]
+        disputed_tokens = synth["disputed_tokens"]
+        ctc_vetoes = synth["ctc_vetoes"]
+        homophone_resolutions = synth["homophone_resolutions"]
+
+        # Low Consensus Escalation -> Invoke Time-Stretch Auditor if audio available
         h_auditor = ""
         auditor_conf = 0.88
-        if audio_path and Path(audio_path).exists():
+        if (consensus_score < 0.55 or len(disputed_tokens) >= 4) and audio_path and Path(audio_path).exists():
             try:
                 slow_audio_path = None
                 if chunks_dir:
@@ -578,35 +523,70 @@ class ModelCouncil:
                         confidence=auditor_conf,
                         weight=1.2
                     ))
+                    # Add auditor hypothesis to lattice to break token disputes
+                    lattice.add_hypothesis("Acoustic-Auditor-0.75x", h_auditor, auditor_conf, weight=1.2)
+                    synth = lattice.synthesize()
+                    verdict = synth["verdict"]
+                    consensus_score = synth["consensus_score"]
+                    disputed_tokens = synth["disputed_tokens"]
+                    ctc_vetoes = synth["ctc_vetoes"]
+                    homophone_resolutions = synth["homophone_resolutions"]
             except Exception as e:
                 print(f"[Council Warning] Slow auditor pass error: {e}")
 
-        # Resolve Split Decision
-        if h_auditor and calculate_similarity(h_auditor, h_whisper) >= 0.70:
-            verdict = h_whisper
-            agreement_type = "MAJORITY"
-            notes = "Acoustic Auditor (0.75x) confirmed Whisper hypothesis."
+        # Fallback to simple disputed words if lattice has none but raw texts diverge
+        if not disputed_tokens and len(find_disputed_words(active_hyps)) > 0:
+            disputed_tokens = find_disputed_words(active_hyps)
+
+        # Agreement classification
+        sim_canary_whisper = calculate_similarity(h_canary, h_whisper)
+        sim_canary_conformer = calculate_similarity(h_canary, h_conformer)
+        sim_whisper_conformer = calculate_similarity(h_whisper, h_conformer)
+
+        if not verdict:
+            agreement_type = "CTC_ANCHORED" if ctc_vetoes > 0 else "UNANIMOUS"
             needs_review = False
-        elif h_auditor and calculate_similarity(h_auditor, h_canary) >= 0.70:
-            verdict = h_canary
+        elif sim_canary_whisper >= 0.85 and canary_conf >= 0.75 and whisper_conf >= 0.75:
+            agreement_type = "UNANIMOUS"
+            needs_review = False
+        elif consensus_score >= 0.65 or (sim_whisper_conformer >= 0.65 or sim_canary_conformer >= 0.65):
             agreement_type = "MAJORITY"
-            notes = "Acoustic Auditor (0.75x) confirmed Canary hypothesis."
+            needs_review = False
+        elif ctc_vetoes > 0:
+            agreement_type = "CTC_ANCHORED"
             needs_review = False
         else:
             agreement_type = "SPLIT_DECISION"
-            best_vote = max(votes, key=lambda v: v.confidence * v.weight if v.hypothesis else -1)
-            verdict = best_vote.hypothesis
-            notes = f"Split decision across jurors (consensus: {round(avg_consensus * 100)}%). Resolved via weighted acoustic score ({best_vote.member})."
-            needs_review = (avg_consensus < 0.55)
+            needs_review = (consensus_score < 0.55)
+
+        # Notes generation
+        notes_parts = []
+        if agreement_type == "UNANIMOUS":
+            notes_parts.append(f"UNANIMOUS lattice consensus ({round(consensus_score * 100)}%) across Lead Justice and Cross-Examiner.")
+        elif agreement_type == "CTC_ANCHORED":
+            notes_parts.append(f"CTC-anchored consensus ({round(consensus_score * 100)}%): {ctc_vetoes} phantom tokens vetoed by acoustic anchor.")
+        elif agreement_type == "MAJORITY":
+            notes_parts.append(f"Majority lattice consensus ({round(consensus_score * 100)}%) across council.")
+        else:
+            notes_parts.append(f"Split decision across jurors (consensus: {round(consensus_score * 100)}%). Flagged for review.")
+
+        if homophone_resolutions > 0:
+            notes_parts.append(f"{homophone_resolutions} phonetic homophones harmonized.")
+        if ctc_vetoes > 0 and agreement_type != "CTC_ANCHORED":
+            notes_parts.append(f"{ctc_vetoes} acoustic anchor confirmations.")
+
+        notes = " ".join(notes_parts)
 
         return CouncilDeliberation(
             verdict=verdict or h_whisper or h_canary,
-            consensus_score=round(avg_consensus, 3),
+            consensus_score=round(consensus_score, 3),
             agreement_type=agreement_type,
             votes=[v.to_dict() for v in votes],
-            disputed_tokens=find_disputed_words(active_hyps),
+            disputed_tokens=disputed_tokens,
             needs_human_review=needs_review,
-            deliberation_notes=notes
+            deliberation_notes=notes,
+            homophone_resolutions=homophone_resolutions,
+            ctc_vetoes=ctc_vetoes
         )
 
     def deliberate(

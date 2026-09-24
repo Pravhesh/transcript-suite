@@ -126,10 +126,91 @@ def test_batch_methods_and_staged_unloading():
     print("✓ Council batched signatures and staged unloads verified.")
 
 
+def test_token_lattice_word_arbitration():
+    council = ModelCouncil()
+
+    # 1. Word-level majority arbitration & casing/punctuation inheritance
+    delib = council.synthesize_deliberation(
+        canary_text="The mentor meeting is set for next Monday at two.",
+        whisper_text="The mentor meeting is scheduled for next Monday at 2:00.",
+        conformer_text="the mentor meeting is scheduled for next monday at two",
+        parakeet_text="the mentor meeting is scheduled for next monday at to"
+    )
+    assert "scheduled" in delib.verdict
+    assert "set" not in delib.verdict
+    assert "Monday" in delib.verdict  # Capitalized from Canary/Whisper
+    assert delib.consensus_score >= 0.85
+    assert delib.homophone_resolutions >= 1  # 'two'/'to' homophone harmonized
+
+    # 2. Token recovery when one model drops words
+    delib2 = council.synthesize_deliberation(
+        canary_text="fit for this implementation you will have to detail it out in your work",
+        whisper_text="fit for this implementation you have to detail it out in work",
+        conformer_text="fit for this implementation you will have to detail it out in your work",
+        parakeet_text="fit for this implementation you will have to detail it out in your work"
+    )
+    assert "will" in delib2.verdict
+    assert "your" in delib2.verdict
+    assert delib2.consensus_score >= 0.90
+    print("✓ Word-level lattice arbitration & drop recovery verified.")
+
+
+def test_phonetic_homophone_pooling():
+    council = ModelCouncil()
+
+    # Proper nouns homophones (Diane vs Diana)
+    delib = council.synthesize_deliberation(
+        canary_text="Diana is in New Jersey and she likes it.",
+        whisper_text="Diane is in New Jersey and she likes it.",
+        conformer_text="diane is in new jersey and she likes it",
+        parakeet_text="diana is in new jersey and she likes it"
+    )
+    assert "New Jersey" in delib.verdict
+    assert delib.homophone_resolutions >= 1
+    assert delib.consensus_score >= 0.95
+    print("✓ Phonetic homophone pooling verified.")
+
+
+def test_repetition_loop_veto_by_ctc_anchor():
+    council = ModelCouncil()
+
+    # Canary autoregressive loop vetoed by CTC + Whisper
+    delib = council.synthesize_deliberation(
+        canary_text="and fit for this implementation and fit for this implementation you will have to detail it out in your work",
+        whisper_text="and fit for this implementation you will have to detail it out in your work",
+        conformer_text="and fit for this implementation you will have to detail it out in your work",
+        parakeet_text="and fit for this implementation you will have to detail it out in your work"
+    )
+    assert delib.verdict.count("implementation") == 1
+    assert delib.ctc_vetoes > 0
+    assert "detail it out in your work" in delib.verdict
+    print("✓ Repetition loop veto by acoustic anchor verified.")
+
+
+def test_whisper_hallucination_suppression():
+    council = ModelCouncil()
+
+    # Whisper ending phantom subtitle hallucination
+    delib = council.synthesize_deliberation(
+        canary_text="and that concludes our meeting for today",
+        whisper_text="and that concludes our meeting for today Thank you for watching",
+        conformer_text="and that concludes our meeting for today",
+        parakeet_text="and that concludes our meeting for today"
+    )
+    assert "Thank you for watching" not in delib.verdict
+    assert "concludes our meeting for today" in delib.verdict
+    assert delib.ctc_vetoes > 0
+    print("✓ Phantom hallucination suppression verified.")
+
+
 if __name__ == "__main__":
     test_prompt_leak_sanitization()
     test_similarity_and_consensus()
     test_sequential_synthesis_arbitration()
     test_batch_methods_and_staged_unloading()
-    print("\nAll Council & Sanitizer unit tests passed!")
+    test_token_lattice_word_arbitration()
+    test_phonetic_homophone_pooling()
+    test_repetition_loop_veto_by_ctc_anchor()
+    test_whisper_hallucination_suppression()
+    print("\nAll Council & Lattice unit tests passed!")
 
