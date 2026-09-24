@@ -155,6 +155,59 @@
           <input type="file" id="fileInput" accept="audio/*,.aac,.wav,.mp3,.m4a" style="display: none;">
         </div>
 
+        <!-- Feature 1.1.A & 1.1.B: Pre-Flight Audio Health Badge & Stereo Auto-Remix -->
+        <div class="audio-health-badge-bar" id="audioHealthBadgeBar" style="display: none;">
+          <div class="health-badge-header">
+            <div class="health-badge-title-group">
+              <span class="health-badge-icon">🩺</span>
+              <span class="health-badge-title">Pre-Flight Audio Health Report</span>
+              <span class="health-grade-chip grade-checking" id="healthBadgeGrade">CHECKING</span>
+            </div>
+            <button class="btn-health-dismiss" id="btnDismissHealthBadge" title="Dismiss">✕</button>
+          </div>
+
+          <div class="health-metrics-grid">
+            <div class="health-metric-tile">
+              <span class="metric-label">SNR (Signal-to-Noise)</span>
+              <span class="metric-value" id="healthSnrVal">-- dB</span>
+              <span class="metric-status" id="healthSnrStatus">--</span>
+            </div>
+            <div class="health-metric-tile">
+              <span class="metric-label">0 dBFS Clipping</span>
+              <span class="metric-value" id="healthClippingVal">-- %</span>
+              <span class="metric-status" id="healthClippingStatus">--</span>
+            </div>
+            <div class="health-metric-tile">
+              <span class="metric-label">Mains DC Offset</span>
+              <span class="metric-value" id="healthDcVal">--</span>
+              <span class="metric-status" id="healthDcStatus">--</span>
+            </div>
+            <div class="health-metric-tile">
+              <span class="metric-label">Peak / RMS Level</span>
+              <span class="metric-value" id="healthLevelsVal">-- / -- dBFS</span>
+              <span class="metric-status" id="healthLevelsStatus">--</span>
+            </div>
+            <div class="health-metric-tile">
+              <span class="metric-label">Channel Phase Correlation</span>
+              <span class="metric-value" id="healthPhaseVal">--</span>
+              <span class="metric-status" id="healthPhaseStatus">--</span>
+            </div>
+          </div>
+
+          <!-- Feature 1.1.B Phase Inversion / Remix Alert Banner -->
+          <div class="health-remedy-banner" id="healthRemedyBanner" style="display: none;">
+            <span class="remedy-icon">⚡</span>
+            <span class="remedy-text" id="healthRemedyText">Stereo Polarity Inverted (Auto-Remixed)</span>
+          </div>
+
+          <!-- Actionable recommendations / notices -->
+          <div class="health-recs-container" id="healthRecsContainer" style="display: none;">
+            <div class="health-recs-title">Recommendations:</div>
+            <ul class="health-recs-list" id="healthRecsList"></ul>
+          </div>
+        </div>
+
+
         <div class="options-row">
           <label class="checkbox-label" title="Diarize distinct speakers">
             <input type="checkbox" id="speakerLabelsCheckbox" checked>

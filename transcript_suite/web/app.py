@@ -18,9 +18,10 @@ from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPExcept
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
-
+import tempfile
 from ..config import config
 from ..pipeline import TranscriptionPipeline, get_active_pipeline
+from ..audio.loader import AudioLoader
 from ..asr.memory import VRAMManager, get_subsystem_supervisor, format_memory_audit_text, purge_page_cache
 from ..asr.model_manager import model_manager
 from contextlib import asynccontextmanager
@@ -880,6 +881,32 @@ async def create_transcription_task(
     return {"task_id": task_id, "status": "queued"}
 
 
+@app.post("/api/audio/diagnostics")
+async def analyze_audio_diagnostics(audio: UploadFile = File(...)):
+    """
+    Pre-flight Audio Health Diagnostics & Stereo Phase Check (1.1.A & 1.1.B).
+    Instantly computes SNR in dB, clipping percentage, mains DC offset, and
+    stereo phase correlation to prevent out-of-phase cancellation.
+    """
+    temp_suffix = Path(audio.filename or "audio.wav").suffix or ".wav"
+    with tempfile.NamedTemporaryFile(suffix=temp_suffix, delete=False) as tf:
+        tf.write(await audio.read())
+        temp_path = Path(tf.name)
+
+    try:
+        loader = AudioLoader(target_sr=config.sample_rate)
+        report = loader.diagnose_audio(temp_path)
+        return {
+            "status": "ok",
+            "filename": audio.filename,
+            "health": report.to_dict()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Audio health diagnostic failed: {str(e)}")
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
 @app.post("/api/transcribe/stream")
 async def create_streaming_transcription(
     audio: Optional[UploadFile] = File(None),
@@ -1198,6 +1225,7 @@ def run_transcription_worker(
         TASKS[task_id]["processed_file_path"] = str(processed_wav_path)
         TASKS[task_id]["has_processed_audio"] = processed_wav_path.exists()
         TASKS[task_id]["chunks_dir"] = str(chunks_dir)
+        TASKS[task_id]["audio_health"] = result.get("audio_health", {})
         stats = vram_manager.get_stats()
         TASKS[task_id]["vram"] = stats
 

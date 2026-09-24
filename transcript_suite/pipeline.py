@@ -368,9 +368,17 @@ class TranscriptionPipeline:
             # 1. Load and normalize audio
             t_prep_start = time.time()
             self.supervisor.record_stage_start("audio_preprocessor")
-            report("Loading audio & converting to 16kHz mono...", 0.04)
+            report("Loading audio & analyzing pre-flight health...", 0.04)
             waveform, sr, duration = self.audio_loader.load_audio(file_path)
             check_stop()
+
+            health_report = getattr(self.audio_loader, "last_health_report", None)
+            health_dict = health_report.to_dict() if health_report else {}
+            if health_report:
+                h_msg = f"Pre-Flight Health: {health_report.health_grade} | SNR: {health_report.snr_db}dB | Clip: {health_report.clipping_pct}% | Phase: ρ={health_report.phase_correlation}"
+                if health_report.phase_inverted:
+                    h_msg += " (Phase Remedied)"
+                report(h_msg, 0.06, {"audio_health": health_dict})
 
             # Save synchronized original 16kHz waveform for Track 1 playback if requested
             saved_orig_path = None
@@ -828,6 +836,7 @@ class TranscriptionPipeline:
                 "orig_audio_path": saved_orig_path,
                 "processed_audio_path": saved_processed_path,
                 "chunks_dir": str(chunks_dir) if chunks_dir else None,
+                "audio_health": health_dict,
                 "vram_stats": vram_stats,
                 "elapsed_seconds": elapsed
             }
@@ -876,6 +885,9 @@ class TranscriptionPipeline:
                     yield {"event": "stopped", "data": {"message": "Transcription stopped by user"}}
                     return
 
+            health_report = getattr(self.audio_loader, "last_health_report", None)
+            health_dict = health_report.to_dict() if health_report else {}
+
             yield {
                 "event": "init",
                 "data": {
@@ -883,7 +895,8 @@ class TranscriptionPipeline:
                     "file_name": file_path.name,
                     "duration": round(duration, 2),
                     "sample_rate": sr,
-                    "model": model_choice
+                    "model": model_choice,
+                    "audio_health": health_dict
                 }
             }
 

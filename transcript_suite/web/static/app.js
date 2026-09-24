@@ -61,6 +61,25 @@ const councilCheckbox = document.getElementById("councilCheckbox");
 const councilModeSelect = document.getElementById("councilModeSelect");
 const diarizerSelect = document.getElementById("diarizerSelect");
 
+// Pre-Flight Audio Health Badge Elements (1.1.A & 1.1.B)
+const audioHealthBadgeBar = document.getElementById("audioHealthBadgeBar");
+const healthBadgeGrade = document.getElementById("healthBadgeGrade");
+const btnDismissHealthBadge = document.getElementById("btnDismissHealthBadge");
+const healthSnrVal = document.getElementById("healthSnrVal");
+const healthSnrStatus = document.getElementById("healthSnrStatus");
+const healthClippingVal = document.getElementById("healthClippingVal");
+const healthClippingStatus = document.getElementById("healthClippingStatus");
+const healthDcVal = document.getElementById("healthDcVal");
+const healthDcStatus = document.getElementById("healthDcStatus");
+const healthLevelsVal = document.getElementById("healthLevelsVal");
+const healthLevelsStatus = document.getElementById("healthLevelsStatus");
+const healthPhaseVal = document.getElementById("healthPhaseVal");
+const healthPhaseStatus = document.getElementById("healthPhaseStatus");
+const healthRemedyBanner = document.getElementById("healthRemedyBanner");
+const healthRemedyText = document.getElementById("healthRemedyText");
+const healthRecsContainer = document.getElementById("healthRecsContainer");
+const healthRecsList = document.getElementById("healthRecsList");
+
 // Progress Card
 const progressCard = document.getElementById("progressCard");
 const progressStatus = document.getElementById("progressStatus");
@@ -373,10 +392,168 @@ fileInput.addEventListener("change", (e) => {
   }
 });
 
+if (btnDismissHealthBadge) {
+  btnDismissHealthBadge.addEventListener("click", () => {
+    if (audioHealthBadgeBar) audioHealthBadgeBar.style.display = "none";
+  });
+}
+
+function updateAudioHealthUI(health) {
+  if (!health || !audioHealthBadgeBar) return;
+  audioHealthBadgeBar.style.display = "block";
+
+  // Grade Chip
+  const grade = (health.health_grade || "GOOD").toUpperCase();
+  healthBadgeGrade.className = `health-grade-chip grade-${grade.toLowerCase()}`;
+  healthBadgeGrade.innerText = grade;
+
+  // SNR (Signal-to-Noise Ratio)
+  const snr = Number(health.snr_db ?? 0);
+  healthSnrVal.innerText = `${snr.toFixed(1)} dB`;
+  if (snr >= 20.0) {
+    healthSnrStatus.className = "metric-status status-ok";
+    healthSnrStatus.innerText = "Clean & Clear";
+  } else if (snr >= 10.0) {
+    healthSnrStatus.className = "metric-status status-warn";
+    healthSnrStatus.innerText = "Moderate Noise";
+  } else {
+    healthSnrStatus.className = "metric-status status-alert";
+    healthSnrStatus.innerText = "Heavy Noise";
+  }
+
+  // Clipping %
+  const clip = Number(health.clipping_pct ?? 0);
+  healthClippingVal.innerText = `${clip.toFixed(2)} %`;
+  if (clip <= 0.05) {
+    healthClippingStatus.className = "metric-status status-ok";
+    healthClippingStatus.innerText = "Zero Distortion";
+  } else if (clip <= 0.5) {
+    healthClippingStatus.className = "metric-status status-warn";
+    healthClippingStatus.innerText = "Minor Distortion";
+  } else {
+    healthClippingStatus.className = "metric-status status-alert";
+    healthClippingStatus.innerText = "Severe Clipping";
+  }
+
+  // DC Offset
+  const dc = Math.abs(Number(health.dc_offset ?? 0));
+  healthDcVal.innerText = `${dc.toFixed(4)}`;
+  if (dc <= 0.005) {
+    healthDcStatus.className = "metric-status status-ok";
+    healthDcStatus.innerText = "Calibrated";
+  } else {
+    healthDcStatus.className = "metric-status status-warn";
+    healthDcStatus.innerText = "Offset Subtracted";
+  }
+
+  // Peak / RMS
+  const peak = Number(health.peak_dbfs ?? -100);
+  const rms = Number(health.rms_dbfs ?? -100);
+  healthLevelsVal.innerText = `${peak.toFixed(1)} / ${rms.toFixed(1)} dBFS`;
+  if (peak > -0.1) {
+    healthLevelsStatus.className = "metric-status status-alert";
+    healthLevelsStatus.innerText = "Near Ceiling";
+  } else if (peak < -30.0) {
+    healthLevelsStatus.className = "metric-status status-warn";
+    healthLevelsStatus.innerText = "Quiet (Will Boost)";
+  } else {
+    healthLevelsStatus.className = "metric-status status-ok";
+    healthLevelsStatus.innerText = "Optimal Headroom";
+  }
+
+  // Channel Phase Correlation & Geometry (1.1.B)
+  const channels = health.channels_original || 1;
+  const phaseCorr = Number(health.phase_correlation ?? 1.0);
+  if (channels === 1) {
+    healthPhaseVal.innerText = "Mono (1-Ch)";
+    healthPhaseStatus.className = "metric-status status-ok";
+    healthPhaseStatus.innerText = "Direct Pass";
+  } else {
+    healthPhaseVal.innerText = `Stereo (ρ = ${phaseCorr.toFixed(2)})`;
+    if (health.phase_inverted) {
+      healthPhaseStatus.className = "metric-status status-alert";
+      healthPhaseStatus.innerText = "Out-of-Phase (Inverted)";
+    } else if (health.dead_channel_detected) {
+      healthPhaseStatus.className = "metric-status status-warn";
+      healthPhaseStatus.innerText = "Dead Mic Bypassed";
+    } else {
+      healthPhaseStatus.className = "metric-status status-ok";
+      healthPhaseStatus.innerText = "Coherent Mixdown";
+    }
+  }
+
+  // Feature 1.1.B Remediation Banner
+  if (healthRemedyBanner) {
+    if (health.phase_inverted) {
+      healthRemedyBanner.style.display = "flex";
+      healthRemedyText.innerHTML = `<strong>Acoustic Cancellation Fixed:</strong> Left/Right channels had inverted polarity (ρ = ${phaseCorr.toFixed(2)}). Polarity was automatically flipped to restore full vocal punch.`;
+    } else if (health.dead_channel_detected) {
+      healthRemedyBanner.style.display = "flex";
+      healthRemedyText.innerHTML = `<strong>Dead Microphone Bypassed:</strong> One stereo channel was silent/disconnected. The active vocal channel was extracted cleanly.`;
+    } else {
+      healthRemedyBanner.style.display = "none";
+    }
+  }
+
+  // Actionable recommendations
+  if (healthRecsContainer && healthRecsList) {
+    const recs = health.recommendations || [];
+    if (recs.length > 0) {
+      healthRecsContainer.style.display = "block";
+      healthRecsList.innerHTML = recs.map(r => `<li>${escapeHtml(r)}</li>`).join("");
+    } else {
+      healthRecsContainer.style.display = "none";
+    }
+  }
+}
+
+async function runPreflightHealthCheck(file) {
+  if (!audioHealthBadgeBar) return;
+  audioHealthBadgeBar.style.display = "block";
+  healthBadgeGrade.className = "health-grade-chip grade-checking";
+  healthBadgeGrade.innerText = "DIAGNOSING...";
+  healthSnrVal.innerText = "-- dB";
+  healthSnrStatus.className = "metric-status";
+  healthSnrStatus.innerText = "Measuring...";
+  healthClippingVal.innerText = "-- %";
+  healthClippingStatus.className = "metric-status";
+  healthClippingStatus.innerText = "Checking...";
+  healthDcVal.innerText = "--";
+  healthDcStatus.className = "metric-status";
+  healthDcStatus.innerText = "Filtering...";
+  healthLevelsVal.innerText = "-- / -- dBFS";
+  healthLevelsStatus.className = "metric-status";
+  healthLevelsStatus.innerText = "Sampling...";
+  healthPhaseVal.innerText = "--";
+  healthPhaseStatus.className = "metric-status";
+  healthPhaseStatus.innerText = "Correlating...";
+  if (healthRemedyBanner) healthRemedyBanner.style.display = "none";
+  if (healthRecsContainer) healthRecsContainer.style.display = "none";
+
+  const formData = new FormData();
+  formData.append("audio", file);
+
+  try {
+    const res = await fetch("/api/audio/diagnostics", {
+      method: "POST",
+      body: formData
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.status === "ok" && data.audio_health) {
+        updateAudioHealthUI(data.audio_health);
+      }
+    }
+  } catch (err) {
+    console.warn("Pre-flight audio health check failed:", err);
+  }
+}
+
 function handleFile(file) {
   selectedFile = file;
   dropzoneText.innerHTML = `<strong>Selected:</strong> ${escapeHtml(file.name)} <span style="font-size: 12px; color: var(--text-muted);">(${formatFileSize(file.size)})</span>`;
   btnStart.disabled = false;
+  runPreflightHealthCheck(file);
 }
 
 function formatFileSize(bytes) {
@@ -493,6 +670,10 @@ async function pollTaskStatus(taskId) {
         }
       }
 
+      if (data.audio_health) {
+        updateAudioHealthUI(data.audio_health);
+      }
+
       if (data.status === "completed") {
         clearInterval(pollTimer);
         progressCard.style.display = "none";
@@ -521,6 +702,9 @@ async function pollTaskStatus(taskId) {
 }
 
 function onTranscriptionSuccess(data) {
+  if (data.audio_health) {
+    updateAudioHealthUI(data.audio_health);
+  }
   currentSegments = data.segments;
   if (tabTranscriptBadge) tabTranscriptBadge.innerText = currentSegments.length;
   initAudioPlayer(data.id);
