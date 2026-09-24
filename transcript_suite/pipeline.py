@@ -3,7 +3,7 @@ End-to-end orchestration pipeline for Transcript Suite.
 Coordinates Audio Loader -> Diarization -> VAD -> Canary-Qwen ASR -> Speaker Alignment.
 """
 
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Optional, Callable, Iterator
 from pathlib import Path
 import time
 import tempfile
@@ -14,6 +14,7 @@ import numpy as np
 from .config import config
 from .audio.loader import AudioLoader
 from .audio.vad import SileroVADSegmenter
+from .audio.chunker import PseudoStreamChunker, StreamChunk
 from .audio.enhancer import GPUSpeechEnhancer
 from .asr.canary import CanaryQwenTranscriber
 from .asr.memory import VRAMManager, get_subsystem_supervisor
@@ -758,3 +759,141 @@ class TranscriptionPipeline:
             self.vram_manager.clear_cache()
             if hasattr(self, "supervisor"):
                 self.supervisor.finalize_pipeline()
+
+    def stream_transcribe(
+        self,
+        file_path: str | Path,
+        model_choice: str = "canary",
+        enable_enhancer: bool = False,
+        min_chunk_duration: float = 3.0,
+        max_chunk_duration: float = 12.0,
+        speaker_alias: Optional[str] = None,
+        stop_event: Optional[Any] = None
+    ) -> Iterator[Dict[str, Any]]:
+        """
+        Yields progressive transcription events for an audio file.
+        Enables low-latency live streaming output to UI clients via SSE.
+        """
+        start_time = time.time()
+        file_path = Path(file_path).resolve()
+        if not file_path.exists():
+            yield {"event": "error", "data": {"error": f"Audio file not found: {file_path}"}}
+            return
+
+        def is_stopped() -> bool:
+            return stop_event is not None and stop_event.is_set()
+
+        try:
+            # 1. Load audio
+            waveform, sr, duration = self.audio_loader.load_audio(file_path)
+            if is_stopped():
+                yield {"event": "stopped", "data": {"message": "Transcription stopped by user"}}
+                return
+
+            if enable_enhancer:
+                waveform = self.enhancer.enhance(waveform, boost_level=self.vocal_boost_level)
+                if is_stopped():
+                    yield {"event": "stopped", "data": {"message": "Transcription stopped by user"}}
+                    return
+
+            yield {
+                "event": "init",
+                "data": {
+                    "file_path": str(file_path),
+                    "file_name": file_path.name,
+                    "duration": round(duration, 2),
+                    "sample_rate": sr,
+                    "model": model_choice
+                }
+            }
+
+            # 2. Pseudo-stream chunker
+            chunker = PseudoStreamChunker(
+                sample_rate=sr,
+                min_chunk_duration=min_chunk_duration,
+                max_chunk_duration=max_chunk_duration,
+                device=self.device
+            )
+
+            segments = []
+            full_text_parts = []
+
+            for chunk in chunker.stream_chunks(waveform, sample_rate=sr):
+                if is_stopped():
+                    yield {"event": "stopped", "data": {"message": "Transcription stopped by user"}}
+                    return
+
+                t_chunk_start = time.time()
+                yield {
+                    "event": "chunk_start",
+                    "data": {
+                        "chunk_idx": chunk.chunk_idx,
+                        "start": chunk.start,
+                        "end": chunk.end,
+                        "duration": chunk.duration,
+                        "is_final": chunk.is_final
+                    }
+                }
+
+                # 3. Transcribe chunk
+                text = ""
+                try:
+                    if model_choice.lower() == "whisper" and hasattr(self.council, "transcribe_with_whisper"):
+                        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+                            sf.write(tf.name, chunk.waveform.squeeze(0).cpu().numpy(), sr, subtype="PCM_16")
+                            text = self.council.transcribe_with_whisper(tf.name)
+                            Path(tf.name).unlink(missing_ok=True)
+                    else:
+                        # Default: Canary-Qwen fast pass
+                        if hasattr(self.transcriber, "transcribe_waveform_chunk"):
+                            text = self.transcriber.transcribe_waveform_chunk(chunk.waveform, sr=sr)
+                        elif hasattr(self.transcriber, "transcribe_chunk"):
+                            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+                                sf.write(tf.name, chunk.waveform.squeeze(0).cpu().numpy(), sr, subtype="PCM_16")
+                                text = self.transcriber.transcribe_chunk(tf.name)
+                                Path(tf.name).unlink(missing_ok=True)
+                except Exception as e:
+                    print(f"[Stream Warning] Chunk {chunk.chunk_idx} transcription error: {e}")
+                    text = ""
+
+                speaker_name = speaker_alias or "Speaker 0"
+                seg_dict = {
+                    "index": chunk.chunk_idx,
+                    "start": chunk.start,
+                    "end": chunk.end,
+                    "duration": chunk.duration,
+                    "speaker": speaker_name,
+                    "text": text.strip()
+                }
+                segments.append(seg_dict)
+                if text.strip():
+                    full_text_parts.append(text.strip())
+
+                yield {
+                    "event": "chunk_done",
+                    "data": {
+                        "chunk_idx": chunk.chunk_idx,
+                        "start": chunk.start,
+                        "end": chunk.end,
+                        "duration": chunk.duration,
+                        "text": text.strip(),
+                        "speaker": speaker_name,
+                        "is_final": chunk.is_final,
+                        "elapsed": round(time.time() - t_chunk_start, 3)
+                    }
+                }
+
+            full_text = " ".join(full_text_parts)
+            yield {
+                "event": "complete",
+                "data": {
+                    "full_text": full_text,
+                    "segments": segments,
+                    "total_chunks": len(segments),
+                    "duration": round(duration, 2),
+                    "elapsed_seconds": round(time.time() - start_time, 2)
+                }
+            }
+        except Exception as err:
+            print(f"[Stream Error] {err}")
+            yield {"event": "error", "data": {"error": str(err)}}

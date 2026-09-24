@@ -8,6 +8,7 @@ import uuid
 import asyncio
 import io
 import csv
+import json
 import time
 import gc
 import torch
@@ -15,7 +16,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, Response, Query, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
 from ..config import config
@@ -877,6 +878,153 @@ async def create_transcription_task(
     )
 
     return {"task_id": task_id, "status": "queued"}
+
+
+@app.post("/api/transcribe/stream")
+async def create_streaming_transcription(
+    audio: Optional[UploadFile] = File(None),
+    audio_path: Optional[str] = Form(None),
+    model: str = Form("canary"),
+    enable_enhancer: bool = Form(False),
+    min_chunk_duration: float = Form(3.0),
+    max_chunk_duration: float = Form(12.0),
+    speaker_alias: Optional[str] = Form(None)
+):
+    """
+    Streams progressive speech transcriptions in real time via Server-Sent Events (SSE).
+    Partitions audio dynamically into 5-15s acoustic windows via Silero-VAD.
+    """
+    if audio is None and not audio_path:
+        raise HTTPException(status_code=400, detail="Must provide either 'audio' file upload or 'audio_path'.")
+
+    task_id = str(uuid.uuid4())
+    if audio is not None:
+        file_ext = Path(audio.filename).suffix or ".aac"
+        saved_path = config.upload_dir / f"{task_id}{file_ext}"
+        saved_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(saved_path, "wb") as f:
+            f.write(await audio.read())
+        orig_filename = audio.filename
+    else:
+        saved_path = Path(audio_path).resolve()
+        if not saved_path.exists():
+            raise HTTPException(status_code=404, detail=f"Specified audio_path not found: {audio_path}")
+        orig_filename = saved_path.name
+
+    pause_event = threading.Event()
+    pause_event.set()
+    stop_event = threading.Event()
+
+    TASK_CONTROLS[task_id] = {
+        "pause_event": pause_event,
+        "stop_event": stop_event,
+        "pipeline": None
+    }
+
+    start_ts = time.time()
+    TASKS[task_id] = {
+        "id": task_id,
+        "filename": orig_filename,
+        "file_path": str(saved_path),
+        "status": "streaming",
+        "progress": 0.0,
+        "message": f"Streaming transcription ({model})...",
+        "segments": [],
+        "full_text": "",
+        "vram": vram_manager.get_stats(),
+        "start_ts": start_ts,
+        "logs": [],
+        "trace": []
+    }
+
+    add_log(task_id, "INFO", f"Initiated progressive stream for '{orig_filename}'.")
+    add_trace_sample(task_id)
+
+    async def sse_event_generator():
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue = asyncio.Queue()
+
+        def run_worker():
+            try:
+                pipeline = get_active_pipeline() or TranscriptionPipeline()
+                TASK_CONTROLS[task_id]["pipeline"] = pipeline
+                for event in pipeline.stream_transcribe(
+                    file_path=saved_path,
+                    model_choice=model,
+                    enable_enhancer=enable_enhancer,
+                    min_chunk_duration=min_chunk_duration,
+                    max_chunk_duration=max_chunk_duration,
+                    speaker_alias=speaker_alias,
+                    stop_event=stop_event
+                ):
+                    ev_type = event.get("event")
+                    ev_data = event.get("data", {})
+                    if ev_type == "init":
+                        TASKS[task_id]["duration"] = ev_data.get("duration", 0.0)
+                        TASKS[task_id]["message"] = f"Streaming transcription ({model})..."
+                        add_log(task_id, "INFO", f"Stream initialized for '{orig_filename}' ({ev_data.get('duration')}s)")
+                    elif ev_type == "chunk_done":
+                        seg = {
+                            "start": ev_data.get("start"),
+                            "end": ev_data.get("end"),
+                            "duration": ev_data.get("duration"),
+                            "speaker": ev_data.get("speaker", "Speaker 0"),
+                            "text": ev_data.get("text", "")
+                        }
+                        TASKS[task_id]["segments"].append(seg)
+                        text_val = ev_data.get("text", "")
+                        if text_val:
+                            curr_txt = TASKS[task_id].get("full_text", "")
+                            TASKS[task_id]["full_text"] = (curr_txt + " " + text_val).strip()
+                        add_log(task_id, "INFO", f"Stream chunk {ev_data.get('chunk_idx')} transcribed: {text_val[:40]}...")
+                    elif ev_type == "complete":
+                        TASKS[task_id]["status"] = "completed"
+                        TASKS[task_id]["progress"] = 1.0
+                        TASKS[task_id]["message"] = "Completed"
+                        add_log(task_id, "INFO", f"Stream completed ({len(TASKS[task_id]['segments'])} chunks).")
+                    elif ev_type == "stopped":
+                        TASKS[task_id]["status"] = "stopped"
+                        TASKS[task_id]["message"] = "Stopped by user"
+                        add_log(task_id, "WARN", "Stream transcription stopped by user.")
+                    elif ev_type == "error":
+                        TASKS[task_id]["status"] = "failed"
+                        TASKS[task_id]["message"] = ev_data.get("error", "Error")
+                        add_log(task_id, "ERROR", f"Stream failed: {ev_data.get('error')}")
+
+                    asyncio.run_coroutine_threadsafe(queue.put(event), loop).result()
+            except Exception as exc:
+                TASKS[task_id]["status"] = "failed"
+                TASKS[task_id]["message"] = str(exc)
+                err_ev = {"event": "error", "data": {"error": str(exc)}}
+                asyncio.run_coroutine_threadsafe(queue.put(err_ev), loop).result()
+            finally:
+                asyncio.run_coroutine_threadsafe(queue.put(None), loop).result()
+
+        worker_thread = threading.Thread(target=run_worker, daemon=True)
+        worker_thread.start()
+
+        yield f"event: task_registered\ndata: {json.dumps({'task_id': task_id})}\n\n"
+
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            ev_name = item.get("event", "message")
+            ev_payload = json.dumps(item.get("data", {}))
+            yield f"event: {ev_name}\ndata: {ev_payload}\n\n"
+
+    return StreamingResponse(
+        sse_event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "X-Task-ID": task_id
+        }
+    )
+
+
 
 
 

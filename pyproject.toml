@@ -36,3 +36,6 @@ transcript-suite = "transcript_suite.cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["transcript_suite"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
