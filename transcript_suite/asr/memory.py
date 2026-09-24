@@ -1025,21 +1025,9 @@ class SubsystemSupervisor:
         total_bytes = 0
         for item in paths_to_inspect:
             target_path = item["path"]
-            item_bytes = 0
-            file_count = 0
-            if target_path.exists():
-                try:
-                    for root, _, files in os.walk(target_path):
-                        for f in files:
-                            fp = os.path.join(root, f)
-                            try:
-                                sz = os.path.getsize(fp)
-                                item_bytes += sz
-                                file_count += 1
-                            except (OSError, FileNotFoundError):
-                                pass
-                except Exception:
-                    pass
+            files = [f for f in target_path.rglob("*") if f.is_file()] if target_path.exists() else []
+            item_bytes = sum(f.stat().st_size for f in files)
+            file_count = len(files)
 
             total_bytes += item_bytes
             breakdown["targets"].append({
@@ -1092,18 +1080,13 @@ class SubsystemSupervisor:
                 for item in p.iterdir():
                     try:
                         if item.is_file() or item.is_symlink():
-                            sz = item.stat().st_size
-                            item.unlink()
-                            reclaimed_bytes += sz
+                            reclaimed_bytes += item.stat().st_size
                             files_deleted += 1
+                            item.unlink()
                         elif item.is_dir():
-                            for root, _, files in os.walk(item):
-                                for f in files:
-                                    try:
-                                        reclaimed_bytes += os.path.getsize(os.path.join(root, f))
-                                        files_deleted += 1
-                                    except Exception:
-                                        pass
+                            files = [f for f in item.rglob("*") if f.is_file()]
+                            reclaimed_bytes += sum(f.stat().st_size for f in files)
+                            files_deleted += len(files)
                             shutil.rmtree(item)
                     except Exception as e:
                         print(f"[Supervisor Purge Warning] Could not delete {item}: {e}")

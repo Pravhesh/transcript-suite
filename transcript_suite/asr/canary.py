@@ -48,21 +48,12 @@ def sanitize_canary_output(text: str, chunk_waveform: Optional[torch.Tensor] = N
     if len(words) <= 3 and words and words[0].lower().strip(".,:;!?").startswith("transcri"):
         return ""
     if len(words) >= 4:
-        word_counts = {}
-        for w in words:
-            w_l = w.lower().strip(".,!?")
-            word_counts[w_l] = word_counts.get(w_l, 0) + 1
-        max_rep = max(word_counts.values())
-        if max_rep / len(words) > 0.45:
+        from collections import Counter
+        if Counter(w.lower().strip(".,!?") for w in words).most_common(1)[0][1] / len(words) > 0.45:
             return ""
-
-        # Check 2-word bigram loops
         if len(words) >= 6:
             bigrams = [f"{words[i].lower().strip('.,!?')} {words[i+1].lower().strip('.,!?')}" for i in range(len(words) - 1)]
-            bg_counts = {}
-            for bg in bigrams:
-                bg_counts[bg] = bg_counts.get(bg, 0) + 1
-            if max(bg_counts.values()) >= 3:
+            if Counter(bigrams).most_common(1)[0][1] >= 3:
                 return ""
 
     # 3. RMS energy threshold check on silence/background flutter

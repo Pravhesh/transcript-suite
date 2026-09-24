@@ -5,7 +5,7 @@ Parakeet-TDT Transducer, Conformer-CTC, and Time-Stretch Acoustic Auditor) to re
 resolve acoustic ambiguities, and eliminate hallucinations.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import List, Dict, Any, Optional, Callable
 from pathlib import Path
 import difflib
@@ -26,13 +26,10 @@ class CouncilVote:
     weight: float = 1.0
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
-            "member": self.member,
-            "role": self.role,
-            "hypothesis": self.hypothesis.strip(),
-            "confidence": round(self.confidence, 3),
-            "weight": self.weight
-        }
+        d = asdict(self)
+        d["hypothesis"] = self.hypothesis.strip()
+        d["confidence"] = round(self.confidence, 3)
+        return d
 
 
 @dataclass
@@ -46,15 +43,10 @@ class CouncilDeliberation:
     deliberation_notes: str
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
-            "verdict": self.verdict.strip(),
-            "consensus_score": round(self.consensus_score, 3),
-            "agreement_type": self.agreement_type,
-            "votes": self.votes,
-            "disputed_tokens": self.disputed_tokens,
-            "needs_human_review": self.needs_human_review,
-            "deliberation_notes": self.deliberation_notes
-        }
+        d = asdict(self)
+        d["verdict"] = self.verdict.strip()
+        d["consensus_score"] = round(self.consensus_score, 3)
+        return d
 
 
 def normalize_for_comparison(text: str) -> str:

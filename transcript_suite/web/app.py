@@ -1259,100 +1259,31 @@ async def get_telemetry_logs(
     }
 
 
+def _csv_response(headers: list, rows: list, filename_prefix: str) -> Response:
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(headers)
+    writer.writerows(rows)
+    filename = f"{filename_prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return Response(content=output.getvalue(), media_type="text/csv", headers={"Content-Disposition": f"attachment; filename={filename}"})
+
+
 @app.get("/api/telemetry/export/trace.csv")
 async def export_trace_csv(task_id: Optional[str] = None):
     """Exports recorded memory trace telemetry as CSV."""
     source = TASKS[task_id].get("trace", []) if (task_id and task_id in TASKS) else GLOBAL_TRACE
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow([
-        "Timestamp",
-        "Time",
-        "Elapsed_Sec",
-        "Task_ID",
-        "File_Name",
-        "Status",
-        "Stage",
-        "App_RAM_GB",
-        "Sys_RAM_Used_GB",
-        "Sys_RAM_Total_GB",
-        "Sys_RAM_Percent",
-        "VRAM_Alloc_GB",
-        "VRAM_Reserved_GB",
-        "VRAM_Total_GB",
-        "VRAM_Percent"
-    ])
-    for s in source:
-        writer.writerow([
-            s.get("timestamp", ""),
-            s.get("time_str", ""),
-            s.get("elapsed_s", 0.0),
-            s.get("task_id", ""),
-            s.get("task_name", ""),
-            s.get("status", ""),
-            s.get("stage", ""),
-            s.get("proc_ram_used_gb", 0.0),
-            s.get("ram_used_gb", 0.0),
-            s.get("ram_total_gb", 0.0),
-            s.get("ram_pct", 0.0),
-            s.get("vram_alloc_gb", 0.0),
-            s.get("vram_reserved_gb", 0.0),
-            s.get("vram_total_gb", 0.0),
-            s.get("vram_pct", 0.0)
-        ])
-
-    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"memory_trace_{timestamp_str}.csv"
-    return Response(
-        content=output.getvalue(),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
+    headers = ["Timestamp", "Time", "Elapsed_Sec", "Task_ID", "File_Name", "Status", "Stage", "App_RAM_GB", "Sys_RAM_Used_GB", "Sys_RAM_Total_GB", "Sys_RAM_Percent", "VRAM_Alloc_GB", "VRAM_Reserved_GB", "VRAM_Total_GB", "VRAM_Percent"]
+    rows = [[s.get("timestamp", ""), s.get("time_str", ""), s.get("elapsed_s", 0.0), s.get("task_id", ""), s.get("task_name", ""), s.get("status", ""), s.get("stage", ""), s.get("proc_ram_used_gb", 0.0), s.get("ram_used_gb", 0.0), s.get("ram_total_gb", 0.0), s.get("ram_pct", 0.0), s.get("vram_alloc_gb", 0.0), s.get("vram_reserved_gb", 0.0), s.get("vram_total_gb", 0.0), s.get("vram_pct", 0.0)] for s in source]
+    return _csv_response(headers, rows, "memory_trace")
 
 
 @app.get("/api/telemetry/export/logs.csv")
 async def export_logs_csv(task_id: Optional[str] = None):
     """Exports execution logs as CSV."""
     source = TASKS[task_id].get("logs", []) if (task_id and task_id in TASKS) else GLOBAL_LOGS
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow([
-        "Timestamp",
-        "Time",
-        "Level",
-        "Task_ID",
-        "Message",
-        "RAM_Used_GB",
-        "RAM_Total_GB",
-        "RAM_Percent",
-        "VRAM_Alloc_GB",
-        "VRAM_Reserved_GB",
-        "VRAM_Total_GB",
-        "VRAM_Percent"
-    ])
-    for l in source:
-        writer.writerow([
-            l.get("timestamp", ""),
-            l.get("time_str", ""),
-            l.get("level", ""),
-            l.get("task_id", ""),
-            l.get("message", ""),
-            l.get("ram_used_gb", 0.0),
-            l.get("ram_total_gb", 0.0),
-            l.get("ram_pct", 0.0),
-            l.get("vram_alloc_gb", 0.0),
-            l.get("vram_reserved_gb", 0.0),
-            l.get("vram_total_gb", 0.0),
-            l.get("vram_pct", 0.0)
-        ])
-
-    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"execution_logs_{timestamp_str}.csv"
-    return Response(
-        content=output.getvalue(),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
+    headers = ["Timestamp", "Time", "Level", "Task_ID", "Message", "RAM_Used_GB", "RAM_Total_GB", "RAM_Percent", "VRAM_Alloc_GB", "VRAM_Reserved_GB", "VRAM_Total_GB", "VRAM_Percent"]
+    rows = [[l.get("timestamp", ""), l.get("time_str", ""), l.get("level", ""), l.get("task_id", ""), l.get("message", ""), l.get("ram_used_gb", 0.0), l.get("ram_total_gb", 0.0), l.get("ram_pct", 0.0), l.get("vram_alloc_gb", 0.0), l.get("vram_reserved_gb", 0.0), l.get("vram_total_gb", 0.0), l.get("vram_pct", 0.0)] for l in source]
+    return _csv_response(headers, rows, "execution_logs")
 
 
 @app.get("/api/telemetry/export/logs.txt")

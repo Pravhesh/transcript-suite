@@ -15,11 +15,7 @@ class SpeakerTurn:
     speaker: str
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
-            "start": round(self.start, 2),
-            "end": round(self.end, 2),
-            "speaker": self.speaker
-        }
+        return {"start": round(self.start, 2), "end": round(self.end, 2), "speaker": self.speaker}
 
 
 class BaseDiarizer(ABC):

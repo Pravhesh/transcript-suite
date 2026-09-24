@@ -50,14 +50,9 @@ class AmbiguityResolver:
                 score += 0.35
 
         # 2. Severe repetition hallucination (e.g. "I think I think I think")
-        if num_words >= 4:
-            word_counts = {}
-            for w in words:
-                w_lower = w.lower()
-                word_counts[w_lower] = word_counts.get(w_lower, 0) + 1
-            max_repeat = max(word_counts.values())
-            if max_repeat / num_words > 0.45:
-                score += 0.4
+        from collections import Counter
+        if num_words >= 4 and (Counter(w.lower() for w in words).most_common(1)[0][1] / num_words) > 0.45:
+            score += 0.4
 
         # 3. Speech Rate Anomaly (too fast or too slow)
         if duration > 0.5:

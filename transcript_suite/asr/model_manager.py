@@ -299,17 +299,10 @@ class ModelManager:
                 return p.stat().st_size
             except OSError:
                 return 0
-        total = 0
         try:
-            for item in p.rglob("*"):
-                if item.is_file() and not item.is_symlink():
-                    try:
-                        total += item.stat().st_size
-                    except OSError:
-                        pass
+            return sum(item.stat().st_size for item in p.rglob("*") if item.is_file() and not item.is_symlink())
         except Exception:
-            pass
-        return total
+            return 0
 
     def get_active_roster(self) -> Dict[str, Any]:
         """Returns the active sequential council roster and enhancement settings."""
