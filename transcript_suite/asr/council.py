@@ -6,10 +6,11 @@ resolve acoustic ambiguities, and eliminate hallucinations.
 """
 
 from dataclasses import dataclass, asdict
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Optional, Callable, Tuple
 from pathlib import Path
 import difflib
 import re
+import math
 import tempfile
 import torch
 import numpy as np
@@ -18,6 +19,7 @@ from .canary import sanitize_canary_output
 from .lattice import TokenLattice
 from .phonetics import are_homophones, double_metaphone
 from ..config import config
+from ..audio.loader import estimate_snr_db
 
 
 @dataclass
@@ -47,12 +49,221 @@ class CouncilDeliberation:
     lattice_bins: Optional[List[Dict[str, Any]]] = None
     homophone_resolutions: int = 0
     ctc_vetoes: int = 0
+    loop_circuit_breaker_tripped: bool = False
+    confidence_decomposition: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
         d["verdict"] = self.verdict.strip()
         d["consensus_score"] = round(self.consensus_score, 3)
+        d["loop_circuit_breaker_tripped"] = self.loop_circuit_breaker_tripped
+        if self.confidence_decomposition is not None:
+            d["confidence_decomposition"] = self.confidence_decomposition
         return d
+
+
+def detect_autoregressive_loop(text: str) -> Tuple[bool, str, Dict[str, Any]]:
+    """
+    Autoregressive Loop Circuit-Breaker (Feature 2.2.C).
+    Monitors repetition entropy and detects degenerate n-gram and phrase loops:
+    1. Consecutive repeating n-grams (1-gram >= 4x, 2-gram >= 3x, 3-gram >= 3x, 4-gram >= 2x).
+    2. Shannon token entropy H < 1.80 and low vocabulary diversity D < 0.40 on >=8 words.
+    3. Whole phrase tail cycles (repeating clauses >=3 words).
+    Returns (is_loop, reason, metrics).
+    """
+    if not text:
+        return False, "", {"word_count": 0, "diversity": 1.0, "entropy": 0.0}
+
+    raw_words = re.findall(r"\b\w+\b", text.lower())
+    total_words = len(raw_words)
+    if total_words < 3:
+        return False, "", {"word_count": total_words, "diversity": 1.0, "entropy": 0.0}
+
+    counts: Dict[str, int] = {}
+    for w in raw_words:
+        counts[w] = counts.get(w, 0) + 1
+
+    unique_words = len(counts)
+    diversity = unique_words / total_words
+
+    # Shannon entropy H = -sum(p * log2(p))
+    entropy = 0.0
+    for count in counts.values():
+        p = count / total_words
+        entropy -= p * math.log2(p)
+
+    metrics = {
+        "word_count": total_words,
+        "unique_words": unique_words,
+        "diversity": round(diversity, 3),
+        "entropy": round(entropy, 3)
+    }
+
+    # 1. Consecutive N-gram repeats check (n = 1, 2, 3, 4)
+    # n=1 (single word repeated >= 4 consecutive times, e.g. 'yes yes yes yes')
+    for i in range(len(raw_words) - 3):
+        w = raw_words[i]
+        if raw_words[i + 1] == w and raw_words[i + 2] == w and raw_words[i + 3] == w:
+            metrics["ngram"] = 1
+            metrics["pattern"] = w
+            return True, f"1-gram loop: '{w}' repeated 4+ times consecutively", metrics
+
+    # n=2 (2-word bigram repeated >= 3 consecutive times, e.g., 'you know you know you know')
+    if total_words >= 6:
+        for i in range(len(raw_words) - 5):
+            bg1 = (raw_words[i], raw_words[i + 1])
+            bg2 = (raw_words[i + 2], raw_words[i + 3])
+            bg3 = (raw_words[i + 4], raw_words[i + 5])
+            if bg1 == bg2 == bg3:
+                pat = " ".join(bg1)
+                metrics["ngram"] = 2
+                metrics["pattern"] = pat
+                return True, f"2-gram loop: '{pat}' repeated 3+ times consecutively", metrics
+
+    # n=3 (3-word trigram repeated >= 3 consecutive times)
+    if total_words >= 9:
+        for i in range(len(raw_words) - 8):
+            tg1 = (raw_words[i], raw_words[i + 1], raw_words[i + 2])
+            tg2 = (raw_words[i + 3], raw_words[i + 4], raw_words[i + 5])
+            tg3 = (raw_words[i + 6], raw_words[i + 7], raw_words[i + 8])
+            if tg1 == tg2 == tg3:
+                pat = " ".join(tg1)
+                metrics["ngram"] = 3
+                metrics["pattern"] = pat
+                return True, f"3-gram loop: '{pat}' repeated 3+ times consecutively", metrics
+
+    # n=4 (4-word 4-gram repeated >= 2 consecutive times)
+    if total_words >= 8:
+        for i in range(len(raw_words) - 7):
+            fg1 = tuple(raw_words[i : i + 4])
+            fg2 = tuple(raw_words[i + 4 : i + 8])
+            if fg1 == fg2:
+                pat = " ".join(fg1)
+                metrics["ngram"] = 4
+                metrics["pattern"] = pat
+                return True, f"4-gram loop: '{pat}' repeated 2+ times consecutively", metrics
+
+    # 2. Tail phrase cycle detection (repeating phrase of length k in [3..12])
+    for k in range(3, min(15, total_words // 2 + 1)):
+        tail1 = raw_words[-k:]
+        tail2 = raw_words[-2 * k : -k]
+        if tail1 == tail2:
+            pat = " ".join(tail1)
+            metrics["cycle_len"] = k
+            metrics["pattern"] = pat
+            return True, f"Tail phrase cycle: '{pat}' repeated", metrics
+
+    # 3. Vocabulary diversity & Shannon Entropy
+    if total_words >= 10 and diversity < 0.40:
+        return True, f"Low vocabulary diversity ({diversity:.2f} < 0.40) across {total_words} words", metrics
+
+    if total_words >= 8 and entropy < 1.80:
+        return True, f"Low Shannon repetition entropy ({entropy:.2f} < 1.80)", metrics
+
+    return False, "", metrics
+
+
+def compute_orthogonal_confidence(
+    waveform: Optional[torch.Tensor] = None,
+    sr: int = 16000,
+    conformer_conf: float = 0.90,
+    lattice_score: float = 0.85,
+    canary_text: str = "",
+    whisper_text: str = "",
+    disputed_tokens: Optional[List[str]] = None,
+    circuit_breaker_tripped: bool = False
+) -> Dict[str, Any]:
+    """
+    Orthogonal Confidence Decomposition (Feature 2.3.A).
+    Decomposes scalar confidence into two independent axes:
+    1. Physical Audio Clarity (C_acoustic): SNR in dB, digital clipping %, CTC anchor clarity.
+    2. Linguistic Model Consensus (C_semantic): Lattice consensus score, pairwise similarity, undisputed token ratio.
+    Maps to 4-quadrant taxonomy:
+    - HIGH_ACOUSTIC_HIGH_SEMANTIC: Pristine audio, full consensus.
+    - HIGH_ACOUSTIC_LOW_SEMANTIC: Clear microphone, but linguistic dispute (jargon/proper nouns).
+    - LOW_ACOUSTIC_HIGH_SEMANTIC: Noisy/low SNR audio, but models unanimously agreed.
+    - LOW_ACOUSTIC_LOW_SEMANTIC: Degraded audio with high model ambiguity.
+    """
+    disputed = disputed_tokens or []
+
+    # 1. Acoustic Quality Axis (C_acoustic)
+    if waveform is not None and waveform.numel() > 0:
+        snr_db = estimate_snr_db(waveform, sr)
+        clipped_count = (torch.abs(waveform) >= 0.995).sum().item()
+        clipping_pct = (clipped_count / max(1, waveform.numel())) * 100.0
+        s_clip = max(0.0, 1.0 - (clipping_pct / 5.0))
+    else:
+        snr_db = 28.0  # Clean baseline when waveform not supplied
+        clipping_pct = 0.0
+        s_clip = 1.0
+
+    # Normalize SNR: 5 dB -> 0.0, 30 dB+ -> 1.0
+    s_snr = max(0.0, min(1.0, (snr_db - 5.0) / 25.0))
+    s_ctc = max(0.0, min(1.0, conformer_conf))
+
+    # Composite C_acoustic
+    c_acoustic = 0.50 * s_snr + 0.20 * s_clip + 0.30 * s_ctc
+    c_acoustic = max(0.0, min(1.0, c_acoustic))
+
+    if c_acoustic >= 0.85:
+        acoustic_grade = "PRISTINE"
+    elif c_acoustic >= 0.70:
+        acoustic_grade = "CLEAR"
+    elif c_acoustic >= 0.50:
+        acoustic_grade = "MODERATE_NOISE"
+    else:
+        acoustic_grade = "POOR_SNR"
+
+    # 2. Semantic Consensus Axis (C_semantic)
+    s_lattice = max(0.0, min(1.0, lattice_score))
+    s_sim = calculate_similarity(canary_text, whisper_text)
+
+    all_words = len(normalize_for_comparison(f"{canary_text} {whisper_text}").split())
+    disp_count = len(disputed)
+    s_undisputed = max(0.0, 1.0 - (disp_count / max(1, (all_words // 2) + 1)))
+
+    if circuit_breaker_tripped:
+        c_semantic = min(0.55, 0.50 * s_lattice + 0.50 * s_ctc)
+    else:
+        c_semantic = 0.50 * s_lattice + 0.30 * s_sim + 0.20 * s_undisputed
+    c_semantic = max(0.0, min(1.0, c_semantic))
+
+    if c_semantic >= 0.88:
+        semantic_grade = "UNANIMOUS"
+    elif c_semantic >= 0.72:
+        semantic_grade = "STRONG_CONSENSUS"
+    elif c_semantic >= 0.52:
+        semantic_grade = "DISPUTED_TERMS"
+    else:
+        semantic_grade = "SPLIT_DECISION"
+
+    # 3. Quadrant Mapping (threshold = 0.65)
+    is_high_acoustic = c_acoustic >= 0.65
+    is_high_semantic = c_semantic >= 0.65
+
+    if is_high_acoustic and is_high_semantic:
+        quadrant = "HIGH_ACOUSTIC_HIGH_SEMANTIC"
+        quadrant_label = "Pristine audio with unanimous consensus"
+    elif is_high_acoustic and not is_high_semantic:
+        quadrant = "HIGH_ACOUSTIC_LOW_SEMANTIC"
+        quadrant_label = "Clear microphone audio, but linguistic/spelling disagreement"
+    elif not is_high_acoustic and is_high_semantic:
+        quadrant = "LOW_ACOUSTIC_HIGH_SEMANTIC"
+        quadrant_label = "Noisy/low SNR audio, but council unanimously resolved speech"
+    else:
+        quadrant = "LOW_ACOUSTIC_LOW_SEMANTIC"
+        quadrant_label = "Degraded audio quality with high model dispute"
+
+    return {
+        "acoustic_score": round(c_acoustic, 3),
+        "acoustic_grade": acoustic_grade,
+        "snr_db": round(snr_db, 1),
+        "clipping_pct": round(clipping_pct, 2),
+        "semantic_score": round(c_semantic, 3),
+        "semantic_grade": semantic_grade,
+        "quadrant": quadrant,
+        "quadrant_label": quadrant_label
+    }
 
 
 def normalize_for_comparison(text: str) -> str:
@@ -430,19 +641,34 @@ class ModelCouncil:
         votes: List[CouncilVote] = []
 
         # 1. Lead Justice Vote (Canary-Qwen)
-        h_canary = sanitize_canary_output(canary_text or "", chunk_waveform=waveform)
+        raw_canary = (canary_text or "").strip()
+        is_canary_loop, canary_loop_reason, _ = detect_autoregressive_loop(raw_canary)
+        h_canary = sanitize_canary_output(raw_canary, chunk_waveform=waveform)
+        if not h_canary and raw_canary and is_canary_loop:
+            h_canary = raw_canary
+
         canary_conf = 0.95 if h_canary else 0.10
         if any(m in h_canary for m in ["???", "[inaudible]", "...", "uhh", "um"]):
             canary_conf = 0.50
         elif len(h_canary) < 4 and h_canary:
             canary_conf = 0.65
 
+        # Feature 2.2.C: Canary Autoregressive Loop Check
+        if is_canary_loop:
+            print(f"[Council Loop Sentry] Canary-Qwen loop vetoed: {canary_loop_reason}")
+            canary_conf = 0.05
+            canary_weight = 0.0
+            canary_role = "Lead Justice [CANARY_LOOP_VETO]"
+        else:
+            canary_weight = 1.5
+            canary_role = "Lead Justice"
+
         votes.append(CouncilVote(
             member="Canary-Qwen-2.5B",
-            role="Lead Justice",
+            role=canary_role,
             hypothesis=h_canary,
             confidence=canary_conf,
-            weight=1.5
+            weight=canary_weight
         ))
 
         # 2. Cross-Examiner Vote (Whisper)
@@ -451,12 +677,23 @@ class ModelCouncil:
         if not h_whisper or any(m in h_whisper for m in ["???", "..."]):
             whisper_conf = 0.45
 
+        # Feature 2.2.C: Whisper Autoregressive Loop Check
+        is_whisper_loop, whisper_loop_reason, _ = detect_autoregressive_loop(h_whisper)
+        if is_whisper_loop:
+            print(f"[Council Loop Sentry] Whisper loop vetoed: {whisper_loop_reason}")
+            whisper_conf = 0.05
+            whisper_weight = 0.0
+            whisper_role = "Cross-Examiner [WHISPER_LOOP_VETO]"
+        else:
+            whisper_weight = 1.2
+            whisper_role = "Cross-Examiner"
+
         votes.append(CouncilVote(
             member="Whisper-CrossExaminer",
-            role="Cross-Examiner",
+            role=whisper_role,
             hypothesis=h_whisper,
             confidence=whisper_conf,
-            weight=1.2
+            weight=whisper_weight
         ))
 
         # 3. Transducer Vote (Parakeet-TDT, if present)
@@ -482,11 +719,62 @@ class ModelCouncil:
             weight=1.3
         ))
 
+        # Circuit-Breaker: Check if autoregressive decoders must be completely bypassed (Feature 2.2.C)
+        circuit_breaker_tripped = False
+        if is_canary_loop and is_whisper_loop:
+            circuit_breaker_tripped = True
+        elif is_canary_loop and not h_whisper:
+            circuit_breaker_tripped = True
+        elif is_whisper_loop and not h_canary:
+            circuit_breaker_tripped = True
+
+        if circuit_breaker_tripped:
+            anchor_verdict = h_parakeet or h_conformer
+            reasons = []
+            if is_canary_loop:
+                reasons.append(f"Canary ({canary_loop_reason})")
+            if is_whisper_loop:
+                reasons.append(f"Whisper ({whisper_loop_reason})")
+            notes = f"[LOOP_CIRCUIT_BREAKER_TRIPPED] Autoregressive hallucination loop vetoed: {'; '.join(reasons)}. Defaulted to Acoustic Anchor."
+            disp = find_disputed_words([h_canary, h_whisper, anchor_verdict])
+            decomp = compute_orthogonal_confidence(
+                waveform=waveform,
+                sr=sample_rate,
+                conformer_conf=conformer_conf,
+                lattice_score=0.60,
+                canary_text=h_canary,
+                whisper_text=h_whisper,
+                disputed_tokens=disp,
+                circuit_breaker_tripped=True
+            )
+            return CouncilDeliberation(
+                verdict=anchor_verdict,
+                consensus_score=0.60,
+                agreement_type="CTC_ANCHORED",
+                votes=[v.to_dict() for v in votes],
+                disputed_tokens=disp,
+                needs_human_review=False,
+                deliberation_notes=notes,
+                loop_circuit_breaker_tripped=True,
+                confidence_decomposition=decomp,
+                ctc_vetoes=1
+            )
+
         # Deliberation Analysis
 
         # Case A: Silence / Non-speech Anchor
         if not h_conformer and not h_parakeet:
             if not h_canary and not h_whisper:
+                decomp = compute_orthogonal_confidence(
+                    waveform=waveform,
+                    sr=sample_rate,
+                    conformer_conf=conformer_conf,
+                    lattice_score=1.0,
+                    canary_text="",
+                    whisper_text="",
+                    disputed_tokens=[],
+                    circuit_breaker_tripped=False
+                )
                 return CouncilDeliberation(
                     verdict="",
                     consensus_score=1.0,
@@ -494,37 +782,65 @@ class ModelCouncil:
                     votes=[v.to_dict() for v in votes],
                     disputed_tokens=[],
                     needs_human_review=False,
-                    deliberation_notes="Unanimous consensus: non-speech / silence."
+                    deliberation_notes="Unanimous consensus: non-speech / silence.",
+                    loop_circuit_breaker_tripped=False,
+                    confidence_decomposition=decomp
                 )
             else:
                 has_substantive = bool(h_whisper and len(h_whisper.split()) >= 2) or bool(h_canary and len(h_canary.split()) >= 2)
+                disp = find_disputed_words([h_canary, h_whisper])
                 if has_substantive:
                     chosen_verdict = h_whisper if h_whisper else h_canary
+                    decomp = compute_orthogonal_confidence(
+                        waveform=waveform,
+                        sr=sample_rate,
+                        conformer_conf=conformer_conf,
+                        lattice_score=0.45,
+                        canary_text=h_canary,
+                        whisper_text=h_whisper,
+                        disputed_tokens=disp,
+                        circuit_breaker_tripped=False
+                    )
                     return CouncilDeliberation(
                         verdict=chosen_verdict,
                         consensus_score=0.45,
                         agreement_type="SPLIT_DECISION",
                         votes=[v.to_dict() for v in votes],
-                        disputed_tokens=find_disputed_words([h_canary, h_whisper]),
+                        disputed_tokens=disp,
                         needs_human_review=True,
-                        deliberation_notes="Split decision: Acoustic anchors returned no text but Cross-Examiner transcribed substantive speech. Flagged for review/adjudication."
+                        deliberation_notes="Split decision: Acoustic anchors returned no text but Cross-Examiner transcribed substantive speech. Flagged for review/adjudication.",
+                        loop_circuit_breaker_tripped=False,
+                        confidence_decomposition=decomp
                     )
                 else:
+                    decomp = compute_orthogonal_confidence(
+                        waveform=waveform,
+                        sr=sample_rate,
+                        conformer_conf=conformer_conf,
+                        lattice_score=0.85,
+                        canary_text=h_canary,
+                        whisper_text=h_whisper,
+                        disputed_tokens=disp,
+                        circuit_breaker_tripped=False
+                    )
                     return CouncilDeliberation(
                         verdict="",
                         consensus_score=0.85,
                         agreement_type="CTC_ANCHORED",
                         votes=[v.to_dict() for v in votes],
-                        disputed_tokens=find_disputed_words([h_canary, h_whisper]),
+                        disputed_tokens=disp,
                         needs_human_review=False,
-                        deliberation_notes="Acoustic Anchor (CTC) verified non-speech. Short token hallucination suppressed."
+                        deliberation_notes="Acoustic Anchor (CTC) verified non-speech. Short token hallucination suppressed.",
+                        loop_circuit_breaker_tripped=False,
+                        confidence_decomposition=decomp,
+                        ctc_vetoes=1
                     )
 
         # Unified Token & Acoustic Lattice (Confusion Network Alignment)
         active_hyps = [h for h in [h_canary, h_whisper, h_parakeet, h_conformer] if h]
         lattice = TokenLattice()
-        lattice.add_hypothesis("Canary-Qwen-2.5B", h_canary, canary_conf, weight=1.5)
-        lattice.add_hypothesis("Whisper-CrossExaminer", h_whisper, whisper_conf, weight=1.2)
+        lattice.add_hypothesis("Canary-Qwen-2.5B", h_canary, canary_conf, weight=canary_weight)
+        lattice.add_hypothesis("Whisper-CrossExaminer", h_whisper, whisper_conf, weight=whisper_weight)
         lattice.add_hypothesis("Conformer-CTC-Anchor", h_conformer, conformer_conf, weight=1.3)
         if h_parakeet:
             lattice.add_hypothesis("Parakeet-TDT-1.1B", h_parakeet, parakeet_conf, weight=1.3)
@@ -613,6 +929,17 @@ class ModelCouncil:
 
         notes = " ".join(notes_parts)
 
+        decomp = compute_orthogonal_confidence(
+            waveform=waveform,
+            sr=sample_rate,
+            conformer_conf=conformer_conf,
+            lattice_score=consensus_score,
+            canary_text=h_canary,
+            whisper_text=h_whisper,
+            disputed_tokens=disputed_tokens,
+            circuit_breaker_tripped=False
+        )
+
         return CouncilDeliberation(
             verdict=verdict or h_whisper or h_canary,
             consensus_score=round(consensus_score, 3),
@@ -622,7 +949,9 @@ class ModelCouncil:
             needs_human_review=needs_review,
             deliberation_notes=notes,
             homophone_resolutions=homophone_resolutions,
-            ctc_vetoes=ctc_vetoes
+            ctc_vetoes=ctc_vetoes,
+            loop_circuit_breaker_tripped=False,
+            confidence_decomposition=decomp
         )
 
     def deliberate(

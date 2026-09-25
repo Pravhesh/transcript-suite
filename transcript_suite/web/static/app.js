@@ -1249,13 +1249,18 @@ function renderTranscriptFeed() {
     let councilBadge = "";
     let councilToggleBtn = "";
     let councilDrawerHtml = "";
+    let decompBadges = "";
 
     if (seg.council) {
       const agreeType = seg.council.agreement_type || "MAJORITY";
       const scorePct = Math.round((seg.council.consensus_score || 0.85) * 100);
       const isExpanded = expandedCouncilSet.has(index);
 
-      if (agreeType === "UNANIMOUS") {
+      // Feature 2.2.C: Circuit-Breaker Tripped Badge
+      const isTripped = seg.loop_circuit_breaker_tripped || (seg.council && seg.council.loop_circuit_breaker_tripped);
+      if (isTripped) {
+        councilBadge = `<span class="badge-council badge-council-tripped" title="${seg.council.deliberation_notes || 'Autoregressive loop detected; defaulted to Acoustic Anchor'}">⚡ Loop Breaker</span>`;
+      } else if (agreeType === "UNANIMOUS") {
         councilBadge = `<span class="badge-council badge-council-unanimous" title="${seg.council.deliberation_notes || 'All models agreed'}">⚖️ 100% Unanimous</span>`;
       } else if (agreeType === "CTC_ANCHORED") {
         councilBadge = `<span class="badge-council badge-council-ctc" title="${seg.council.deliberation_notes || 'Non-speech verified by CTC'}">⚓ CTC Anchored</span>`;
@@ -1263,6 +1268,32 @@ function renderTranscriptFeed() {
         councilBadge = `<span class="badge-council badge-council-majority" title="${seg.council.deliberation_notes || 'Majority consensus'}">⚖️ Majority (${scorePct}%)</span>`;
       } else {
         councilBadge = `<span class="badge-council badge-council-split" title="${seg.council.deliberation_notes || 'Split decision across jurors'}">⚖️ Split Decision</span>`;
+      }
+
+      // Feature 2.3.A: Orthogonal Confidence Decomposition badges
+      const decomp = seg.confidence_decomposition || (seg.council && seg.council.confidence_decomposition);
+      let decompMatrixHtml = "";
+      if (decomp) {
+        const physPct = Math.round((decomp.acoustic_score != null ? decomp.acoustic_score : 0.85) * 100);
+        const semPct = Math.round((decomp.semantic_score != null ? decomp.semantic_score : 0.85) * 100);
+        const physClass = (decomp.acoustic_score >= 0.70) ? 'badge-decomp-good' : ((decomp.acoustic_score >= 0.50) ? 'badge-decomp-warn' : 'badge-decomp-danger');
+        const semClass = (decomp.semantic_score >= 0.72) ? 'badge-decomp-good' : ((decomp.semantic_score >= 0.52) ? 'badge-decomp-warn' : 'badge-decomp-danger');
+        decompBadges = `
+          <span class="badge-decomp ${physClass}" title="Physical Audio Quality: ${decomp.acoustic_grade} (SNR: ${decomp.snr_db} dB, Clip: ${decomp.clipping_pct}%)">🎙️ ${physPct}%</span>
+          <span class="badge-decomp ${semClass}" title="Linguistic Consensus: ${decomp.semantic_grade} (${decomp.quadrant_label || ''})">⚖️ ${semPct}%</span>
+        `;
+        decompMatrixHtml = `
+          <div class="council-decomp-matrix">
+            <div class="decomp-col">
+              <div class="decomp-header">🎙️ Physical Acoustic Clarity (${decomp.acoustic_grade})</div>
+              <div class="decomp-val">${physPct}% Clarity · SNR: ${decomp.snr_db} dB · Clip: ${decomp.clipping_pct}%</div>
+            </div>
+            <div class="decomp-col">
+              <div class="decomp-header">⚖️ Linguistic Consensus (${decomp.semantic_grade})</div>
+              <div class="decomp-val">${semPct}% Agreement · <span class="decomp-quadrant-tag">${decomp.quadrant || 'MATRIX'}</span></div>
+            </div>
+          </div>
+        `;
       }
 
       councilToggleBtn = `<button class="btn-council-toggle ${isExpanded ? 'active' : ''}" data-index="${index}">🏛️ Jury (${seg.council.votes ? seg.council.votes.length : 3}) ${isExpanded ? '▴' : '▾'}</button>`;
@@ -1307,6 +1338,7 @@ function renderTranscriptFeed() {
               <span>🏛️ Council Deliberation (${agreeType})</span>
               <span style="font-size: 11px; color: var(--text-muted);">${seg.council.consensus_score ? `Consensus: ${scorePct}%` : ''}</span>
             </div>
+            ${decompMatrixHtml}
             <div class="council-votes-list">${votesHtml}</div>
             ${disputedHtml}
             <div class="council-notes-text">📝 ${seg.council.deliberation_notes || ''}</div>
@@ -1331,6 +1363,7 @@ function renderTranscriptFeed() {
         <span class="speaker-badge ${spkClass}">${displayName}</span>
         <span class="timestamp-pill">[${formatSeconds(seg.start)} - ${formatSeconds(seg.end)}]</span>
         ${badgeExtras}
+        ${decompBadges}
         ${councilBadge}
         ${councilToggleBtn}
         ${auditionBtn}

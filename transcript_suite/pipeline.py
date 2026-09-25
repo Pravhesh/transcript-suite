@@ -775,7 +775,9 @@ class TranscriptionPipeline:
                             "text": verdict_text,
                             "council": delib.to_dict(),
                             "needs_review": delib.needs_human_review,
-                            "ambiguity_score": round(1.0 - delib.consensus_score, 3)
+                            "ambiguity_score": round(1.0 - delib.consensus_score, 3),
+                            "loop_circuit_breaker_tripped": delib.loop_circuit_breaker_tripped,
+                            "confidence_decomposition": delib.confidence_decomposition
                         }
                         transcribed_segments.append(seg_dict)
                         frac = 0.95 + ((idx + 1) / total_chunks) * 0.04
@@ -835,7 +837,9 @@ class TranscriptionPipeline:
                             "text": verdict_text,
                             "council": delib.to_dict(),
                             "needs_review": delib.needs_human_review,
-                            "ambiguity_score": round(1.0 - delib.consensus_score, 3)
+                            "ambiguity_score": round(1.0 - delib.consensus_score, 3),
+                            "loop_circuit_breaker_tripped": delib.loop_circuit_breaker_tripped,
+                            "confidence_decomposition": delib.confidence_decomposition
                         }
                         transcribed_segments.append(seg_dict)
 

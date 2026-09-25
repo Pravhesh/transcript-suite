@@ -1551,6 +1551,76 @@ main {
   color: #fcd34d;
 }
 
+.badge-council-tripped {
+  background-color: rgba(239, 68, 68, 0.25);
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  color: #fca5a5;
+  font-weight: 700;
+}
+
+/* Orthogonal Confidence Decomposition Badges */
+.badge-decomp {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  cursor: default;
+}
+
+.badge-decomp-good {
+  background-color: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #6ee7b7;
+}
+
+.badge-decomp-warn {
+  background-color: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fde68a;
+}
+
+.badge-decomp-danger {
+  background-color: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+.council-decomp-matrix {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 6px 0;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 6px;
+  border: 1px solid var(--border-dim);
+}
+
+.decomp-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.decomp-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.decomp-val {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.decomp-quadrant-tag {
+  font-weight: 600;
+  color: #a78bfa;
+}
+
 .btn-council-toggle {
   background: none;
   border: 1px solid var(--border-dim);
