@@ -14,7 +14,7 @@ import numpy as np
 from .config import config
 from .audio.loader import AudioLoader
 from .audio.vad import SileroVADSegmenter, SpeechSegment
-from .audio.chunker import PseudoStreamChunker, StreamChunk
+from .audio.chunker import PseudoStreamChunker, StreamChunk, deduplicate_chunk_boundary
 from .audio.enhancer import GPUSpeechEnhancer
 from .asr.canary import CanaryQwenTranscriber
 from .asr.memory import VRAMManager, get_subsystem_supervisor
@@ -58,7 +58,16 @@ class TranscriptionPipeline:
         )
         self.audex_model_id = audex_model_id or getattr(self.config, "audex_model_id", "nvidia/Nemotron-Labs-Audex-2B")
 
-        self.audio_loader = AudioLoader(target_sr=getattr(self.config, "sample_rate", 16000))
+        self.enable_lufs_normalization = getattr(self.config, "enable_lufs_normalization", True)
+        self.target_lufs = getattr(self.config, "target_lufs", -16.0)
+        self.chunk_overlap_s = getattr(self.config, "chunk_overlap_s", 0.5)
+        self.enable_boundary_dedup = getattr(self.config, "enable_boundary_dedup", True)
+
+        self.audio_loader = AudioLoader(
+            target_sr=getattr(self.config, "sample_rate", 16000),
+            enable_lufs_norm=self.enable_lufs_normalization,
+            target_lufs=self.target_lufs
+        )
         self.enhancer = GPUSpeechEnhancer(
             sample_rate=getattr(self.config, "sample_rate", 16000),
             device=self.device,
@@ -342,14 +351,25 @@ class TranscriptionPipeline:
         stop_event: Optional[any] = None,
         output_orig_path: Optional[str | Path] = None,
         output_processed_path: Optional[str | Path] = None,
-        chunks_dir: Optional[str | Path] = None
+        chunks_dir: Optional[str | Path] = None,
+        enable_lufs_norm: Optional[bool] = None,
+        target_lufs: Optional[float] = None,
+        chunk_overlap_s: Optional[float] = None,
+        enable_boundary_dedup: Optional[bool] = None
     ) -> Dict[str, Any]:
         """
-        Processes an audio file end-to-end with GPU enhancement, ambiguity slowdown, and pause/stop support.
+        Processes an audio file end-to-end with EBU R128 LUFS normalization (1.2.A), SoX VHQ
+        resampling (1.2.B), 500ms sliding chunk overlap & boundary deduplication (1.3.A),
+        GPU enhancement, ambiguity slowdown, and pause/stop support.
         Exports model-ingested processed waveform and chunk samples for synchronized audio comparison.
         """
         start_time = time.time()
         file_path = Path(file_path).resolve()
+
+        use_lufs = self.enable_lufs_normalization if enable_lufs_norm is None else enable_lufs_norm
+        use_target_lufs = self.target_lufs if target_lufs is None else target_lufs
+        use_overlap_s = self.chunk_overlap_s if chunk_overlap_s is None else chunk_overlap_s
+        use_dedup = self.enable_boundary_dedup if enable_boundary_dedup is None else enable_boundary_dedup
 
         def check_stop():
             if stop_event and stop_event.is_set():
@@ -365,17 +385,21 @@ class TranscriptionPipeline:
                 progress_callback(stage, frac, current_seg)
 
         try:
-            # 1. Load and normalize audio
+            # 1. Load, resample (1.2.B), and normalize loudness (1.2.A)
             t_prep_start = time.time()
             self.supervisor.record_stage_start("audio_preprocessor")
             report("Loading audio & analyzing pre-flight health...", 0.04)
-            waveform, sr, duration = self.audio_loader.load_audio(file_path)
+            waveform, sr, duration = self.audio_loader.load_audio(
+                file_path,
+                enable_lufs_norm=use_lufs,
+                target_lufs=use_target_lufs
+            )
             check_stop()
 
             health_report = getattr(self.audio_loader, "last_health_report", None)
             health_dict = health_report.to_dict() if health_report else {}
             if health_report:
-                h_msg = f"Pre-Flight Health: {health_report.health_grade} | SNR: {health_report.snr_db}dB | Clip: {health_report.clipping_pct}% | Phase: ρ={health_report.phase_correlation}"
+                h_msg = f"Pre-Flight Health: {health_report.health_grade} | SNR: {health_report.snr_db}dB | LUFS: {health_report.lufs} | Clip: {health_report.clipping_pct}% | Phase: ρ={health_report.phase_correlation}"
                 if health_report.phase_inverted:
                     h_msg += " (Phase Remedied)"
                 report(h_msg, 0.06, {"audio_health": health_dict})
@@ -481,8 +505,11 @@ class TranscriptionPipeline:
                                     raise InterruptedError("Transcription stopped by user.")
                                 time.sleep(0.2)
 
-                        start_sample = max(0, int(seg.start * sr))
-                        end_sample = min(waveform.shape[1], int(seg.end * sr))
+                        # 1.3.A: 500ms Sliding Window Context Padding across chunk boundaries
+                        c_audio_start = max(0.0, seg.start - (use_overlap_s if idx > 0 else 0.0))
+                        c_audio_end = min(duration, seg.end + (use_overlap_s if idx < total_chunks - 1 else 0.0))
+                        start_sample = max(0, int(c_audio_start * sr))
+                        end_sample = min(waveform.shape[1], int(c_audio_end * sr))
                         chunk_slice = waveform[:, start_sample:end_sample]
 
                         c_file = Path(tempfile.NamedTemporaryFile(suffix=f"_seq_{idx}.wav", delete=False).name)
@@ -706,12 +733,19 @@ class TranscriptionPipeline:
 
                     for idx, seg in enumerate(speech_segments):
                         delib = deliberations[idx]
+                        verdict_text = delib.verdict
+                        if use_dedup and transcribed_segments:
+                            if seg.start - transcribed_segments[-1]["end"] < 0.4:
+                                verdict_text = deduplicate_chunk_boundary(
+                                    transcribed_segments[-1]["text"],
+                                    verdict_text
+                                )
                         seg_dict = {
                             "start": round(seg.start, 2),
                             "end": round(seg.end, 2),
                             "duration": round(seg.duration, 2),
                             "speaker": getattr(seg, "speaker", "Speaker 0"),
-                            "text": delib.verdict,
+                            "text": verdict_text,
                             "council": delib.to_dict(),
                             "needs_review": delib.needs_human_review,
                             "ambiguity_score": round(1.0 - delib.consensus_score, 3)
@@ -734,8 +768,11 @@ class TranscriptionPipeline:
                                     raise InterruptedError("Transcription stopped by user.")
                                 time.sleep(0.2)
 
-                        start_sample = max(0, int(seg.start * sr))
-                        end_sample = min(waveform.shape[1], int(seg.end * sr))
+                        # 1.3.A: 500ms Sliding Window Context Padding across chunk boundaries
+                        c_audio_start = max(0.0, seg.start - (use_overlap_s if idx > 0 else 0.0))
+                        c_audio_end = min(duration, seg.end + (use_overlap_s if idx < total_chunks - 1 else 0.0))
+                        start_sample = max(0, int(c_audio_start * sr))
+                        end_sample = min(waveform.shape[1], int(c_audio_end * sr))
                         chunk_slice = waveform[:, start_sample:end_sample]
 
                         # Juror 1: Canary-Qwen
@@ -754,12 +791,20 @@ class TranscriptionPipeline:
                             chunks_dir=Path(chunks_dir) if chunks_dir else None
                         )
 
+                        verdict_text = delib.verdict
+                        if use_dedup and transcribed_segments:
+                            if seg.start - transcribed_segments[-1]["end"] < 0.4:
+                                verdict_text = deduplicate_chunk_boundary(
+                                    transcribed_segments[-1]["text"],
+                                    verdict_text
+                                )
+
                         seg_dict = {
                             "start": round(seg.start, 2),
                             "end": round(seg.end, 2),
                             "duration": round(seg.duration, 2),
                             "speaker": getattr(seg, "speaker", "Speaker 0"),
-                            "text": delib.verdict,
+                            "text": verdict_text,
                             "council": delib.to_dict(),
                             "needs_review": delib.needs_human_review,
                             "ambiguity_score": round(1.0 - delib.consensus_score, 3)
@@ -900,11 +945,12 @@ class TranscriptionPipeline:
                 }
             }
 
-            # 2. Pseudo-stream chunker
+            # 2. Pseudo-stream chunker with 500ms sliding window overlap (1.3.A)
             chunker = PseudoStreamChunker(
                 sample_rate=sr,
                 min_chunk_duration=min_chunk_duration,
                 max_chunk_duration=max_chunk_duration,
+                overlap_duration=self.chunk_overlap_s,
                 device=self.device
             )
 
@@ -950,17 +996,22 @@ class TranscriptionPipeline:
                     text = ""
 
                 speaker_name = speaker_alias or "Speaker 0"
+                raw_text = text.strip()
+                cleaned_text = raw_text
+                if self.enable_boundary_dedup and segments:
+                    cleaned_text = deduplicate_chunk_boundary(segments[-1]["text"], raw_text)
+
                 seg_dict = {
                     "index": chunk.chunk_idx,
                     "start": chunk.start,
                     "end": chunk.end,
                     "duration": chunk.duration,
                     "speaker": speaker_name,
-                    "text": text.strip()
+                    "text": cleaned_text
                 }
                 segments.append(seg_dict)
-                if text.strip():
-                    full_text_parts.append(text.strip())
+                if cleaned_text:
+                    full_text_parts.append(cleaned_text)
 
                 yield {
                     "event": "chunk_done",
@@ -969,7 +1020,7 @@ class TranscriptionPipeline:
                         "start": chunk.start,
                         "end": chunk.end,
                         "duration": chunk.duration,
-                        "text": text.strip(),
+                        "text": cleaned_text,
                         "speaker": speaker_name,
                         "is_final": chunk.is_final,
                         "elapsed": round(time.time() - t_chunk_start, 3)

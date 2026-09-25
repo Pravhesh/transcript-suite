@@ -73,12 +73,16 @@ const healthDcVal = document.getElementById("healthDcVal");
 const healthDcStatus = document.getElementById("healthDcStatus");
 const healthLevelsVal = document.getElementById("healthLevelsVal");
 const healthLevelsStatus = document.getElementById("healthLevelsStatus");
+const healthLufsVal = document.getElementById("healthLufsVal");
+const healthLufsStatus = document.getElementById("healthLufsStatus");
 const healthPhaseVal = document.getElementById("healthPhaseVal");
 const healthPhaseStatus = document.getElementById("healthPhaseStatus");
 const healthRemedyBanner = document.getElementById("healthRemedyBanner");
 const healthRemedyText = document.getElementById("healthRemedyText");
 const healthRecsContainer = document.getElementById("healthRecsContainer");
 const healthRecsList = document.getElementById("healthRecsList");
+const lufsNormCheckbox = document.getElementById("lufsNormCheckbox");
+const chunkOverlapCheckbox = document.getElementById("chunkOverlapCheckbox");
 
 // Progress Card
 const progressCard = document.getElementById("progressCard");
@@ -461,6 +465,31 @@ function updateAudioHealthUI(health) {
     healthLevelsStatus.innerText = "Optimal Headroom";
   }
 
+  // EBU R128 Loudness (LUFS) (1.2.A)
+  if (healthLufsVal && healthLufsStatus) {
+    const lufs = (health.lufs !== undefined && health.lufs !== null) ? Number(health.lufs) : null;
+    if (lufs !== null && !isNaN(lufs)) {
+      healthLufsVal.innerText = `${lufs.toFixed(1)} LUFS`;
+      if (lufs >= -20.0 && lufs <= -14.0) {
+        healthLufsStatus.className = "metric-status status-ok";
+        healthLufsStatus.innerText = "Target Broadcast";
+      } else if (lufs < -28.0) {
+        healthLufsStatus.className = "metric-status status-warn";
+        healthLufsStatus.innerText = "Very Quiet (Will Boost)";
+      } else if (lufs > -10.0) {
+        healthLufsStatus.className = "metric-status status-alert";
+        healthLufsStatus.innerText = "Very Loud";
+      } else {
+        healthLufsStatus.className = "metric-status status-ok";
+        healthLufsStatus.innerText = "Standard Range";
+      }
+    } else {
+      healthLufsVal.innerText = "-- LUFS";
+      healthLufsStatus.className = "metric-status";
+      healthLufsStatus.innerText = "--";
+    }
+  }
+
   // Channel Phase Correlation & Geometry (1.1.B)
   const channels = health.channels_original || 1;
   const phaseCorr = Number(health.phase_correlation ?? 1.0);
@@ -524,6 +553,11 @@ async function runPreflightHealthCheck(file) {
   healthLevelsVal.innerText = "-- / -- dBFS";
   healthLevelsStatus.className = "metric-status";
   healthLevelsStatus.innerText = "Sampling...";
+  if (healthLufsVal) healthLufsVal.innerText = "-- LUFS";
+  if (healthLufsStatus) {
+    healthLufsStatus.className = "metric-status";
+    healthLufsStatus.innerText = "Analyzing...";
+  }
   healthPhaseVal.innerText = "--";
   healthPhaseStatus.className = "metric-status";
   healthPhaseStatus.innerText = "Correlating...";
@@ -583,6 +617,10 @@ btnStart.addEventListener("click", async () => {
   formData.append("enable_ambiguity", ambiguityCheckbox ? ambiguityCheckbox.checked : true);
   formData.append("enable_council", councilCheckbox ? councilCheckbox.checked : true);
   formData.append("council_mode", councilModeSelect ? councilModeSelect.value : "sequential");
+  formData.append("enable_lufs", lufsNormCheckbox ? lufsNormCheckbox.checked : true);
+  formData.append("target_lufs", -16.0);
+  formData.append("chunk_overlap", (chunkOverlapCheckbox && !chunkOverlapCheckbox.checked) ? 0.0 : 0.5);
+  formData.append("enable_dedup", chunkOverlapCheckbox ? chunkOverlapCheckbox.checked : true);
   const vocalBoostSelect = document.getElementById("vocalBoostSelect");
   if (vocalBoostSelect) {
     formData.append("vocal_boost_level", vocalBoostSelect.value);

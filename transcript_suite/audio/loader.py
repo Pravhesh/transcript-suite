@@ -13,10 +13,13 @@ import torch
 import soundfile as sf
 import numpy as np
 
+from .normalizer import measure_lufs, normalize_lufs
+from .resampler import SoxVHQSincResampler, resample_sox_vhq
+
 
 @dataclass
 class AudioHealthReport:
-    """Pre-flight acoustic health diagnostics badge and telemetry (1.1.A / 1.1.B)."""
+    """Pre-flight acoustic health diagnostics badge and telemetry (1.1.A / 1.1.B / 1.2.A)."""
     snr_db: float
     clipping_pct: float
     dc_offset: float
@@ -29,6 +32,8 @@ class AudioHealthReport:
     health_grade: str  # EXCELLENT | GOOD | FAIR | POOR
     recommendations: List[str]
     duration_s: float
+    lufs: float = -70.0
+    target_lufs: float = -16.0
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
@@ -39,6 +44,8 @@ class AudioHealthReport:
         d["rms_dbfs"] = round(self.rms_dbfs, 1)
         d["phase_correlation"] = round(self.phase_correlation, 2)
         d["duration_s"] = round(self.duration_s, 2)
+        d["lufs"] = round(self.lufs, 1)
+        d["target_lufs"] = round(self.target_lufs, 1)
         return d
 
 
@@ -184,7 +191,14 @@ def diagnose_audio_health(
     if snr_db < 12.0:
         recs.append(f"Low SNR audio ({round(snr_db, 1)} dB): GPU speech enhancer recommended")
 
-    # 5. Composite Health Grade
+    # 5. Integrated Loudness (1.2.A)
+    measured_lufs = measure_lufs(waveform, sr)
+    if -65.0 < measured_lufs < -26.0:
+        recs.append(f"Low dialogue loudness ({round(measured_lufs, 1)} LUFS): EBU R128 dynamic normalization active")
+    elif measured_lufs > -12.0:
+        recs.append(f"Loud / hyper-compressed audio ({round(measured_lufs, 1)} LUFS): soft-knee peak limiting active")
+
+    # 6. Composite Health Grade
     if snr_db >= 20.0 and clipping_pct < 0.05 and abs(dc_offset) < 0.005:
         grade = "EXCELLENT"
     elif snr_db >= 14.0 and clipping_pct < 0.3:
@@ -207,6 +221,8 @@ def diagnose_audio_health(
         health_grade=grade,
         recommendations=recs,
         duration_s=round(num_samples / sr, 2),
+        lufs=round(measured_lufs, 1),
+        target_lufs=-16.0
     )
 
     return waveform, report
@@ -216,23 +232,26 @@ def load_audio(
     file_path: str | Path,
     target_sr: int = 16000,
     return_health: bool = False,
-    auto_remix_phase: bool = True
+    auto_remix_phase: bool = True,
+    enable_lufs_norm: bool = True,
+    target_lufs: float = -16.0
 ) -> Tuple[torch.Tensor, int, float] | Tuple[torch.Tensor, int, float, AudioHealthReport]:
     """
-    Loads an audio file (AAC, WAV, MP3, FLAC), converts to target sample rate,
-    performs out-of-phase polarity inversion & auto-remixing (1.1.B), and computes
-    pre-flight audio health diagnostics (1.1.A).
+    Loads an audio file (AAC, WAV, MP3, FLAC), converts to target sample rate using SoX VHQ
+    resampling (1.2.B), performs out-of-phase polarity inversion & auto-remixing (1.1.B), computes
+    pre-flight audio health diagnostics (1.1.A), and applies EBU R128 LUFS normalization (1.2.A).
     """
     path = Path(file_path).resolve()
     if not path.exists():
         raise FileNotFoundError(f"Audio file not found: {path}")
 
-    # FFmpeg reads source channels (without force downmixing to preserve stereo phase relationship)
+    # FFmpeg reads source channels using high-precision libsoxr resampler (1.2.B)
     cmd = [
         "ffmpeg",
         "-nostdin",
         "-threads", "0",
         "-i", str(path),
+        "-af", "aresample=resampler=soxr:precision=28:cheby=1",
         "-f", "wav",
         "-acodec", "pcm_s16le",
         "-ar", str(target_sr),
@@ -240,10 +259,27 @@ def load_audio(
     ]
     try:
         result = subprocess.run(cmd, capture_output=True, check=True)
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"FFmpeg failed to transcode {path}: {e.stderr.decode('utf-8', errors='ignore')}")
+        audio_data, sr = sf.read(io.BytesIO(result.stdout), dtype="float32")
+    except subprocess.CalledProcessError:
+        # Fallback to standard decode and in-memory SoX VHQ Kaiser sinc resampler
+        fallback_cmd = [
+            "ffmpeg",
+            "-nostdin",
+            "-threads", "0",
+            "-i", str(path),
+            "-f", "wav",
+            "-acodec", "pcm_s16le",
+            "-"
+        ]
+        fb_result = subprocess.run(fallback_cmd, capture_output=True, check=True)
+        raw_data, orig_sr = sf.read(io.BytesIO(fb_result.stdout), dtype="float32")
+        t_data = torch.from_numpy(raw_data if raw_data.ndim == 1 else raw_data.T)
+        t_resampled = resample_sox_vhq(t_data, orig_sr=orig_sr, target_sr=target_sr)
+        result_buf = io.BytesIO()
+        sf.write(result_buf, t_resampled.cpu().numpy().T if t_resampled.ndim > 1 else t_resampled.cpu().numpy(), target_sr, format="WAV", subtype="PCM_16")
+        result_buf.seek(0)
+        audio_data, sr = sf.read(result_buf, dtype="float32")
 
-    audio_data, sr = sf.read(io.BytesIO(result.stdout), dtype="float32")
     if audio_data.ndim == 1:
         raw_tensor = torch.from_numpy(audio_data).unsqueeze(0)
     else:
@@ -271,6 +307,12 @@ def load_audio(
         initial_recs=recs
     )
 
+    # 1.2.A: EBU R128 LUFS Loudness Normalization
+    if enable_lufs_norm:
+        clean_mono, in_lufs, out_lufs = normalize_lufs(clean_mono, sr=sr, target_lufs=target_lufs)
+        health_report.lufs = in_lufs
+        health_report.target_lufs = target_lufs
+
     duration = clean_mono.shape[1] / sr
 
     if return_health:
@@ -290,25 +332,33 @@ def save_segment(waveform: torch.Tensor, start_s: float, end_s: float, output_pa
 
 class AudioLoader:
     """
-    Managed audio ingest engine with pre-flight health diagnostics (1.1.A)
-    and stereo phase inversion remediation (1.1.B).
+    Managed audio ingest engine with pre-flight health diagnostics (1.1.A),
+    stereo phase inversion remediation (1.1.B), and EBU R128 LUFS normalization (1.2.A).
     """
 
-    def __init__(self, target_sr: int = 16000, auto_remix_phase: bool = True):
+    def __init__(self, target_sr: int = 16000, auto_remix_phase: bool = True, enable_lufs_norm: bool = True, target_lufs: float = -16.0):
         self.target_sr = target_sr
         self.auto_remix_phase = auto_remix_phase
+        self.enable_lufs_norm = enable_lufs_norm
+        self.target_lufs = target_lufs
         self.last_health_report: Optional[AudioHealthReport] = None
 
     def load_audio(
         self,
         file_path: str | Path,
-        return_health: bool = False
+        return_health: bool = False,
+        enable_lufs_norm: Optional[bool] = None,
+        target_lufs: Optional[float] = None
     ) -> Tuple[torch.Tensor, int, float] | Tuple[torch.Tensor, int, float, AudioHealthReport]:
+        use_lufs = self.enable_lufs_norm if enable_lufs_norm is None else enable_lufs_norm
+        use_target = self.target_lufs if target_lufs is None else target_lufs
         res = load_audio(
             file_path,
             target_sr=self.target_sr,
             return_health=True,
-            auto_remix_phase=self.auto_remix_phase
+            auto_remix_phase=self.auto_remix_phase,
+            enable_lufs_norm=use_lufs,
+            target_lufs=use_target
         )
         waveform, sr, duration, report = res
         self.last_health_report = report
@@ -322,7 +372,9 @@ class AudioLoader:
             file_path,
             target_sr=self.target_sr,
             return_health=True,
-            auto_remix_phase=self.auto_remix_phase
+            auto_remix_phase=self.auto_remix_phase,
+            enable_lufs_norm=self.enable_lufs_norm,
+            target_lufs=self.target_lufs
         )
         self.last_health_report = report
         return report

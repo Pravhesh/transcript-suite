@@ -188,6 +188,11 @@
               <span class="metric-status" id="healthLevelsStatus">--</span>
             </div>
             <div class="health-metric-tile">
+              <span class="metric-label">EBU R128 Loudness</span>
+              <span class="metric-value" id="healthLufsVal">-- LUFS</span>
+              <span class="metric-status" id="healthLufsStatus">--</span>
+            </div>
+            <div class="health-metric-tile">
               <span class="metric-label">Channel Phase Correlation</span>
               <span class="metric-value" id="healthPhaseVal">--</span>
               <span class="metric-status" id="healthPhaseStatus">--</span>
@@ -212,6 +217,16 @@
           <label class="checkbox-label" title="Diarize distinct speakers">
             <input type="checkbox" id="speakerLabelsCheckbox" checked>
             <span>Speaker Diarization</span>
+          </label>
+
+          <label class="checkbox-label" title="Normalize audio to -16 LUFS broadcast standard with soft-knee dynamic peak limiter (0% clipping)">
+            <input type="checkbox" id="lufsNormCheckbox" checked>
+            <span>EBU R128 Norm (-16 LUFS)</span>
+          </label>
+
+          <label class="checkbox-label" title="500ms sliding window chunk overlap with boundary word deduplication to prevent clipped speech">
+            <input type="checkbox" id="chunkOverlapCheckbox" checked>
+            <span>500ms Overlap Dedup</span>
           </label>
 
           <label class="checkbox-label" title="Low-cut rumble filter, spectral noise gate, and vocal presence equalizer on GPU">

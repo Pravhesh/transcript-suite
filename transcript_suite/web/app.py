@@ -813,6 +813,10 @@ async def create_transcription_task(
     enable_council: bool = Form(True),
     council_mode: str = Form("sequential"),
     vocal_boost_level: str = Form("adaptive"),
+    enable_lufs: bool = Form(True),
+    target_lufs: float = Form(-16.0),
+    chunk_overlap: float = Form(0.5),
+    enable_dedup: bool = Form(True),
     whisper_model: Optional[str] = Form(None),
     conformer_model: Optional[str] = Form(None),
     parakeet_model: Optional[str] = Form(None),
@@ -871,6 +875,10 @@ async def create_transcription_task(
         enable_council=enable_council,
         council_mode=council_mode,
         vocal_boost_level=vocal_boost_level,
+        enable_lufs=enable_lufs,
+        target_lufs=target_lufs,
+        chunk_overlap=chunk_overlap,
+        enable_dedup=enable_dedup,
         whisper_model=whisper_model,
         conformer_model=conformer_model,
         parakeet_model=parakeet_model,
@@ -885,8 +893,8 @@ async def create_transcription_task(
 async def analyze_audio_diagnostics(audio: UploadFile = File(...)):
     """
     Pre-flight Audio Health Diagnostics & Stereo Phase Check (1.1.A & 1.1.B).
-    Instantly computes SNR in dB, clipping percentage, mains DC offset, and
-    stereo phase correlation to prevent out-of-phase cancellation.
+    Instantly computes SNR in dB, clipping percentage, mains DC offset,
+    stereo phase correlation, and EBU R128 LUFS loudness (1.2.A).
     """
     temp_suffix = Path(audio.filename or "audio.wav").suffix or ".wav"
     with tempfile.NamedTemporaryFile(suffix=temp_suffix, delete=False) as tf:
@@ -896,10 +904,12 @@ async def analyze_audio_diagnostics(audio: UploadFile = File(...)):
     try:
         loader = AudioLoader(target_sr=config.sample_rate)
         report = loader.diagnose_audio(temp_path)
+        report_dict = report.to_dict()
         return {
             "status": "ok",
             "filename": audio.filename,
-            "health": report.to_dict()
+            "health": report_dict,
+            "audio_health": report_dict
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Audio health diagnostic failed: {str(e)}")
@@ -1147,6 +1157,10 @@ def run_transcription_worker(
     enable_council: bool,
     council_mode: str,
     vocal_boost_level: str = "adaptive",
+    enable_lufs: bool = True,
+    target_lufs: float = -16.0,
+    chunk_overlap: float = 0.5,
+    enable_dedup: bool = True,
     whisper_model: Optional[str] = None,
     conformer_model: Optional[str] = None,
     parakeet_model: Optional[str] = None,
@@ -1208,6 +1222,10 @@ def run_transcription_worker(
             enable_ambiguity_resolver=enable_ambiguity,
             enable_council=enable_council,
             council_mode=council_mode,
+            enable_lufs_norm=enable_lufs,
+            target_lufs=target_lufs,
+            chunk_overlap_s=chunk_overlap,
+            enable_boundary_dedup=enable_dedup,
             progress_callback=on_progress,
             pause_event=pause_evt,
             stop_event=stop_evt,

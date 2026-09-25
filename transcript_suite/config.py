@@ -26,13 +26,18 @@ class SuiteConfig:
     enable_tf32: bool = True
     cudnn_benchmark: bool = True
     
-    # Audio pipeline
+    # Audio pipeline & conditioning (1.2 & 1.3)
     sample_rate: int = 16000
     target_channels: int = 1  # Mono
     max_chunk_duration_s: float = 25.0  # Safe bounds for 8GB VRAM
     min_chunk_duration_s: float = 1.0
     vad_padding_s: float = 0.3
     vocal_boost_level: str = "adaptive"  # standard, adaptive, high, max
+    enable_lufs_normalization: bool = True  # 1.2.A: EBU R128 loudness normalization
+    target_lufs: float = -16.0               # Standard dialogue target loudness
+    lufs_peak_limit_dbfs: float = -1.0       # Soft-knee peak limiting threshold
+    chunk_overlap_s: float = 0.5            # 1.3.A: 500ms sliding window chunk overlap
+    enable_boundary_dedup: bool = True       # 1.3.A: boundary word deduplication
     
     # Memory safety & Predictive Governor
     vram_alert_threshold_gb: float = 7.0  # Max safe threshold on 8GB GPU
