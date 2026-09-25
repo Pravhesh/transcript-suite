@@ -17,6 +17,7 @@ import soundfile as sf
 from .canary import sanitize_canary_output
 from .lattice import TokenLattice
 from .phonetics import are_homophones, double_metaphone
+from ..config import config
 
 
 @dataclass
@@ -105,7 +106,9 @@ class ModelCouncil:
         parakeet_model_id: str = "nvidia/parakeet-tdt-1.1b",
         conformer_model_id: str = "nvidia/stt_en_conformer_ctc_xlarge",
         device: Optional[str] = None,
-        slowdown_factor: float = 0.75
+        slowdown_factor: float = 0.75,
+        attention_backend: Optional[str] = None,
+        glossary: Optional[List[str]] = None
     ):
         self.canary_transcriber = canary_transcriber
         self.whisper_model_id = whisper_model_id
@@ -113,6 +116,8 @@ class ModelCouncil:
         self.conformer_model_id = conformer_model_id
         self.device = device or ("cuda:0" if torch.cuda.is_available() else "cpu")
         self.slowdown_factor = slowdown_factor
+        self.attention_backend = (attention_backend or getattr(config, "attention_backend", "sdpa")).lower()
+        self.glossary = list(glossary if glossary is not None else getattr(config, "custom_glossary", []))
 
         self._whisper_pipeline = None
         self._conformer_model = None
@@ -122,15 +127,24 @@ class ModelCouncil:
         self._is_parakeet_loaded = False
 
     def _get_whisper_pipeline(self):
-        """Lazy loader for Whisper cross-examiner."""
+        """Lazy loader for Whisper cross-examiner with attention backend selection (SDPA/FlashAttention-2/Eager)."""
         if self._whisper_pipeline is None:
             try:
                 from transformers import pipeline
                 torch_dtype = torch.float16 if "cuda" in str(self.device) else torch.float32
-                print(f"[Council] Loading Cross-Examiner ({self.whisper_model_id}) onto {self.device}...")
+                print(f"[Council] Loading Cross-Examiner ({self.whisper_model_id}) onto {self.device} (attention: {self.attention_backend})...")
                 model_kwargs = {}
                 if "cuda" in str(self.device):
-                    model_kwargs["attn_implementation"] = "sdpa"
+                    if self.attention_backend == "flash_attention_2":
+                        try:
+                            import flash_attn
+                            model_kwargs["attn_implementation"] = "flash_attention_2"
+                        except ImportError:
+                            model_kwargs["attn_implementation"] = "sdpa"
+                    elif self.attention_backend == "eager":
+                        model_kwargs["attn_implementation"] = "eager"
+                    else:
+                        model_kwargs["attn_implementation"] = "sdpa"
 
                 self._whisper_pipeline = pipeline(
                     "automatic-speech-recognition",
@@ -199,8 +213,8 @@ class ModelCouncil:
                 self._parakeet_model = None
         return self._parakeet_model
 
-    def transcribe_with_whisper(self, audio_data: np.ndarray | str | Path) -> str:
-        """Transcribes audio chunk using Whisper cross-examiner."""
+    def transcribe_with_whisper(self, audio_data: np.ndarray | str | Path, glossary: Optional[list[str]] = None) -> str:
+        """Transcribes audio chunk using Whisper cross-examiner with optional glossary biasing."""
         pipe = self._get_whisper_pipeline()
         if pipe is None:
             return ""
@@ -215,9 +229,22 @@ class ModelCouncil:
                 kwargs["generate_kwargs"]["language"] = "en"
                 kwargs["generate_kwargs"]["task"] = "transcribe"
 
+            active_glossary = glossary if glossary is not None else self.glossary
+            if active_glossary and hasattr(pipe, "tokenizer") and hasattr(pipe.tokenizer, "get_prompt_ids"):
+                try:
+                    kwargs["generate_kwargs"]["prompt_ids"] = pipe.tokenizer.get_prompt_ids(", ".join(active_glossary))
+                except Exception as ep:
+                    print(f"[Council Warning] Could not encode Whisper prompt_ids: {ep}")
+
             with torch.inference_mode():
                 res = pipe(audio_input, **kwargs)
-            text = res.get("text", "").strip() if isinstance(res, dict) else str(res).strip()
+
+            if isinstance(res, dict):
+                text = res.get("text", "").strip()
+            elif isinstance(res, list) and len(res) > 0 and isinstance(res[0], dict):
+                text = res[0].get("text", "").strip()
+            else:
+                text = str(res).strip()
             return text.strip()
         except Exception as e:
             print(f"[Council Warning] Whisper transcription failed: {e}")
@@ -227,9 +254,10 @@ class ModelCouncil:
         self,
         wav_paths: list[str | Path],
         batch_size: Optional[int] = None,
-        progress_cb: Optional[Callable[[int, int, float], None]] = None
+        progress_cb: Optional[Callable[[int, int, float], None]] = None,
+        glossary: Optional[list[str]] = None
     ) -> list[str]:
-        """Transcribes a batch of audio chunks using Whisper cross-examiner with chunk progress."""
+        """Transcribes a batch of audio chunks using Whisper cross-examiner with chunk progress and glossary biasing."""
         if not wav_paths:
             return []
         pipe = self._get_whisper_pipeline()
@@ -243,6 +271,13 @@ class ModelCouncil:
             if hasattr(pipe.model, "generation_config") and getattr(pipe.model.generation_config, "is_multilingual", False):
                 kwargs["generate_kwargs"]["language"] = "en"
                 kwargs["generate_kwargs"]["task"] = "transcribe"
+
+            active_glossary = glossary if glossary is not None else self.glossary
+            if active_glossary and hasattr(pipe, "tokenizer") and hasattr(pipe.tokenizer, "get_prompt_ids"):
+                try:
+                    kwargs["generate_kwargs"]["prompt_ids"] = pipe.tokenizer.get_prompt_ids(", ".join(active_glossary))
+                except Exception as ep:
+                    print(f"[Council Warning] Could not encode Whisper batch prompt_ids: {ep}")
 
             texts = []
             total_items = len(resolved_paths)
@@ -260,7 +295,7 @@ class ModelCouncil:
             print(f"[Council Warning] Whisper batch transcription failed: {e}")
             fallback = []
             for p in wav_paths:
-                fallback.append(self.transcribe_with_whisper(p))
+                fallback.append(self.transcribe_with_whisper(p, glossary=active_glossary))
                 if progress_cb:
                     progress_cb(len(fallback), len(wav_paths), len(fallback) / len(wav_paths))
             return fallback
@@ -386,7 +421,8 @@ class ModelCouncil:
         waveform: Optional[torch.Tensor] = None,
         seg_idx: int = 0,
         chunks_dir: Optional[Path] = None,
-        sample_rate: int = 16000
+        sample_rate: int = 16000,
+        glossary: Optional[List[str]] = None
     ) -> CouncilDeliberation:
         """
         Arbitrates trilateral/quadrilateral consensus across all available juror hypotheses.
@@ -515,7 +551,7 @@ class ModelCouncil:
                             sf.write(tf.name, stretched.squeeze(0).cpu().numpy(), sample_rate, subtype="PCM_16")
                             slow_audio_path = Path(tf.name)
                 if slow_audio_path and slow_audio_path.exists():
-                    h_auditor = self.transcribe_with_whisper(slow_audio_path)
+                    h_auditor = self.transcribe_with_whisper(slow_audio_path, glossary=glossary)
                     votes.append(CouncilVote(
                         member="Acoustic-Auditor-0.75x",
                         role="Time-Stretch Auditor",
@@ -597,16 +633,17 @@ class ModelCouncil:
         waveform: Optional[torch.Tensor] = None,
         seg_idx: int = 0,
         chunks_dir: Optional[Path] = None,
-        force_full_council: bool = False
+        force_full_council: bool = False,
+        glossary: Optional[List[str]] = None
     ) -> CouncilDeliberation:
         """1-pass deliberate wrapper for concurrent mode."""
         audio_path = Path(audio_path).resolve()
 
         h_canary = canary_text
         if h_canary is None and self.canary_transcriber:
-            h_canary = self.canary_transcriber.transcribe_chunk(str(audio_path))
+            h_canary = self.canary_transcriber.transcribe_chunk(str(audio_path), glossary=glossary)
 
-        h_whisper = self.transcribe_with_whisper(audio_path)
+        h_whisper = self.transcribe_with_whisper(audio_path, glossary=glossary)
         h_conformer = self.transcribe_with_conformer(audio_path)
 
         return self.synthesize_deliberation(
@@ -618,7 +655,8 @@ class ModelCouncil:
             waveform=waveform,
             seg_idx=seg_idx,
             chunks_dir=chunks_dir,
-            sample_rate=sample_rate
+            sample_rate=sample_rate,
+            glossary=glossary
         )
 
     def deliberate_waveform_segment(
@@ -627,7 +665,8 @@ class ModelCouncil:
         sr: int = 16000,
         canary_text: Optional[str] = None,
         seg_idx: int = 0,
-        chunks_dir: Optional[Path] = None
+        chunks_dir: Optional[Path] = None,
+        glossary: Optional[List[str]] = None
     ) -> CouncilDeliberation:
         """Convenience runner for in-memory tensor slices."""
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
@@ -642,7 +681,8 @@ class ModelCouncil:
                 canary_text=canary_text,
                 waveform=waveform_slice,
                 seg_idx=seg_idx,
-                chunks_dir=chunks_dir
+                chunks_dir=chunks_dir,
+                glossary=glossary
             )
         finally:
             tmp_wav.unlink(missing_ok=True)

@@ -54,8 +54,9 @@ def sanitize_canary_output(text: str, chunk_waveform: Optional[torch.Tensor] = N
         return ""
     cleaned = text.strip()
 
-    # Strip conditioning prefixes if model echoed its instruction (e.g. 'Transcript: ...', 'Transcription: ...')
-    cleaned = re.sub(r"^(?:Transcript|Transcription|Transcribe)\s*:\s*", "", cleaned, flags=re.IGNORECASE).strip()
+    # Strip conditioning prefixes if model echoed its instruction (e.g. 'Vocabulary glossary: ...', 'Transcript: ...')
+    cleaned = re.sub(r"^(?:Vocabulary glossary|Use this glossary):.*?(?:\n|\.\s+)", "", cleaned, flags=re.IGNORECASE).strip()
+    cleaned = re.sub(r"^(?:Transcribe(?: the following| following| audio)?|Transcript|Transcription)\s*:\s*", "", cleaned, flags=re.IGNORECASE).strip()
     if not cleaned:
         return ""
 
@@ -104,14 +105,28 @@ class CanaryQwenTranscriber:
         self,
         model_name: str = "nvidia/canary-qwen-2.5b",
         device: Optional[str] = None,
-        dtype: Optional[torch.dtype] = None
+        dtype: Optional[torch.dtype] = None,
+        attention_backend: Optional[str] = None,
+        glossary: Optional[List[str]] = None
     ):
         self.model_name = model_name
         self.device = device or config.device
         self.dtype = dtype or config.dtype
+        self.attention_backend = (attention_backend or getattr(config, "attention_backend", "sdpa")).lower()
+        self.glossary = list(glossary if glossary is not None else getattr(config, "custom_glossary", []))
         self.vram_manager = VRAMManager(warning_threshold_gb=config.vram_alert_threshold_gb)
         self.model = None
         self._is_loaded = False
+
+    def get_sdp_context(self):
+        """Context manager for PyTorch scaled dot-product attention kernels (SDPA)."""
+        from contextlib import nullcontext
+        if "cuda" in str(self.device) and torch.cuda.is_available() and hasattr(torch.backends.cuda, "sdp_kernel"):
+            if self.attention_backend in ("sdpa", "flash_attention_2"):
+                return torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=True)
+            elif self.attention_backend == "eager":
+                return torch.backends.cuda.sdp_kernel(enable_flash=False, enable_math=True, enable_mem_efficient=False)
+        return nullcontext()
 
     def load_model(self):
         """
@@ -242,7 +257,7 @@ class CanaryQwenTranscriber:
                     raise e
 
 
-    def transcribe_chunk(self, wav_path: str | Path) -> str:
+    def transcribe_chunk(self, wav_path: str | Path, glossary: Optional[List[str]] = None) -> str:
         """
         Transcribes a single audio chunk (WAV 16kHz mono).
         """
@@ -250,16 +265,21 @@ class CanaryQwenTranscriber:
             self.load_model()
 
         wav_path_str = str(Path(wav_path).resolve())
+        active_glossary = glossary if glossary is not None else self.glossary
 
         # If using NeMo SALM
         if hasattr(self.model, "audio_locator_tag"):
+            if active_glossary:
+                content = f"Vocabulary glossary: {', '.join(active_glossary)}.\nTranscribe the following: {self.model.audio_locator_tag}"
+            else:
+                content = f"Transcribe the following: {self.model.audio_locator_tag}"
             prompt = [[{
                 "role": "user",
-                "content": f"Transcribe the following: {self.model.audio_locator_tag}",
+                "content": content,
                 "audio": [wav_path_str]
             }]]
             autocast_device = "cuda" if self.device.startswith("cuda") and torch.cuda.is_available() else "cpu"
-            with torch.inference_mode(), torch.autocast(device_type=autocast_device, dtype=self.dtype if autocast_device == "cuda" else torch.float32):
+            with torch.inference_mode(), self.get_sdp_context(), torch.autocast(device_type=autocast_device, dtype=self.dtype if autocast_device == "cuda" else torch.float32):
                 answer_ids = self.model.generate(prompts=prompt, max_new_tokens=256)
                 if hasattr(self.model, "tokenizer"):
                     text = self.model.tokenizer.ids_to_text(answer_ids[0].cpu())
@@ -269,7 +289,7 @@ class CanaryQwenTranscriber:
 
         # Fallback for standard NeMo ASR transcribe
         if hasattr(self.model, "transcribe"):
-            with torch.inference_mode():
+            with torch.inference_mode(), self.get_sdp_context():
                 results = self.model.transcribe([wav_path_str])
                 if isinstance(results, list) and len(results) > 0:
                     return sanitize_canary_output(str(results[0]))
@@ -277,7 +297,12 @@ class CanaryQwenTranscriber:
 
         raise RuntimeError("Loaded model does not support transcription generation.")
 
-    def transcribe_waveform_chunk(self, chunk_waveform: torch.Tensor, sr: int = 16000) -> str:
+    def transcribe_waveform_chunk(
+        self,
+        chunk_waveform: torch.Tensor,
+        sr: int = 16000,
+        glossary: Optional[List[str]] = None
+    ) -> str:
         """
         Transcribes an audio chunk directly from a PyTorch tensor in memory.
         Bypasses disk I/O, temporary WAV files, and Lhotse audio reloading.
@@ -285,10 +310,16 @@ class CanaryQwenTranscriber:
         if not self._is_loaded:
             self.load_model()
 
+        active_glossary = glossary if glossary is not None else self.glossary
+
         if hasattr(self.model, "audio_locator_tag"):
+            if active_glossary:
+                content = f"Vocabulary glossary: {', '.join(active_glossary)}.\nTranscribe the following: {self.model.audio_locator_tag}"
+            else:
+                content = f"Transcribe the following: {self.model.audio_locator_tag}"
             prompt = [[{
                 "role": "user",
-                "content": f"Transcribe the following: {self.model.audio_locator_tag}"
+                "content": content
             }]]
             # Audio input for perception: ensure mono 2D tensor (1, samples) in float32
             wf = chunk_waveform
@@ -301,7 +332,7 @@ class CanaryQwenTranscriber:
             audio_lens = torch.tensor([audio_tensor.shape[1]], dtype=torch.int64, device=self.device)
 
             autocast_device = "cuda" if self.device.startswith("cuda") and torch.cuda.is_available() else "cpu"
-            with torch.inference_mode(), torch.autocast(device_type=autocast_device, dtype=self.dtype if autocast_device == "cuda" else torch.float32):
+            with torch.inference_mode(), self.get_sdp_context(), torch.autocast(device_type=autocast_device, dtype=self.dtype if autocast_device == "cuda" else torch.float32):
                 answer_ids = self.model.generate(
                     prompts=prompt,
                     audios=audio_tensor,
@@ -320,7 +351,7 @@ class CanaryQwenTranscriber:
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
             wav_data = chunk_waveform.squeeze(0).cpu().numpy()
             sf.write(tf.name, wav_data, sr, subtype="PCM_16")
-            res = self.transcribe_chunk(tf.name)
+            res = self.transcribe_chunk(tf.name, glossary=active_glossary)
             Path(tf.name).unlink(missing_ok=True)
             return sanitize_canary_output(res, chunk_waveform=chunk_waveform)
 
@@ -340,6 +371,7 @@ class CanaryQwenTranscriber:
         waveform: torch.Tensor,
         segments: List[any],
         sr: int = 16000,
+        glossary: Optional[List[str]] = None,
         progress_callback: Optional[callable] = None,
         pause_event: Optional[any] = None,
         stop_event: Optional[any] = None
@@ -373,7 +405,7 @@ class CanaryQwenTranscriber:
 
             # Transcribe directly in memory
             try:
-                text = self.transcribe_waveform_chunk(chunk_slice, sr=sr)
+                text = self.transcribe_waveform_chunk(chunk_slice, sr=sr, glossary=glossary)
             except Exception as e:
                 # Fallback to disk WAV slice only if direct tensor generation encounters an issue
                 try:
@@ -381,7 +413,7 @@ class CanaryQwenTranscriber:
                     import soundfile as sf
                     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
                         sf.write(tf.name, chunk_slice.squeeze(0).cpu().numpy(), sr, subtype="PCM_16")
-                        text = self.transcribe_chunk(tf.name)
+                        text = self.transcribe_chunk(tf.name, glossary=glossary)
                         Path(tf.name).unlink(missing_ok=True)
                 except Exception as e2:
                     print(f"[Canary-Qwen Warning] Chunk {idx} error: {e2}")

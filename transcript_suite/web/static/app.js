@@ -625,6 +625,12 @@ btnStart.addEventListener("click", async () => {
   if (vocalBoostSelect) {
     formData.append("vocal_boost_level", vocalBoostSelect.value);
   }
+  if (currentActiveGlossary && currentActiveGlossary.length > 0) {
+    formData.append("glossary", JSON.stringify(currentActiveGlossary));
+  }
+  if (currentAttentionBackend) {
+    formData.append("attention_backend", currentAttentionBackend);
+  }
 
   try {
     const res = await fetch("/api/transcribe", { method: "POST", body: formData });
@@ -3593,7 +3599,161 @@ const settingVocalBoost = document.getElementById("settingVocalBoost");
 const settingGovCeilingSlider = document.getElementById("settingGovCeilingSlider");
 const settingGovCeilingVal = document.getElementById("settingGovCeilingVal");
 const settingEnableAudex = document.getElementById("settingEnableAudex");
+const settingAttentionBackend = document.getElementById("settingAttentionBackend");
 const btnSavePipelinePrefs = document.getElementById("btnSavePipelinePrefs");
+
+const glossaryCountBadge = document.getElementById("glossaryCountBadge");
+const glossaryTermInput = document.getElementById("glossaryTermInput");
+const btnAddGlossaryTerm = document.getElementById("btnAddGlossaryTerm");
+const btnClearGlossary = document.getElementById("btnClearGlossary");
+const glossaryChipsContainer = document.getElementById("glossaryChipsContainer");
+const glossaryEmptyMsg = document.getElementById("glossaryEmptyMsg");
+const btnStudioGlossary = document.getElementById("btnStudioGlossary");
+const studioGlossaryCount = document.getElementById("studioGlossaryCount");
+const pillAttention = document.getElementById("pillAttention");
+
+let currentActiveGlossary = [];
+let currentAttentionBackend = "sdpa";
+
+function updateAttentionPill(backend) {
+  if (!pillAttention) return;
+  if (backend === "sdpa") {
+    pillAttention.style.borderColor = "rgba(99, 102, 241, 0.4)";
+    pillAttention.style.color = "#818cf8";
+    pillAttention.textContent = "⚡ SDPA Active (~35% VRAM saved)";
+  } else if (backend === "flash_attention_2") {
+    pillAttention.style.borderColor = "rgba(52, 211, 153, 0.4)";
+    pillAttention.style.color = "#34d399";
+    pillAttention.textContent = "⚡ FA-2 Active";
+  } else {
+    pillAttention.style.borderColor = "rgba(156, 163, 175, 0.4)";
+    pillAttention.style.color = "#9ca3af";
+    pillAttention.textContent = "🐢 Eager Mode";
+  }
+}
+
+async function loadGlossary() {
+  try {
+    const res = await fetch("/api/glossary");
+    if (!res.ok) return;
+    const data = await res.json();
+    currentActiveGlossary = data.glossary || [];
+    renderGlossaryUI();
+  } catch (err) {
+    console.warn("loadGlossary error:", err);
+  }
+}
+
+function renderGlossaryUI() {
+  if (glossaryCountBadge) {
+    glossaryCountBadge.textContent = `${currentActiveGlossary.length} term${currentActiveGlossary.length === 1 ? '' : 's'} active`;
+  }
+  if (studioGlossaryCount) {
+    studioGlossaryCount.textContent = currentActiveGlossary.length;
+  }
+  if (!glossaryChipsContainer) return;
+
+  glossaryChipsContainer.innerHTML = "";
+  if (currentActiveGlossary.length === 0) {
+    const span = document.createElement("span");
+    span.id = "glossaryEmptyMsg";
+    span.style.color = "var(--text-muted)";
+    span.style.fontSize = "12px";
+    span.style.fontStyle = "italic";
+    span.textContent = "No custom terms added yet. Add terms above to prime the ASR council.";
+    glossaryChipsContainer.appendChild(span);
+    return;
+  }
+
+  currentActiveGlossary.forEach((term) => {
+    const chip = document.createElement("div");
+    chip.style.display = "inline-flex";
+    chip.style.alignItems = "center";
+    chip.style.gap = "6px";
+    chip.style.padding = "4px 10px";
+    chip.style.borderRadius = "16px";
+    chip.style.background = "rgba(99, 102, 241, 0.15)";
+    chip.style.border = "1px solid rgba(99, 102, 241, 0.4)";
+    chip.style.color = "#c7d2fe";
+    chip.style.fontSize = "12px";
+    chip.style.fontWeight = "500";
+
+    const textSpan = document.createElement("span");
+    textSpan.textContent = term;
+    chip.appendChild(textSpan);
+
+    const delBtn = document.createElement("button");
+    delBtn.innerHTML = "&times;";
+    delBtn.style.background = "none";
+    delBtn.style.border = "none";
+    delBtn.style.color = "#ef4444";
+    delBtn.style.cursor = "pointer";
+    delBtn.style.fontSize = "14px";
+    delBtn.style.lineHeight = "1";
+    delBtn.style.padding = "0 2px";
+    delBtn.title = `Remove "${term}"`;
+    delBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await removeGlossaryTerm(term);
+    });
+    chip.appendChild(delBtn);
+
+    glossaryChipsContainer.appendChild(chip);
+  });
+}
+
+async function addGlossaryTerms(inputVal) {
+  if (!inputVal || !inputVal.trim()) return;
+  const rawTerms = inputVal.split(",").map(t => t.trim()).filter(Boolean);
+  if (rawTerms.length === 0) return;
+
+  try {
+    const res = await fetch("/api/glossary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ terms: rawTerms })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to add term");
+    currentActiveGlossary = data.glossary || [];
+    renderGlossaryUI();
+    if (glossaryTermInput) glossaryTermInput.value = "";
+    addNotification("Glossary Updated", `Added ${rawTerms.length} term(s) to phonetic glossary.`, "success");
+  } catch (err) {
+    alert("Error adding glossary terms: " + err.message);
+  }
+}
+
+async function removeGlossaryTerm(term) {
+  try {
+    const res = await fetch("/api/glossary", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ term: term })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to remove term");
+    currentActiveGlossary = data.glossary || [];
+    renderGlossaryUI();
+    addNotification("Term Removed", `Removed "${term}" from glossary.`, "info");
+  } catch (err) {
+    alert("Error removing term: " + err.message);
+  }
+}
+
+async function clearGlossaryAll() {
+  if (!confirm("Are you sure you want to clear all terms from the custom glossary?")) return;
+  try {
+    const res = await fetch("/api/glossary?all=true", { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to clear glossary");
+    currentActiveGlossary = [];
+    renderGlossaryUI();
+    addNotification("Glossary Cleared", "Custom phonetic glossary cleared.", "info");
+  } catch (err) {
+    alert("Error clearing glossary: " + err.message);
+  }
+}
 
 async function fetchSettingsData() {
   try {
@@ -3637,6 +3797,15 @@ async function fetchSettingsData() {
     }
     if (settingEnableAudex && s.enable_audex_adjudicator !== undefined) {
       settingEnableAudex.value = String(s.enable_audex_adjudicator);
+    }
+    if (settingAttentionBackend && s.attention_backend) {
+      settingAttentionBackend.value = s.attention_backend;
+      currentAttentionBackend = s.attention_backend;
+      updateAttentionPill(currentAttentionBackend);
+    }
+    if (s.custom_glossary && Array.isArray(s.custom_glossary)) {
+      currentActiveGlossary = s.custom_glossary;
+      renderGlossaryUI();
     }
 
     // Update HF token UI in settings
@@ -3824,6 +3993,48 @@ function initSettingsTab() {
     });
   }
 
+  // Attention Backend Change
+  if (settingAttentionBackend) {
+    settingAttentionBackend.addEventListener("change", () => {
+      currentAttentionBackend = settingAttentionBackend.value;
+      updateAttentionPill(currentAttentionBackend);
+    });
+  }
+
+  // Glossary Term Adding
+  if (btnAddGlossaryTerm && glossaryTermInput) {
+    btnAddGlossaryTerm.addEventListener("click", () => {
+      addGlossaryTerms(glossaryTermInput.value);
+    });
+    glossaryTermInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        addGlossaryTerms(glossaryTermInput.value);
+      }
+    });
+  }
+
+  // Clear Glossary All
+  if (btnClearGlossary) {
+    btnClearGlossary.addEventListener("click", () => {
+      clearGlossaryAll();
+    });
+  }
+
+  // Studio Quick Glossary Shortcut
+  if (btnStudioGlossary) {
+    btnStudioGlossary.addEventListener("click", () => {
+      const tabBtn = document.getElementById("tabBtnSettings");
+      if (tabBtn) tabBtn.click();
+      setTimeout(() => {
+        if (glossaryTermInput) {
+          glossaryTermInput.focus();
+          glossaryTermInput.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 150);
+    });
+  }
+
   // Pipeline Preferences
   if (btnSavePipelinePrefs) {
     btnSavePipelinePrefs.addEventListener("click", async () => {
@@ -3834,7 +4045,8 @@ function initSettingsTab() {
           default_diarizer: settingDefaultDiarizer ? settingDefaultDiarizer.value : "pyannote",
           vocal_boost_level: settingVocalBoost ? settingVocalBoost.value : "adaptive",
           vram_governor_threshold_gb: settingGovCeilingSlider ? parseFloat(settingGovCeilingSlider.value) : 5.5,
-          enable_audex_adjudicator: settingEnableAudex ? (settingEnableAudex.value === "true") : true
+          enable_audex_adjudicator: settingEnableAudex ? (settingEnableAudex.value === "true") : true,
+          attention_backend: settingAttentionBackend ? settingAttentionBackend.value : "sdpa"
         };
         const res = await fetch("/api/settings", {
           method: "POST",
@@ -3843,7 +4055,7 @@ function initSettingsTab() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || "Failed to update pipeline settings");
-        addNotification("Preferences Saved", "Pipeline & governor preferences updated in settings.json.", "success");
+        addNotification("Preferences Saved", "Pipeline, SDPA & governor preferences updated in settings.json.", "success");
         await fetchSettingsData();
       } catch (err) {
         alert("Failed to save pipeline preferences: " + err.message);
@@ -3853,6 +4065,8 @@ function initSettingsTab() {
       }
     });
   }
+
+  loadGlossary();
 }
 
 // Initialize Everything on Load

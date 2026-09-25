@@ -712,6 +712,9 @@ async def get_settings_endpoint():
             "predictive_emergency_enabled": config.predictive_emergency_enabled,
             "enable_audex_adjudicator": config.enable_audex_adjudicator,
             "audex_model_id": config.audex_model_id,
+            "attention_backend": getattr(config, "attention_backend", "sdpa"),
+            "enable_sdpa": getattr(config, "enable_sdpa", True),
+            "custom_glossary": getattr(config, "custom_glossary", []),
             "token_configured": bool(config.hf_token)
         }
     }
@@ -737,6 +740,23 @@ async def update_settings_endpoint(request: Request):
 
     # Update other allowed settings
     config.save_persistent_settings(data)
+
+    # Sync with active pipeline instance if present
+    pipeline = get_active_pipeline()
+    if pipeline:
+        if "attention_backend" in data:
+            pipeline.attention_backend = data["attention_backend"]
+            if hasattr(pipeline.transcriber, "attention_backend"):
+                pipeline.transcriber.attention_backend = data["attention_backend"]
+            if hasattr(pipeline.council, "attention_backend"):
+                pipeline.council.attention_backend = data["attention_backend"]
+        if "custom_glossary" in data:
+            pipeline.custom_glossary = list(data["custom_glossary"])
+            if hasattr(pipeline.transcriber, "glossary"):
+                pipeline.transcriber.glossary = pipeline.custom_glossary
+            if hasattr(pipeline.council, "glossary"):
+                pipeline.council.glossary = pipeline.custom_glossary
+
     supervisor = get_subsystem_supervisor()
     supervisor.log_journal(
         severity="INFO",
@@ -749,6 +769,109 @@ async def update_settings_endpoint(request: Request):
         "status": "updated",
         "storage": config.get_storage_info(),
         "settings": config.load_persistent_settings()
+    }
+
+
+@app.get("/api/glossary")
+async def get_glossary_endpoint():
+    """Returns the persistent custom phonetic and domain glossary."""
+    terms = config.get_glossary()
+    return {
+        "glossary": terms,
+        "count": len(terms)
+    }
+
+
+@app.post("/api/glossary")
+async def update_glossary_endpoint(request: Request):
+    """
+    Updates or adds terms to the persistent custom glossary.
+    Accepts:
+      - {"terms": ["Docker", "Kubernetes", "ASR"]}
+      - or {"term": "PostgreSQL"}
+    """
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="Payload must be a JSON object")
+
+    terms = []
+    if "terms" in data and isinstance(data["terms"], list):
+        terms = [str(t).strip() for t in data["terms"] if str(t).strip()]
+    elif "term" in data and isinstance(data["term"], str):
+        term = data["term"].strip()
+        if term:
+            terms = [term]
+
+    if not terms:
+        raise HTTPException(status_code=400, detail="Must provide 'term' (str) or 'terms' (list of str)")
+
+    updated = config.update_glossary(terms)
+    pipeline = get_active_pipeline()
+    if pipeline:
+        pipeline.custom_glossary = updated
+        if hasattr(pipeline.transcriber, "glossary"):
+            pipeline.transcriber.glossary = updated
+        if hasattr(pipeline.council, "glossary"):
+            pipeline.council.glossary = updated
+
+    return {
+        "status": "success",
+        "glossary": updated,
+        "count": len(updated)
+    }
+
+
+@app.delete("/api/glossary")
+async def delete_glossary_endpoint(request: Request):
+    """
+    Deletes specific terms or clears the entire glossary.
+    Accepts optional JSON payload:
+      - {"term": "Docker"} or {"terms": ["Docker"]} to remove specific term(s)
+      - empty body or {"clear_all": true} or query ?all=true to clear entire glossary
+    """
+    terms_to_remove = []
+    clear_all = request.query_params.get("all") == "true"
+    query_term = request.query_params.get("term")
+
+    try:
+        data = await request.json()
+        if isinstance(data, dict):
+            if data.get("clear_all"):
+                clear_all = True
+            elif "terms" in data and isinstance(data["terms"], list):
+                terms_to_remove = [str(t).strip().lower() for t in data["terms"] if str(t).strip()]
+            elif "term" in data and isinstance(data["term"], str):
+                terms_to_remove = [data["term"].strip().lower()]
+    except Exception:
+        pass
+
+    if query_term:
+        terms_to_remove.append(query_term.strip().lower())
+
+    if clear_all or (not terms_to_remove and not query_term and request.method == "DELETE"):
+        updated = config.clear_glossary()
+    else:
+        current = config.get_glossary()
+        updated = [t for t in current if t.lower() not in terms_to_remove]
+        config.custom_glossary = updated
+        config.save_persistent_settings({"custom_glossary": updated})
+
+    pipeline = get_active_pipeline()
+    if pipeline:
+        pipeline.custom_glossary = updated
+        if hasattr(pipeline.transcriber, "glossary"):
+            pipeline.transcriber.glossary = updated
+        if hasattr(pipeline.council, "glossary"):
+            pipeline.council.glossary = updated
+
+    return {
+        "status": "success",
+        "glossary": updated,
+        "count": len(updated)
     }
 
 
@@ -821,7 +944,9 @@ async def create_transcription_task(
     conformer_model: Optional[str] = Form(None),
     parakeet_model: Optional[str] = Form(None),
     model_name: Optional[str] = Form(None),
-    hf_token: Optional[str] = Form(None)
+    hf_token: Optional[str] = Form(None),
+    glossary: Optional[str] = Form(None),
+    attention_backend: Optional[str] = Form(None)
 ):
     """
     Uploads an AAC/audio file and starts background transcription with enhancer, ambiguity, and council controls.
@@ -829,6 +954,20 @@ async def create_transcription_task(
     task_id = str(uuid.uuid4())
     file_ext = Path(audio.filename).suffix or ".aac"
     saved_path = config.upload_dir / f"{task_id}{file_ext}"
+
+    # Parse glossary if provided
+    parsed_glossary = None
+    if glossary:
+        try:
+            val = json.loads(glossary)
+            if isinstance(val, list):
+                parsed_glossary = [str(x).strip() for x in val if str(x).strip()]
+            elif isinstance(val, str) and val.strip():
+                parsed_glossary = [t.strip() for t in val.split(",") if t.strip()]
+        except Exception:
+            parsed_glossary = [t.strip() for t in glossary.split(",") if t.strip()]
+
+    backend = attention_backend or getattr(config, "attention_backend", "sdpa")
 
     # Save uploaded file
     with open(saved_path, "wb") as f:
@@ -883,7 +1022,9 @@ async def create_transcription_task(
         conformer_model=conformer_model,
         parakeet_model=parakeet_model,
         model_name=model_name,
-        hf_token=hf_token
+        hf_token=hf_token,
+        glossary=parsed_glossary,
+        attention_backend=backend
     )
 
     return {"task_id": task_id, "status": "queued"}
@@ -925,7 +1066,9 @@ async def create_streaming_transcription(
     enable_enhancer: bool = Form(False),
     min_chunk_duration: float = Form(3.0),
     max_chunk_duration: float = Form(12.0),
-    speaker_alias: Optional[str] = Form(None)
+    speaker_alias: Optional[str] = Form(None),
+    glossary: Optional[str] = Form(None),
+    attention_backend: Optional[str] = Form(None)
 ):
     """
     Streams progressive speech transcriptions in real time via Server-Sent Events (SSE).
@@ -947,6 +1090,20 @@ async def create_streaming_transcription(
         if not saved_path.exists():
             raise HTTPException(status_code=404, detail=f"Specified audio_path not found: {audio_path}")
         orig_filename = saved_path.name
+
+    # Parse glossary if provided
+    parsed_glossary = None
+    if glossary:
+        try:
+            val = json.loads(glossary)
+            if isinstance(val, list):
+                parsed_glossary = [str(x).strip() for x in val if str(x).strip()]
+            elif isinstance(val, str) and val.strip():
+                parsed_glossary = [t.strip() for t in val.split(",") if t.strip()]
+        except Exception:
+            parsed_glossary = [t.strip() for t in glossary.split(",") if t.strip()]
+
+    backend = attention_backend or getattr(config, "attention_backend", "sdpa")
 
     pause_event = threading.Event()
     pause_event.set()
@@ -983,7 +1140,10 @@ async def create_streaming_transcription(
 
         def run_worker():
             try:
-                pipeline = get_active_pipeline() or TranscriptionPipeline()
+                pipeline = get_active_pipeline() or TranscriptionPipeline(
+                    attention_backend=backend,
+                    custom_glossary=parsed_glossary
+                )
                 TASK_CONTROLS[task_id]["pipeline"] = pipeline
                 for event in pipeline.stream_transcribe(
                     file_path=saved_path,
@@ -992,7 +1152,9 @@ async def create_streaming_transcription(
                     min_chunk_duration=min_chunk_duration,
                     max_chunk_duration=max_chunk_duration,
                     speaker_alias=speaker_alias,
-                    stop_event=stop_event
+                    stop_event=stop_event,
+                    glossary=parsed_glossary,
+                    attention_backend=backend
                 ):
                     ev_type = event.get("event")
                     ev_data = event.get("data", {})
@@ -1165,7 +1327,9 @@ def run_transcription_worker(
     conformer_model: Optional[str] = None,
     parakeet_model: Optional[str] = None,
     model_name: Optional[str] = None,
-    hf_token: Optional[str] = None
+    hf_token: Optional[str] = None,
+    glossary: Optional[List[str]] = None,
+    attention_backend: Optional[str] = None
 ):
     ctrl = TASK_CONTROLS.get(task_id)
     pause_evt = ctrl["pause_event"] if ctrl else None
@@ -1178,12 +1342,14 @@ def run_transcription_worker(
         whisper_model=whisper_model,
         conformer_model=conformer_model,
         parakeet_model=parakeet_model,
-        vocal_boost_level=vocal_boost_level
+        vocal_boost_level=vocal_boost_level,
+        attention_backend=attention_backend,
+        custom_glossary=glossary
     )
     if ctrl:
         ctrl["pipeline"] = pipeline
 
-    add_log(task_id, "INFO", f"Pipeline starting: Lead={pipeline.transcriber.model_name.split('/')[-1]}, Whisper={pipeline.council.whisper_model_id.split('/')[-1]}, CTC={pipeline.council.conformer_model_id.split('/')[-1]}, TDT={pipeline.council.parakeet_model_id.split('/')[-1]}, Boost={pipeline.vocal_boost_level}")
+    add_log(task_id, "INFO", f"Pipeline starting: Lead={pipeline.transcriber.model_name.split('/')[-1]}, Whisper={pipeline.council.whisper_model_id.split('/')[-1]}, CTC={pipeline.council.conformer_model_id.split('/')[-1]}, TDT={pipeline.council.parakeet_model_id.split('/')[-1]}, Attn={pipeline.attention_backend}, Boost={pipeline.vocal_boost_level}")
 
     def on_progress(stage: str, frac: float, current_seg: Optional[Dict[str, Any]]):
         if task_id in TASKS:
@@ -1231,7 +1397,9 @@ def run_transcription_worker(
             stop_event=stop_evt,
             output_orig_path=orig_wav_path,
             output_processed_path=processed_wav_path,
-            chunks_dir=chunks_dir
+            chunks_dir=chunks_dir,
+            glossary=glossary,
+            attention_backend=attention_backend
         )
         TASKS[task_id]["status"] = "completed"
         TASKS[task_id]["progress"] = 100.0

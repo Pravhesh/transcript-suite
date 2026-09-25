@@ -270,6 +270,10 @@
             </select>
           </div>
 
+          <button type="button" class="btn-secondary btn-sm" id="btnStudioGlossary" style="display: flex; align-items: center; gap: 5px; height: 36px; padding: 0 12px; font-weight: 500;" title="Manage Domain & Phonetic Glossary">
+            📖 Glossary (<span id="studioGlossaryCount">0</span>)
+          </button>
+
           <button class="btn-primary" id="btnStart" disabled>Transcribe Audio</button>
         </div>
 
@@ -280,6 +284,7 @@
           <span class="roster-pill" id="pillCrossExaminer">Pass 2: Whisper-Large-v3</span>
           <span class="roster-pill" id="pillAnchor">Pass 3A: Conformer-CTC</span>
           <span class="roster-pill" id="pillTransducer">Pass 3B: Parakeet-TDT</span>
+          <span class="roster-pill" id="pillAttention" style="border-color: rgba(99, 102, 241, 0.4); color: #818cf8;">⚡ SDPA Active</span>
           <button type="button" class="btn-roster-config" id="btnGoToModels" title="Configure or change models in the Models & Checkpoints tab">⚙️ Change Models</button>
         </div>
       </div>
@@ -1210,6 +1215,15 @@
             </div>
 
             <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Attention Acceleration Kernel</label>
+              <select id="settingAttentionBackend" class="select-input" style="width: 100%;">
+                <option value="sdpa">⚡ Native PyTorch SDPA (~35% VRAM savings, default)</option>
+                <option value="flash_attention_2">⚡ FlashAttention-2 (Requires flash_attn C++ package)</option>
+                <option value="eager">🐢 Standard PyTorch Eager (Compatibility fallback)</option>
+              </select>
+            </div>
+
+            <div>
               <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Stage 5 Audex-2B Adjudication</label>
               <select id="settingEnableAudex" class="select-input" style="width: 100%;">
                 <option value="true">Enabled (Adjudicate disputes with acoustic reasoning)</option>
@@ -1220,6 +1234,28 @@
 
           <div style="margin-top: 18px; display: flex; justify-content: flex-end;">
             <button class="btn-primary" id="btnSavePipelinePrefs" style="padding: 10px 20px;">💾 Save All Pipeline Preferences</button>
+          </div>
+        </div>
+
+        <!-- CARD 5: CUSTOM DOMAIN & PHONETIC GLOSSARY (2.1.B) -->
+        <div class="model-card" style="grid-column: 1 / -1;">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title">📖 Custom Phonetic &amp; Domain Glossary Biasing</div>
+              <div class="model-card-arch">Inject domain-specific acronyms, jargon, and proper nouns into Whisper prompt IDs and Canary conditioning prefixes.</div>
+            </div>
+            <span class="status-badge-active" id="glossaryCountBadge">0 terms active</span>
+          </div>
+          <p style="font-size: 12px; color: var(--text-muted); margin-top: 10px; line-height: 1.5;">
+            Conditioning models on domain vocabularies prevents homophone phonetic errors (e.g., <em>Kubernetes, PostgreSQL, PyTorch, LoRA, FYP, FastAPI</em>). Whisper's decoder is primed with prompt token IDs, while Canary receives a conditioning glossary prefix.
+          </p>
+          <div style="margin-top: 14px; display: flex; gap: 8px;">
+            <input type="text" id="glossaryTermInput" class="text-input" style="flex: 1; font-size: 13px;" placeholder="Add term or comma-separated terms (e.g. PyTorch, Docker, NeMo)...">
+            <button class="btn-primary" id="btnAddGlossaryTerm" style="white-space: nowrap;">➕ Add Term</button>
+            <button class="btn-secondary" id="btnClearGlossary" style="white-space: nowrap;" title="Clear all glossary terms">🗑️ Clear All</button>
+          </div>
+          <div id="glossaryChipsContainer" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; min-height: 42px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid var(--border-color); align-items: center;">
+            <span style="color: var(--text-muted); font-size: 12px; font-style: italic;" id="glossaryEmptyMsg">No custom terms added yet. Add terms above to prime the ASR council.</span>
           </div>
         </div>
 

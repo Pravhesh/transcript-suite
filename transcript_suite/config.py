@@ -2,7 +2,7 @@
 Global configuration for Transcript Suite.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import os
 
@@ -53,6 +53,11 @@ class SuiteConfig:
     # Supreme Adjudicator (Stage 5)
     enable_audex_adjudicator: bool = os.getenv("ENABLE_AUDEX_ADJUDICATOR", "false").lower() in ("true", "1")
     audex_model_id: str = os.getenv("AUDEX_MODEL_ID", "nvidia/Nemotron-Labs-Audex-2B")
+
+    # Model Optimization & Prompt Biasing (Sub-Phase 2.1)
+    attention_backend: str = os.getenv("ATTENTION_BACKEND", "sdpa")  # "sdpa", "flash_attention_2", "eager"
+    enable_sdpa: bool = True
+    custom_glossary: list[str] = field(default_factory=list)
     
     # Storage Hierarchy
     base_dir: Path = Path("/mnt/d/transcript_suite_data") if (Path("/mnt/d").exists() and os.access("/mnt/d", os.W_OK)) else (Path.home() / ".cache" / "transcript_suite")
@@ -172,13 +177,22 @@ class SuiteConfig:
                     "vram_governor_threshold_gb",
                     "predictive_emergency_enabled",
                     "enable_audex_adjudicator",
-                    "audex_model_id"
+                    "audex_model_id",
+                    "attention_backend",
+                    "enable_sdpa",
+                    "custom_glossary"
                 }
                 for k, v in data.items():
                     if k in allowed_keys and v is not None:
                         if k == "base_dir":
                             self.base_dir = Path(v)
                             self._init_subdirectories()
+                        elif k == "attention_backend":
+                            self.attention_backend = str(v).lower()
+                            self.enable_sdpa = (self.attention_backend == "sdpa")
+                        elif k == "custom_glossary":
+                            if isinstance(v, list):
+                                self.custom_glossary = [str(t).strip() for t in v if str(t).strip()]
                         else:
                             setattr(self, k, v)
 
@@ -219,7 +233,10 @@ class SuiteConfig:
             "vram_governor_threshold_gb",
             "predictive_emergency_enabled",
             "enable_audex_adjudicator",
-            "audex_model_id"
+            "audex_model_id",
+            "attention_backend",
+            "enable_sdpa",
+            "custom_glossary"
         }
         for k, v in updates.items():
             if k in allowed_keys:
@@ -235,6 +252,14 @@ class SuiteConfig:
                         self.base_dir = Path(v)
                         self._init_subdirectories()
                         self._apply_env_routing()
+                    elif k == "attention_backend":
+                        self.attention_backend = str(v).lower()
+                        self.enable_sdpa = (self.attention_backend == "sdpa")
+                        current["enable_sdpa"] = self.enable_sdpa
+                    elif k == "custom_glossary":
+                        if isinstance(v, list):
+                            self.custom_glossary = [str(t).strip() for t in v if str(t).strip()]
+                            current[k] = self.custom_glossary
                     else:
                         setattr(self, k, v)
                     if k == "hf_token":
@@ -246,6 +271,30 @@ class SuiteConfig:
         except Exception as e:
             print(f"[Config Warning] Failed to write {self.settings_file}: {e}")
         return current
+
+    def get_glossary(self) -> list[str]:
+        """Returns the active domain glossary terms."""
+        return list(self.custom_glossary or [])
+
+    def update_glossary(self, terms: list[str]) -> list[str]:
+        """Deduplicates, cleans, updates, and persists domain glossary terms."""
+        cleaned = []
+        seen = set()
+        for t in terms:
+            if isinstance(t, str):
+                t_clean = t.strip()
+                if t_clean and t_clean.lower() not in seen:
+                    cleaned.append(t_clean)
+                    seen.add(t_clean.lower())
+        self.custom_glossary = cleaned
+        self.save_persistent_settings({"custom_glossary": cleaned})
+        return self.custom_glossary
+
+    def clear_glossary(self) -> list[str]:
+        """Clears all persistent glossary terms."""
+        self.custom_glossary = []
+        self.save_persistent_settings({"custom_glossary": []})
+        return []
 
 
 config = SuiteConfig()

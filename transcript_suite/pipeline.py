@@ -46,6 +46,8 @@ class TranscriptionPipeline:
         vocal_boost_level: Optional[str] = None,
         enable_audex_adjudicator: Optional[bool] = None,
         audex_model_id: Optional[str] = None,
+        attention_backend: Optional[str] = None,
+        custom_glossary: Optional[List[str]] = None,
         pipeline_config: Optional[Any] = None
     ):
         self.config = pipeline_config or config
@@ -57,6 +59,16 @@ class TranscriptionPipeline:
             else getattr(self.config, "enable_audex_adjudicator", False)
         )
         self.audex_model_id = audex_model_id or getattr(self.config, "audex_model_id", "nvidia/Nemotron-Labs-Audex-2B")
+        self.attention_backend = (
+            attention_backend
+            if attention_backend is not None
+            else getattr(self.config, "attention_backend", "sdpa")
+        )
+        self.custom_glossary = (
+            list(custom_glossary)
+            if custom_glossary is not None
+            else list(getattr(self.config, "custom_glossary", []))
+        )
 
         self.enable_lufs_normalization = getattr(self.config, "enable_lufs_normalization", True)
         self.target_lufs = getattr(self.config, "target_lufs", -16.0)
@@ -84,14 +96,18 @@ class TranscriptionPipeline:
         self.transcriber = CanaryQwenTranscriber(
             model_name=model_name or getattr(self.config, "model_name", "nvidia/canary-qwen-2.5b"),
             device=self.device,
-            dtype=getattr(self.config, "dtype", torch.float16)
+            dtype=getattr(self.config, "dtype", torch.float16),
+            attention_backend=self.attention_backend,
+            glossary=self.custom_glossary
         )
         self.council = ModelCouncil(
             canary_transcriber=self.transcriber,
             whisper_model_id=whisper_model or getattr(self.config, "whisper_model", "openai/whisper-large-v3"),
             parakeet_model_id=parakeet_model or getattr(self.config, "parakeet_model", "nvidia/parakeet-tdt-1.1b"),
             conformer_model_id=conformer_model or getattr(self.config, "conformer_model", "nvidia/stt_en_conformer_ctc_xlarge"),
-            device=self.device
+            device=self.device,
+            attention_backend=self.attention_backend,
+            glossary=self.custom_glossary
         )
         self.vram_manager = VRAMManager()
         self.supervisor = get_subsystem_supervisor()
@@ -355,7 +371,9 @@ class TranscriptionPipeline:
         enable_lufs_norm: Optional[bool] = None,
         target_lufs: Optional[float] = None,
         chunk_overlap_s: Optional[float] = None,
-        enable_boundary_dedup: Optional[bool] = None
+        enable_boundary_dedup: Optional[bool] = None,
+        glossary: Optional[List[str]] = None,
+        attention_backend: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Processes an audio file end-to-end with EBU R128 LUFS normalization (1.2.A), SoX VHQ
@@ -365,6 +383,14 @@ class TranscriptionPipeline:
         """
         start_time = time.time()
         file_path = Path(file_path).resolve()
+
+        active_glossary = list(glossary) if glossary is not None else self.custom_glossary
+        if attention_backend is not None and attention_backend != self.attention_backend:
+            self.attention_backend = attention_backend
+            if hasattr(self.transcriber, "attention_backend"):
+                self.transcriber.attention_backend = attention_backend
+            if hasattr(self.council, "attention_backend"):
+                self.council.attention_backend = attention_backend
 
         use_lufs = self.enable_lufs_normalization if enable_lufs_norm is None else enable_lufs_norm
         use_target_lufs = self.target_lufs if target_lufs is None else target_lufs
@@ -517,7 +543,7 @@ class TranscriptionPipeline:
                         chunk_wavs.append(c_file)
 
                         try:
-                            c_h = self.transcriber.transcribe_waveform_chunk(chunk_slice, sr=sr)
+                            c_h = self.transcriber.transcribe_waveform_chunk(chunk_slice, sr=sr, glossary=active_glossary)
                         except Exception as e:
                             print(f"[Pipeline Warning] Canary chunk {idx} error: {e}")
                             c_h = ""
@@ -553,14 +579,14 @@ class TranscriptionPipeline:
                             tot_batches = int(np.ceil(total / w_batch))
                             report(f"Pass 2/3 (Whisper): Chunk {completed}/{total} (Batch {batch_num}/{tot_batches})", frac)
 
-                        whisper_hyps = self.council.transcribe_batch_whisper(chunk_wavs, batch_size=w_batch, progress_cb=on_whisper_prog)
+                        whisper_hyps = self.council.transcribe_batch_whisper(chunk_wavs, batch_size=w_batch, progress_cb=on_whisper_prog, glossary=active_glossary)
                     except Exception as e:
                         print(f"[Pipeline Warning] Batched Whisper error ({e}), falling back to sequential...")
                         whisper_hyps = []
                         for idx, c_wav in enumerate(chunk_wavs):
                             check_stop()
                             try:
-                                wh = self.council.transcribe_with_whisper(c_wav)
+                                wh = self.council.transcribe_with_whisper(c_wav, glossary=active_glossary)
                             except Exception:
                                 wh = ""
                             whisper_hyps.append(wh)
@@ -680,7 +706,8 @@ class TranscriptionPipeline:
                             waveform=chunk_slice,
                             seg_idx=idx,
                             chunks_dir=Path(chunks_dir) if chunks_dir else None,
-                            sample_rate=sr
+                            sample_rate=sr,
+                            glossary=active_glossary
                         )
                         deliberations.append(delib)
                         if delib.needs_human_review or delib.consensus_score < 0.85:
@@ -777,7 +804,7 @@ class TranscriptionPipeline:
 
                         # Juror 1: Canary-Qwen
                         try:
-                            canary_h = self.transcriber.transcribe_waveform_chunk(chunk_slice, sr=sr)
+                            canary_h = self.transcriber.transcribe_waveform_chunk(chunk_slice, sr=sr, glossary=active_glossary)
                         except Exception as e:
                             print(f"[Pipeline Warning] Canary chunk {idx} error: {e}")
                             canary_h = ""
@@ -788,7 +815,8 @@ class TranscriptionPipeline:
                             sr=sr,
                             canary_text=canary_h,
                             seg_idx=idx,
-                            chunks_dir=Path(chunks_dir) if chunks_dir else None
+                            chunks_dir=Path(chunks_dir) if chunks_dir else None,
+                            glossary=active_glossary
                         )
 
                         verdict_text = delib.verdict
@@ -832,7 +860,8 @@ class TranscriptionPipeline:
                     sr=sr,
                     progress_callback=asr_progress,
                     pause_event=pause_event,
-                    stop_event=stop_event
+                    stop_event=stop_event,
+                    glossary=active_glossary
                 )
 
                 check_stop()
@@ -844,7 +873,7 @@ class TranscriptionPipeline:
                         seg = self.ambiguity_resolver.evaluate_and_resolve(
                             waveform=waveform,
                             seg=seg,
-                            transcribe_fn=self.transcriber.transcribe_chunk,
+                            transcribe_fn=lambda p: self.transcriber.transcribe_chunk(p, glossary=active_glossary),
                             sr=sr,
                             output_chunks_dir=chunks_dir,
                             seg_idx=idx
@@ -902,7 +931,9 @@ class TranscriptionPipeline:
         min_chunk_duration: float = 3.0,
         max_chunk_duration: float = 12.0,
         speaker_alias: Optional[str] = None,
-        stop_event: Optional[Any] = None
+        stop_event: Optional[Any] = None,
+        glossary: Optional[List[str]] = None,
+        attention_backend: Optional[str] = None
     ) -> Iterator[Dict[str, Any]]:
         """
         Yields progressive transcription events for an audio file.
@@ -913,6 +944,14 @@ class TranscriptionPipeline:
         if not file_path.exists():
             yield {"event": "error", "data": {"error": f"Audio file not found: {file_path}"}}
             return
+
+        active_glossary = list(glossary) if glossary is not None else self.custom_glossary
+        if attention_backend is not None and attention_backend != self.attention_backend:
+            self.attention_backend = attention_backend
+            if hasattr(self.transcriber, "attention_backend"):
+                self.transcriber.attention_backend = attention_backend
+            if hasattr(self.council, "attention_backend"):
+                self.council.attention_backend = attention_backend
 
         def is_stopped() -> bool:
             return stop_event is not None and stop_event.is_set()
@@ -980,16 +1019,16 @@ class TranscriptionPipeline:
                     if model_choice.lower() == "whisper" and hasattr(self.council, "transcribe_with_whisper"):
                         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
                             sf.write(tf.name, chunk.waveform.squeeze(0).cpu().numpy(), sr, subtype="PCM_16")
-                            text = self.council.transcribe_with_whisper(tf.name)
+                            text = self.council.transcribe_with_whisper(tf.name, glossary=active_glossary)
                             Path(tf.name).unlink(missing_ok=True)
                     else:
                         # Default: Canary-Qwen fast pass
                         if hasattr(self.transcriber, "transcribe_waveform_chunk"):
-                            text = self.transcriber.transcribe_waveform_chunk(chunk.waveform, sr=sr)
+                            text = self.transcriber.transcribe_waveform_chunk(chunk.waveform, sr=sr, glossary=active_glossary)
                         elif hasattr(self.transcriber, "transcribe_chunk"):
                             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
                                 sf.write(tf.name, chunk.waveform.squeeze(0).cpu().numpy(), sr, subtype="PCM_16")
-                                text = self.transcriber.transcribe_chunk(tf.name)
+                                text = self.transcriber.transcribe_chunk(tf.name, glossary=active_glossary)
                                 Path(tf.name).unlink(missing_ok=True)
                 except Exception as e:
                     print(f"[Stream Warning] Chunk {chunk.chunk_idx} transcription error: {e}")
