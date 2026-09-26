@@ -373,7 +373,10 @@ class TranscriptionPipeline:
         chunk_overlap_s: Optional[float] = None,
         enable_boundary_dedup: Optional[bool] = None,
         glossary: Optional[List[str]] = None,
-        attention_backend: Optional[str] = None
+        attention_backend: Optional[str] = None,
+        resume_from_chunk: Optional[int] = None,
+        existing_segments: Optional[List[Dict[str, Any]]] = None,
+        checkpoint_callback: Optional[Callable[[int, int, List[Dict[str, Any]]], None]] = None
     ) -> Dict[str, Any]:
         """
         Processes an audio file end-to-end with EBU R128 LUFS normalization (1.2.A), SoX VHQ
@@ -512,7 +515,7 @@ class TranscriptionPipeline:
 
             # 5. Multi-Model Inference Council Transcription
             total_chunks = len(speech_segments)
-            transcribed_segments = []
+            transcribed_segments = list(existing_segments) if existing_segments else []
 
             if enable_council:
                 if council_mode == "sequential":
@@ -759,6 +762,8 @@ class TranscriptionPipeline:
                             self.supervisor.record_stage_end("stage_5_audex", time.time() - t_audex_start, duration)
 
                     for idx, seg in enumerate(speech_segments):
+                        if resume_from_chunk is not None and idx < resume_from_chunk:
+                            continue
                         delib = deliberations[idx]
                         verdict_text = delib.verdict
                         if use_dedup and transcribed_segments:
@@ -780,6 +785,11 @@ class TranscriptionPipeline:
                             "confidence_decomposition": delib.confidence_decomposition
                         }
                         transcribed_segments.append(seg_dict)
+                        if checkpoint_callback:
+                            try:
+                                checkpoint_callback(idx, total_chunks, transcribed_segments)
+                            except Exception as e:
+                                print(f"[Pipeline Warning] Checkpoint callback error: {e}")
                         frac = 0.95 + ((idx + 1) / total_chunks) * 0.04
                         report(f"Deliberated chunk {idx + 1}/{total_chunks}: {delib.agreement_type}", frac, seg_dict)
 
@@ -790,6 +800,8 @@ class TranscriptionPipeline:
                     # Concurrent 1-pass streaming mode
                     report("Deliberating with Multi-Model Council (Concurrent)...", 0.38)
                     for idx, seg in enumerate(speech_segments):
+                        if resume_from_chunk is not None and idx < resume_from_chunk:
+                            continue
                         check_stop()
                         if pause_event:
                             while not pause_event.is_set():
@@ -842,6 +854,11 @@ class TranscriptionPipeline:
                             "confidence_decomposition": delib.confidence_decomposition
                         }
                         transcribed_segments.append(seg_dict)
+                        if checkpoint_callback:
+                            try:
+                                checkpoint_callback(idx, total_chunks, transcribed_segments)
+                            except Exception as e:
+                                print(f"[Pipeline Warning] Checkpoint callback error: {e}")
 
                         if (idx + 1) % 5 == 0:
                             self.vram_manager.clear_cache()

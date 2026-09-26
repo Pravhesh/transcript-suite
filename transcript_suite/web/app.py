@@ -28,6 +28,10 @@ from contextlib import asynccontextmanager
 from ..diarization.pyannote import verify_pyannote_access, auto_verify_on_startup
 from ..export import TranscriptExporter
 from ..audio.spectrogram import generate_spectrogram_image
+from ..batch.manager import get_batch_manager, BatchItem
+from ..checkpointing.manager import get_checkpoint_manager
+from ..storage.retention import get_retention_manager
+from ..workspace.backup import create_workspace_archive, get_workspace_summary
 
 
 @asynccontextmanager
@@ -1245,17 +1249,122 @@ async def pause_task(task_id: str):
 
 @app.post("/api/tasks/{task_id}/resume")
 async def resume_task(task_id: str):
-    """Resumes a paused transcription task."""
+    """Resumes a paused transcription task or resumes from an on-disk crash checkpoint."""
     ctrl = TASK_CONTROLS.get(task_id)
-    if not ctrl:
-        raise HTTPException(status_code=404, detail="Task control not found")
-    ctrl["pause_event"].set()
-    if task_id in TASKS:
-        TASKS[task_id]["status"] = "processing"
-        TASKS[task_id]["message"] = "Resuming..."
-    add_log(task_id, "INFO", "Transcription resumed by user.")
-    add_trace_sample(task_id)
-    return {"status": "resumed"}
+    # Case 1: In-memory task that is currently paused
+    if ctrl and ctrl.get("pause_event") and not ctrl["pause_event"].is_set():
+        stop_evt = ctrl.get("stop_event")
+        if not (stop_evt and stop_evt.is_set()):
+            ctrl["pause_event"].set()
+            if task_id in TASKS:
+                TASKS[task_id]["status"] = "processing"
+                TASKS[task_id]["message"] = "Resuming..."
+            add_log(task_id, "INFO", "Transcription resumed from pause.")
+            add_trace_sample(task_id)
+            return {"status": "resumed", "mode": "unpause"}
+
+    # Case 2: Resume from on-disk crash checkpoint
+    ckpt_mgr = get_checkpoint_manager()
+    ckpt = ckpt_mgr.load_checkpoint(task_id)
+    if ckpt:
+        last_chunk = ckpt.get("last_chunk_index", -1)
+        tot_chunks = ckpt.get("total_chunks", 0)
+        resume_chunk = last_chunk + 1
+        saved_segs = ckpt.get("segments", [])
+        params = ckpt.get("params", {})
+        file_path_str = ckpt.get("file_path")
+        if not file_path_str:
+            raise HTTPException(status_code=400, detail="Checkpoint missing audio file path.")
+        file_path = Path(file_path_str)
+        if not file_path.exists():
+            raise HTTPException(status_code=400, detail=f"Source audio file '{file_path}' no longer exists on disk.")
+
+        pause_event = threading.Event()
+        pause_event.set()
+        stop_event = threading.Event()
+        TASK_CONTROLS[task_id] = {
+            "pause_event": pause_event,
+            "stop_event": stop_event,
+            "pipeline": None
+        }
+
+        if task_id not in TASKS:
+            TASKS[task_id] = {
+                "id": task_id,
+                "filename": ckpt.get("filename", file_path.name),
+                "file_path": str(file_path),
+                "status": "processing",
+                "progress": round((resume_chunk / max(1, tot_chunks)) * 100, 1),
+                "message": f"Resuming from chunk {resume_chunk + 1}/{tot_chunks}...",
+                "segments": list(saved_segs),
+                "full_text": " ".join(s.get("text", "") for s in saved_segs),
+                "vram": vram_manager.get_stats(),
+                "start_ts": time.time(),
+                "logs": [],
+                "trace": []
+            }
+        else:
+            TASKS[task_id]["status"] = "processing"
+            TASKS[task_id]["message"] = f"Resuming from chunk {resume_chunk + 1}/{tot_chunks}..."
+            TASKS[task_id]["segments"] = list(saved_segs)
+
+        add_log(task_id, "INFO", f"Resuming task from checkpoint at chunk {resume_chunk + 1}/{tot_chunks} ({len(saved_segs)} pre-existing segments).")
+        add_trace_sample(task_id)
+
+        worker_thread = threading.Thread(
+            target=run_transcription_worker,
+            kwargs={
+                "task_id": task_id,
+                "file_path": file_path,
+                "diarizer": params.get("diarizer", "nemo"),
+                "speaker_labels": params.get("speaker_labels", True),
+                "enable_enhancer": params.get("enable_enhancer", True),
+                "enable_ambiguity": params.get("enable_ambiguity", True),
+                "enable_council": params.get("enable_council", True),
+                "council_mode": params.get("council_mode", "sequential"),
+                "vocal_boost_level": params.get("vocal_boost_level", "adaptive"),
+                "enable_lufs": params.get("enable_lufs", True),
+                "target_lufs": float(params.get("target_lufs", -16.0)),
+                "chunk_overlap": float(params.get("chunk_overlap", 0.5)),
+                "enable_dedup": params.get("enable_dedup", True),
+                "whisper_model": params.get("whisper_model"),
+                "conformer_model": params.get("conformer_model"),
+                "parakeet_model": params.get("parakeet_model"),
+                "model_name": params.get("model_name"),
+                "hf_token": params.get("hf_token"),
+                "glossary": params.get("glossary"),
+                "attention_backend": params.get("attention_backend"),
+                "resume_from_chunk": resume_chunk,
+                "existing_segments": saved_segs
+            },
+            daemon=True
+        )
+        worker_thread.start()
+        return {
+            "status": "resumed",
+            "mode": "checkpoint",
+            "resume_chunk": resume_chunk,
+            "total_chunks": tot_chunks,
+            "existing_segments_count": len(saved_segs)
+        }
+
+    raise HTTPException(status_code=404, detail="No active task control or valid checkpoint found to resume.")
+
+
+@app.get("/api/tasks/checkpoints")
+async def list_checkpoints():
+    """Lists resumable checkpoints saved on disk."""
+    return {"checkpoints": get_checkpoint_manager().list_resumable_checkpoints()}
+
+
+@app.get("/api/tasks/{task_id}/checkpoint")
+async def get_task_checkpoint(task_id: str):
+    """Retrieves checkpoint detail for a specific task."""
+    ckpt = get_checkpoint_manager().load_checkpoint(task_id)
+    if not ckpt:
+        raise HTTPException(status_code=404, detail="Checkpoint not found")
+    return ckpt
+
 
 
 @app.post("/api/tasks/{task_id}/stop")
@@ -1296,7 +1405,7 @@ async def delete_segment(task_id: str, segment_idx: int):
 
 @app.patch("/api/tasks/{task_id}/segments/{segment_idx}")
 async def patch_segment(task_id: str, segment_idx: int, payload: Dict[str, Any]):
-    """Updates a transcript segment text or speaker alias."""
+    """Updates a transcript segment text, speaker alias, review flag, or override."""
     if task_id not in TASKS:
         raise HTTPException(status_code=404, detail="Task not found")
     segs = TASKS[task_id].get("segments", [])
@@ -1306,8 +1415,497 @@ async def patch_segment(task_id: str, segment_idx: int, payload: Dict[str, Any])
         segs[segment_idx]["text"] = payload["text"]
     if "speaker" in payload:
         segs[segment_idx]["speaker"] = payload["speaker"]
+    if "needs_review" in payload:
+        segs[segment_idx]["needs_review"] = bool(payload["needs_review"])
+    if "edited" in payload:
+        segs[segment_idx]["edited"] = bool(payload["edited"])
+    if "winning_juror" in payload:
+        segs[segment_idx]["winning_juror"] = payload["winning_juror"]
     TASKS[task_id]["full_text"] = " ".join(s.get("text", "") for s in segs)
     return {"status": "updated", "segment": segs[segment_idx]}
+
+
+@app.post("/api/tasks/{task_id}/segments/restore")
+async def restore_segment(task_id: str, payload: Dict[str, Any]):
+    """Restores a deleted segment back into the task at a specified index (for Undo operations)."""
+    if task_id not in TASKS:
+        raise HTTPException(status_code=404, detail="Task not found")
+    segs = TASKS[task_id].setdefault("segments", [])
+    segment_idx = int(payload.get("segment_idx", len(segs)))
+    segment_data = payload.get("segment")
+    if not segment_data or not isinstance(segment_data, dict):
+        raise HTTPException(status_code=400, detail="Missing or invalid 'segment' payload")
+    
+    idx = max(0, min(segment_idx, len(segs)))
+    segs.insert(idx, segment_data)
+    TASKS[task_id]["full_text"] = " ".join(s.get("text", "") for s in segs)
+    add_log(task_id, "INFO", f"Restored segment at index {idx} (Speaker: {segment_data.get('speaker')}, '{segment_data.get('text', '')[:30]}...')")
+    return {"status": "restored", "index": idx, "remaining_count": len(segs)}
+
+
+@app.get("/api/tasks/{task_id}/comparator")
+async def get_task_comparator(task_id: str):
+    """
+    Sub-Phase 4.2.A: Per-Model Full Transcript Comparator Lab endpoint.
+    Aggregates full per-model transcripts and comparative scorecards across all council jurors.
+    """
+    if task_id not in TASKS:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    task = TASKS[task_id]
+    segs = task.get("segments", [])
+    total_chunks = len(segs)
+
+    # 1. Discover all unique models present across votes
+    models_dict: Dict[str, Dict[str, Any]] = {}
+    
+    for seg in segs:
+        council_data = seg.get("council") or {}
+        votes = council_data.get("votes") or []
+        for v in votes:
+            m = v.get("member", "Unknown")
+            if m not in models_dict:
+                # Friendly display name
+                clean_name = m.split("/")[-1].replace("_", " ").title()
+                if "canary" in m.lower():
+                    clean_name = "Canary-1B"
+                elif "whisper" in m.lower():
+                    clean_name = "Whisper Large V3"
+                elif "conformer" in m.lower():
+                    clean_name = "Conformer Ctc"
+                elif "parakeet" in m.lower():
+                    clean_name = "Parakeet TDT"
+
+                models_dict[m] = {
+                    "member": m,
+                    "display_name": clean_name,
+                    "role": v.get("role", "Juror"),
+                    "hypotheses": [],
+                    "confidences": [],
+                    "win_count": 0,
+                    "loop_count": 0
+                }
+
+    # Fallback if no multi-model council votes were recorded (single model)
+    if not models_dict:
+        lead_m = task.get("model_name", "Primary Model")
+        clean_name = lead_m.split("/")[-1].replace("_", " ").title()
+        models_dict[lead_m] = {
+            "member": lead_m,
+            "display_name": clean_name,
+            "role": "Primary Transcriber",
+            "hypotheses": [s.get("text", "") for s in segs],
+            "confidences": [0.95] * len(segs),
+            "win_count": len(segs),
+            "loop_count": 0
+        }
+
+    # 2. Build alignments and per-model data
+    chunk_alignments = []
+    unanimous_chunks = 0
+    majority_chunks = 0
+    split_chunks = 0
+    loop_breaker_chunks = 0
+
+    for idx, seg in enumerate(segs):
+        seg_text = seg.get("text", "").strip()
+        c_data = seg.get("council") or {}
+        agree_type = c_data.get("agreement_type", "UNANIMOUS")
+        is_breaker = bool(seg.get("loop_circuit_breaker_tripped") or c_data.get("loop_circuit_breaker_tripped"))
+
+        if is_breaker:
+            loop_breaker_chunks += 1
+        elif agree_type == "UNANIMOUS":
+            unanimous_chunks += 1
+        elif agree_type in ("MAJORITY", "CTC_ANCHORED", "AUDEX_ADJUDICATED"):
+            majority_chunks += 1
+        else:
+            split_chunks += 1
+
+        votes_in_seg = c_data.get("votes") or []
+        votes_payload = []
+
+        if votes_in_seg:
+            for v in votes_in_seg:
+                m = v.get("member", "Unknown")
+                hyp = v.get("hypothesis", "").strip()
+                conf = float(v.get("confidence", 0.85))
+                is_win = (hyp.lower() == seg_text.lower()) if hyp and seg_text else False
+                
+                if m in models_dict:
+                    models_dict[m]["hypotheses"].append(hyp)
+                    models_dict[m]["confidences"].append(conf)
+                    if is_win:
+                        models_dict[m]["win_count"] += 1
+                    if "loop" in v.get("role", "").lower():
+                        models_dict[m]["loop_count"] += 1
+
+                votes_payload.append({
+                    "member": m,
+                    "role": v.get("role", ""),
+                    "hypothesis": hyp,
+                    "confidence": round(conf, 3),
+                    "is_winner": is_win
+                })
+        else:
+            # Single model fallback alignment
+            for m in models_dict:
+                votes_payload.append({
+                    "member": m,
+                    "role": models_dict[m]["role"],
+                    "hypothesis": seg_text,
+                    "confidence": 0.95,
+                    "is_winner": True
+                })
+
+        chunk_alignments.append({
+            "index": idx,
+            "start": seg.get("start", 0.0),
+            "end": seg.get("end", 0.0),
+            "duration": seg.get("duration", 0.0),
+            "speaker": seg.get("speaker", "Speaker 0"),
+            "consensus_text": seg_text,
+            "agreement_type": agree_type,
+            "consensus_score": round(float(c_data.get("consensus_score", 1.0)), 3),
+            "disputed_tokens": c_data.get("disputed_tokens", []),
+            "needs_review": bool(seg.get("needs_review", False)),
+            "loop_circuit_breaker_tripped": is_breaker,
+            "votes": votes_payload
+        })
+
+    # 3. Finalize scorecards
+    consensus_full_text = " ".join(s.get("text", "").strip() for s in segs if s.get("text"))
+    consensus_words = len(consensus_full_text.split())
+
+    models_scorecards = []
+    for m, info in models_dict.items():
+        m_text = " ".join(h for h in info["hypotheses"] if h)
+        m_words = len(m_text.split())
+        avg_c = (sum(info["confidences"]) / len(info["confidences"])) if info["confidences"] else 0.85
+        win_rate = (info["win_count"] / total_chunks) if total_chunks > 0 else 1.0
+
+        # Simple token agreement rate against consensus
+        c_set = set(consensus_full_text.lower().split())
+        m_set = set(m_text.lower().split())
+        overlap = len(c_set.intersection(m_set))
+        union = len(c_set.union(m_set))
+        agreement_score = round(overlap / union, 3) if union > 0 else 1.0
+
+        models_scorecards.append({
+            "member": info["member"],
+            "display_name": info["display_name"],
+            "role": info["role"],
+            "full_text": m_text,
+            "word_count": m_words,
+            "avg_confidence": round(avg_c, 3),
+            "win_count": info["win_count"],
+            "win_rate": round(win_rate, 3),
+            "agreement_score": agreement_score,
+            "total_chunks": total_chunks
+        })
+
+    return {
+        "task_id": task_id,
+        "total_chunks": total_chunks,
+        "consensus": {
+            "full_text": consensus_full_text,
+            "word_count": consensus_words,
+            "unanimous_chunks": unanimous_chunks,
+            "majority_chunks": majority_chunks,
+            "split_chunks": split_chunks,
+            "loop_breaker_chunks": loop_breaker_chunks,
+            "unanimous_rate": round(unanimous_chunks / total_chunks, 3) if total_chunks > 0 else 1.0
+        },
+        "models": models_scorecards,
+        "chunk_alignments": chunk_alignments
+    }
+
+
+@app.post("/api/tasks/{task_id}/normalize")
+async def normalize_task_transcript(task_id: str, payload: Dict[str, Any]):
+    """
+    Sub-Phase 4.4.A: Deterministic Number & Disfluency Normalizer endpoint.
+    Applies currency, percentage, number formatting, and disfluency stripping.
+    """
+    if task_id not in TASKS:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    from ..nlp.normalizer import normalize_transcript_text
+
+    scope = payload.get("scope", "all")
+    segment_idx = payload.get("segment_idx")
+    indices = payload.get("segment_indices")
+    if scope == "active" and segment_idx is not None:
+        indices = [int(segment_idx)]
+
+    convert_numbers = payload.get("convert_numbers", payload.get("normalize_numbers", True))
+    norm_currencies = payload.get("normalize_currencies", convert_numbers)
+    norm_percentages = payload.get("normalize_percentages", convert_numbers)
+    remove_fillers = payload.get("remove_disfluencies", payload.get("remove_fillers", False))
+    custom_fillers = payload.get("custom_fillers")
+
+    segs = TASKS[task_id].get("segments", [])
+    total_metrics = {
+        "currency_replacements": 0,
+        "percent_replacements": 0,
+        "number_replacements": 0,
+        "fillers_removed": 0,
+        "segments_modified": 0
+    }
+
+    for idx, seg in enumerate(segs):
+        if indices is not None and idx not in indices:
+            continue
+        orig_text = seg.get("text", "")
+        new_text, m = normalize_transcript_text(
+            orig_text,
+            convert_numbers=convert_numbers,
+            normalize_currencies=norm_currencies,
+            normalize_percentages=norm_percentages,
+            remove_disfluencies=remove_fillers,
+            custom_fillers=custom_fillers
+        )
+        if m["changed"]:
+            seg["text"] = new_text
+            seg["edited"] = True
+            total_metrics["segments_modified"] += 1
+            total_metrics["currency_replacements"] += m["currency_replacements"]
+            total_metrics["percent_replacements"] += m["percent_replacements"]
+            total_metrics["number_replacements"] += m["number_replacements"]
+            total_metrics["fillers_removed"] += m["fillers_removed"]
+
+    TASKS[task_id]["full_text"] = " ".join(s.get("text", "") for s in segs)
+    add_log(task_id, "INFO", f"Normalized transcript: {total_metrics['segments_modified']} segments modified, {total_metrics['fillers_removed']} fillers removed.")
+    return {
+        "status": "ok",
+        "action": "normalized",
+        "segments": segs,
+        "metrics": total_metrics,
+        "modified_segments_count": total_metrics["segments_modified"]
+    }
+
+
+@app.post("/api/tasks/{task_id}/segments/merge")
+async def merge_segments(task_id: str, payload: Dict[str, Any]):
+    """
+    Sub-Phase 4.4.B: Merge segment at first_idx with following segment (first_idx + 1).
+    """
+    if task_id not in TASKS:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    segs = TASKS[task_id].get("segments", [])
+    first_idx = int(payload.get("first_idx", -1))
+    if first_idx < 0 or first_idx >= len(segs) - 1:
+        raise HTTPException(status_code=400, detail="Invalid first_idx for merge; must have a subsequent segment")
+
+    seg1 = segs[first_idx]
+    seg2 = segs[first_idx + 1]
+
+    merged_text = f"{seg1.get('text', '').strip()} {seg2.get('text', '').strip()}".strip()
+    merged_start = min(seg1.get("start", 0.0), seg2.get("start", 0.0))
+    merged_end = max(seg1.get("end", 0.0), seg2.get("end", 0.0))
+
+    merged_seg = {
+        "start": round(merged_start, 2),
+        "end": round(merged_end, 2),
+        "duration": round(merged_end - merged_start, 2),
+        "speaker": seg1.get("speaker", "Speaker 0"),
+        "text": merged_text,
+        "edited": True,
+        "needs_review": bool(seg1.get("needs_review") or seg2.get("needs_review")),
+        "council": seg1.get("council")
+    }
+
+    segs[first_idx] = merged_seg
+    segs.pop(first_idx + 1)
+
+    TASKS[task_id]["full_text"] = " ".join(s.get("text", "") for s in segs)
+    add_log(task_id, "INFO", f"Merged segment {first_idx} with {first_idx + 1} into [{merged_start:.1f}s - {merged_end:.1f}s].")
+    return {
+        "status": "ok",
+        "action": "merged",
+        "merged_index": first_idx,
+        "merged_segment": merged_seg,
+        "segment": merged_seg,
+        "total_segments": len(segs),
+        "remaining_count": len(segs)
+    }
+
+
+@app.post("/api/tasks/{task_id}/segments/split")
+async def split_segment(task_id: str, payload: Dict[str, Any]):
+    """
+    Sub-Phase 4.4.B: Split segment at seg_idx based on character offset or timestamp.
+    """
+    if task_id not in TASKS:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    segs = TASKS[task_id].get("segments", [])
+    seg_idx = int(payload.get("seg_idx", -1))
+    if seg_idx < 0 or seg_idx >= len(segs):
+        raise HTTPException(status_code=400, detail="Invalid seg_idx for split")
+
+    seg = segs[seg_idx]
+    text = seg.get("text", "")
+    char_offset = payload.get("char_offset")
+    split_time = payload.get("split_time")
+
+    if char_offset is not None:
+        char_offset = int(char_offset)
+        if char_offset <= 0 or char_offset >= len(text):
+            raise HTTPException(status_code=400, detail="char_offset must be strictly inside segment text bounds")
+        ratio = char_offset / (len(text) if len(text) > 0 else 1)
+        computed_split_time = seg.get("start", 0.0) + ratio * (seg.get("end", 0.0) - seg.get("start", 0.0))
+        part_a_text = text[:char_offset].strip()
+        part_b_text = text[char_offset:].strip()
+    elif split_time is not None:
+        computed_split_time = float(split_time)
+        if computed_split_time <= seg.get("start", 0.0) or computed_split_time >= seg.get("end", 0.0):
+            raise HTTPException(status_code=400, detail="split_time must be strictly between segment start and end")
+        dur = seg.get("end", 0.0) - seg.get("start", 0.0)
+        ratio = (computed_split_time - seg.get("start", 0.0)) / (dur if dur > 0 else 1.0)
+        char_pos = max(1, int(ratio * len(text)))
+        part_a_text = text[:char_pos].strip()
+        part_b_text = text[char_pos:].strip()
+    else:
+        raise HTTPException(status_code=400, detail="Must supply char_offset or split_time for split")
+
+    computed_split_time = round(computed_split_time, 2)
+
+    seg_a = {
+        "start": seg.get("start", 0.0),
+        "end": computed_split_time,
+        "duration": round(computed_split_time - seg.get("start", 0.0), 2),
+        "speaker": seg.get("speaker", "Speaker 0"),
+        "text": part_a_text,
+        "edited": True,
+        "needs_review": seg.get("needs_review", False),
+        "council": seg.get("council")
+    }
+
+    seg_b = {
+        "start": computed_split_time,
+        "end": seg.get("end", 0.0),
+        "duration": round(seg.get("end", 0.0) - computed_split_time, 2),
+        "speaker": seg.get("speaker", "Speaker 0"),
+        "text": part_b_text,
+        "edited": True,
+        "needs_review": seg.get("needs_review", False),
+        "council": seg.get("council")
+    }
+
+    segs[seg_idx] = seg_a
+    segs.insert(seg_idx + 1, seg_b)
+
+    TASKS[task_id]["full_text"] = " ".join(s.get("text", "") for s in segs)
+    add_log(task_id, "INFO", f"Split segment {seg_idx} into [{seg_a['start']}s - {seg_a['end']}s] and [{seg_b['start']}s - {seg_b['end']}s].")
+    return {
+        "status": "ok",
+        "action": "split",
+        "first_segment": seg_a,
+        "second_segment": seg_b,
+        "segment_a": seg_a,
+        "segment_b": seg_b,
+        "total_segments": len(segs),
+        "index_a": seg_idx,
+        "index_b": seg_idx + 1,
+        "remaining_count": len(segs)
+    }
+
+
+@app.post("/api/tasks/{task_id}/speakers/palette")
+async def update_speaker_palette(task_id: str, payload: Dict[str, Any]):
+    """
+    Sub-Phase 4.4.F: Speaker Palette & Role Avatar Customizer endpoint.
+    Updates aliases, color accents, and role icons.
+    """
+    if task_id not in TASKS:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    palette = payload.get("palette", {})
+    TASKS[task_id]["speaker_palette"] = palette
+
+    if "aliases" in payload:
+        TASKS[task_id]["speaker_aliases"] = payload["aliases"]
+
+    return {"status": "ok", "action": "updated", "palette": palette}
+
+
+def _launch_next_batch_item():
+    """Checks batch queue and launches next item sequentially if idle."""
+    batch_mgr = get_batch_manager()
+    next_item = batch_mgr.get_next_to_process()
+    if not next_item:
+        return
+    _launch_batch_item(next_item)
+
+
+def _launch_batch_item(item: BatchItem):
+    """Initializes task entry and starts worker thread for a batch item."""
+    task_id = str(uuid.uuid4())
+    batch_mgr = get_batch_manager()
+    batch_mgr.mark_started(item.item_id, task_id)
+
+    file_path = Path(item.file_path)
+    opts = item.options or {}
+
+    pause_event = threading.Event()
+    pause_event.set()
+    stop_event = threading.Event()
+    TASK_CONTROLS[task_id] = {
+        "pause_event": pause_event,
+        "stop_event": stop_event,
+        "pipeline": None
+    }
+
+    start_ts = time.time()
+    TASKS[task_id] = {
+        "id": task_id,
+        "filename": item.filename,
+        "file_path": str(file_path),
+        "status": "processing",
+        "progress": 0.0,
+        "message": f"Processing batch item: {item.filename}...",
+        "segments": [],
+        "full_text": "",
+        "vram": vram_manager.get_stats(),
+        "start_ts": start_ts,
+        "logs": [],
+        "trace": [],
+        "batch_item_id": item.item_id
+    }
+
+    add_log(task_id, "INFO", f"Batch worker started for item '{item.filename}' ({item.file_size_mb} MB).")
+    add_trace_sample(task_id)
+
+    worker_thread = threading.Thread(
+        target=run_transcription_worker,
+        kwargs={
+            "task_id": task_id,
+            "file_path": file_path,
+            "diarizer": opts.get("diarizer", "nemo"),
+            "speaker_labels": opts.get("speaker_labels", True),
+            "enable_enhancer": opts.get("enable_enhancer", True),
+            "enable_ambiguity": opts.get("enable_ambiguity", True),
+            "enable_council": opts.get("enable_council", True),
+            "council_mode": opts.get("council_mode", "sequential"),
+            "vocal_boost_level": opts.get("vocal_boost_level", "adaptive"),
+            "enable_lufs": opts.get("enable_lufs", True),
+            "target_lufs": float(opts.get("target_lufs", -16.0)),
+            "chunk_overlap": float(opts.get("chunk_overlap", 0.5)),
+            "enable_dedup": opts.get("enable_dedup", True),
+            "whisper_model": opts.get("whisper_model"),
+            "conformer_model": opts.get("conformer_model"),
+            "parakeet_model": opts.get("parakeet_model"),
+            "model_name": opts.get("model_name"),
+            "hf_token": opts.get("hf_token"),
+            "glossary": opts.get("glossary"),
+            "attention_backend": opts.get("attention_backend"),
+            "batch_item_id": item.item_id
+        },
+        daemon=True
+    )
+    worker_thread.start()
 
 
 def run_transcription_worker(
@@ -1330,11 +1928,21 @@ def run_transcription_worker(
     model_name: Optional[str] = None,
     hf_token: Optional[str] = None,
     glossary: Optional[List[str]] = None,
-    attention_backend: Optional[str] = None
+    attention_backend: Optional[str] = None,
+    resume_from_chunk: Optional[int] = None,
+    existing_segments: Optional[List[Dict[str, Any]]] = None,
+    batch_item_id: Optional[str] = None
 ):
+    ckpt_mgr = get_checkpoint_manager()
+    batch_mgr = get_batch_manager()
     ctrl = TASK_CONTROLS.get(task_id)
     pause_evt = ctrl["pause_event"] if ctrl else None
     stop_evt = ctrl["stop_event"] if ctrl else None
+
+    # Prepopulate segments in task record if resuming
+    if existing_segments and task_id in TASKS:
+        TASKS[task_id]["segments"] = list(existing_segments)
+        TASKS[task_id]["full_text"] = " ".join(s.get("text", "") for s in existing_segments)
 
     pipeline = TranscriptionPipeline(
         diarizer_type=diarizer,
@@ -1362,6 +1970,8 @@ def run_transcription_worker(
                 TASKS[task_id]["segments"].append(current_seg)
             stats = vram_manager.get_stats()
             TASKS[task_id]["vram"] = stats
+            if batch_item_id:
+                batch_mgr.update_progress(batch_item_id, round(frac * 100, 1))
             
             # Identify log level: explicitly tag [MEM] unload events
             stage_l = stage.lower()
@@ -1373,6 +1983,39 @@ def run_transcription_worker(
                 lvl = "STAGE"
             add_log(task_id, lvl, f"{stage} [{round(frac * 100, 1)}%]", stats)
             add_trace_sample(task_id)
+
+    def on_checkpoint(chunk_idx: int, total_chunks: int, current_segs: List[Dict[str, Any]]):
+        task_meta = TASKS.get(task_id, {})
+        ckpt_mgr.save_checkpoint(
+            task_id=task_id,
+            filename=task_meta.get("filename", file_path.name),
+            file_path=str(file_path),
+            last_chunk_index=chunk_idx,
+            total_chunks=total_chunks,
+            segments=current_segs,
+            params={
+                "diarizer": diarizer,
+                "speaker_labels": speaker_labels,
+                "enable_enhancer": enable_enhancer,
+                "enable_ambiguity": enable_ambiguity,
+                "enable_council": enable_council,
+                "council_mode": council_mode,
+                "vocal_boost_level": vocal_boost_level,
+                "enable_lufs": enable_lufs,
+                "target_lufs": target_lufs,
+                "chunk_overlap": chunk_overlap,
+                "enable_dedup": enable_dedup,
+                "whisper_model": whisper_model,
+                "conformer_model": conformer_model,
+                "parakeet_model": parakeet_model,
+                "model_name": model_name,
+                "hf_token": hf_token,
+                "glossary": glossary,
+                "attention_backend": attention_backend
+            },
+            duration=task_meta.get("duration", 0.0),
+            status=task_meta.get("status", "in_progress")
+        )
 
     orig_wav_path = config.upload_dir / f"{task_id}_orig.wav"
     processed_wav_path = config.upload_dir / f"{task_id}_processed.wav"
@@ -1400,7 +2043,10 @@ def run_transcription_worker(
             output_processed_path=processed_wav_path,
             chunks_dir=chunks_dir,
             glossary=glossary,
-            attention_backend=attention_backend
+            attention_backend=attention_backend,
+            resume_from_chunk=resume_from_chunk,
+            existing_segments=existing_segments,
+            checkpoint_callback=on_checkpoint
         )
         TASKS[task_id]["status"] = "completed"
         TASKS[task_id]["progress"] = 100.0
@@ -1416,6 +2062,10 @@ def run_transcription_worker(
         stats = vram_manager.get_stats()
         TASKS[task_id]["vram"] = stats
 
+        ckpt_mgr.mark_completed(task_id)
+        if batch_item_id:
+            batch_mgr.mark_completed(batch_item_id)
+
         add_log(task_id, "SUCCESS", f"Transcription completed in {result['elapsed_seconds']}s ({len(result['segments'])} segments).", stats)
         add_trace_sample(task_id)
     except InterruptedError:
@@ -1423,12 +2073,27 @@ def run_transcription_worker(
         if task_id in TASKS:
             TASKS[task_id]["status"] = "stopped"
             TASKS[task_id]["message"] = "Stopped by user"
+            on_checkpoint(
+                chunk_idx=len(TASKS[task_id].get("segments", [])) - 1,
+                total_chunks=0,
+                current_segs=TASKS[task_id].get("segments", [])
+            )
+        if batch_item_id:
+            batch_mgr.mark_failed(batch_item_id, "Stopped by user")
         add_log(task_id, "WARN", "Task interrupted and cancelled by user.")
         add_trace_sample(task_id)
     except Exception as e:
         print(f"[Error in Task {task_id}] {e}")
-        TASKS[task_id]["status"] = "failed"
-        TASKS[task_id]["message"] = str(e)
+        if task_id in TASKS:
+            TASKS[task_id]["status"] = "failed"
+            TASKS[task_id]["message"] = str(e)
+            on_checkpoint(
+                chunk_idx=len(TASKS[task_id].get("segments", [])) - 1,
+                total_chunks=0,
+                current_segs=TASKS[task_id].get("segments", [])
+            )
+        if batch_item_id:
+            batch_mgr.mark_failed(batch_item_id, str(e))
         add_log(task_id, "ERROR", f"Transcription failed: {e}")
         add_trace_sample(task_id)
     finally:
@@ -1447,6 +2112,21 @@ def run_transcription_worker(
         vram_manager.clear_cache()
         add_log(task_id, "MEM", "Task worker terminated: models unloaded, caches cleared, heap trimmed.")
         add_trace_sample(task_id)
+
+        # Check and run auto-purge if enabled
+        try:
+            retention_mgr = get_retention_manager()
+            if retention_mgr.get_policy().get("auto_purge_enabled"):
+                retention_mgr.execute_purge(TASKS)
+        except Exception as pe:
+            print(f"[Auto-Purge Warning] {pe}")
+
+        # Trigger next batch item sequentially if available
+        try:
+            _launch_next_batch_item()
+        except Exception as be:
+            print(f"[Batch Launch Error] {be}")
+
 
 
 
@@ -1778,4 +2458,206 @@ async def clear_telemetry():
     GLOBAL_TRACE.clear()
     add_log(None, "INFO", "Telemetry trace and execution logs cleared by user.")
     return {"status": "cleared"}
+
+
+# =========================================================================
+# Sub-Phase 5.1: Multi-File Sequential Ingest Queue (v1.5.1)
+# =========================================================================
+
+class ReorderBatchRequest(BaseModel):
+    item_id: str
+    new_position: int
+
+
+@app.post("/api/ingest/batch")
+async def enqueue_batch_audio(
+    files: List[UploadFile] = File(...),
+    diarizer: str = Form("nemo"),
+    speaker_labels: bool = Form(True),
+    enable_enhancer: bool = Form(True),
+    enable_ambiguity: bool = Form(True),
+    enable_council: bool = Form(True),
+    council_mode: str = Form("sequential"),
+    vocal_boost_level: str = Form("adaptive"),
+    enable_lufs: bool = Form(True),
+    target_lufs: float = Form(-16.0),
+    chunk_overlap: float = Form(0.5),
+    enable_dedup: bool = Form(True),
+    whisper_model: Optional[str] = Form(None),
+    conformer_model: Optional[str] = Form(None),
+    parakeet_model: Optional[str] = Form(None),
+    model_name: Optional[str] = Form(None),
+    hf_token: Optional[str] = Form(None),
+    glossary: Optional[str] = Form(None),
+    attention_backend: Optional[str] = Form(None)
+):
+    """
+    Accepts multi-file audio batch upload and enqueues items for sequential processing.
+    """
+    batch_mgr = get_batch_manager()
+    parsed_glossary = None
+    if glossary:
+        try:
+            val = json.loads(glossary)
+            if isinstance(val, list):
+                parsed_glossary = [str(x).strip() for x in val if str(x).strip()]
+            elif isinstance(val, str) and val.strip():
+                parsed_glossary = [t.strip() for t in val.split(",") if t.strip()]
+        except Exception:
+            parsed_glossary = [t.strip() for t in glossary.split(",") if t.strip()]
+
+    backend = attention_backend or getattr(config, "attention_backend", "sdpa")
+
+    common_options = {
+        "diarizer": diarizer,
+        "speaker_labels": speaker_labels,
+        "enable_enhancer": enable_enhancer,
+        "enable_ambiguity": enable_ambiguity,
+        "enable_council": enable_council,
+        "council_mode": council_mode,
+        "vocal_boost_level": vocal_boost_level,
+        "enable_lufs": enable_lufs,
+        "target_lufs": target_lufs,
+        "chunk_overlap": chunk_overlap,
+        "enable_dedup": enable_dedup,
+        "whisper_model": whisper_model,
+        "conformer_model": conformer_model,
+        "parakeet_model": parakeet_model,
+        "model_name": model_name,
+        "hf_token": hf_token,
+        "glossary": parsed_glossary,
+        "attention_backend": backend
+    }
+
+    enqueued_items = []
+    for file in files:
+        unique_file_id = str(uuid.uuid4())[:8]
+        ext = Path(file.filename).suffix or ".wav"
+        saved_path = config.upload_dir / f"batch_{unique_file_id}_{file.filename}"
+        with open(saved_path, "wb") as f:
+            f.write(await file.read())
+
+        size_mb = round(saved_path.stat().st_size / (1024 * 1024), 2)
+        item = batch_mgr.enqueue(
+            filename=file.filename,
+            file_path=saved_path,
+            file_size_mb=size_mb,
+            options=common_options
+        )
+        enqueued_items.append(item.to_dict())
+
+    # Launch immediately if idle
+    _launch_next_batch_item()
+
+    return {
+        "status": "enqueued",
+        "count": len(enqueued_items),
+        "items": enqueued_items,
+        "batch_status": batch_mgr.get_status()
+    }
+
+
+@app.get("/api/ingest/batch")
+async def get_batch_status():
+    """Returns current sequential batch queue state, active item, and recent history."""
+    return get_batch_manager().get_status()
+
+
+@app.delete("/api/ingest/batch/{item_id}")
+async def cancel_batch_item(item_id: str):
+    """Removes a queued item from the batch queue."""
+    success = get_batch_manager().remove(item_id)
+    if not success:
+        raise HTTPException(status_code=400, detail="Cannot remove item (already processing or not found)")
+    return {"status": "cancelled", "item_id": item_id}
+
+
+@app.post("/api/ingest/batch/reorder")
+async def reorder_batch_item(req: ReorderBatchRequest):
+    """Reorders a pending queued item."""
+    success = get_batch_manager().reorder(req.item_id, req.new_position)
+    if not success:
+        raise HTTPException(status_code=400, detail="Cannot reorder item")
+    return {"status": "reordered", "batch_status": get_batch_manager().get_status()}
+
+
+@app.post("/api/ingest/batch/clear")
+async def clear_batch_queue():
+    """Clears all pending items from batch queue."""
+    cleared = get_batch_manager().clear_pending()
+    return {"status": "cleared", "cleared_count": cleared}
+
+
+@app.post("/api/ingest/batch/pause")
+async def pause_batch_processing():
+    """Pauses sequential execution of subsequent batch items."""
+    get_batch_manager().pause()
+    return {"status": "paused", "is_paused": True}
+
+
+@app.post("/api/ingest/batch/resume")
+async def resume_batch_processing():
+    """Resumes sequential execution of batch items and triggers next item if idle."""
+    get_batch_manager().resume()
+    _launch_next_batch_item()
+    return {"status": "resumed", "is_paused": False}
+
+
+# =========================================================================
+# Sub-Phase 5.2.B: Storage Quota & Auto-Purge Retention Policies (v1.5.2)
+# =========================================================================
+
+class RetentionPolicyUpdate(BaseModel):
+    audio_retention_days: Optional[int] = None
+    storage_quota_gb: Optional[float] = None
+    auto_purge_enabled: Optional[bool] = None
+
+
+@app.get("/api/storage/retention")
+async def get_storage_retention_status():
+    """Returns current audio retention policy and dry-run purge target scan."""
+    mgr = get_retention_manager()
+    scan = mgr.scan_purging_targets(TASKS)
+    return scan
+
+
+@app.post("/api/storage/retention/policy")
+async def update_storage_retention_policy(req: RetentionPolicyUpdate):
+    """Updates retention policy settings (days, quota GB, auto_purge)."""
+    mgr = get_retention_manager()
+    updates = {k: v for k, v in req.model_dump().items() if v is not None}
+    new_policy = mgr.update_policy(updates)
+    return {"status": "updated", "policy": new_policy}
+
+
+@app.post("/api/storage/retention/run")
+async def run_storage_retention_purge():
+    """Manually triggers retention purge of expired/quota-exceeding raw audio files."""
+    mgr = get_retention_manager()
+    res = mgr.execute_purge(TASKS)
+    return res
+
+
+# =========================================================================
+# Sub-Phase 5.3.A: Workspace Full Archive Backup (v1.5.3)
+# =========================================================================
+
+@app.get("/api/workspace/summary")
+async def get_workspace_meta_summary():
+    """Returns workspace-wide summary metrics (sessions, duration, words, glossaries)."""
+    return get_workspace_summary(TASKS)
+
+
+@app.get("/api/workspace/backup")
+async def export_workspace_backup():
+    """Streams full workspace archive (.zip) containing transcripts, SRT, VTT, glossaries, settings, and journal."""
+    zip_buffer = create_workspace_archive(TASKS)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"transcript_workspace_backup_{timestamp}.zip"
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 

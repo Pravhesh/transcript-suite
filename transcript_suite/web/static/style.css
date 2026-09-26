@@ -679,9 +679,18 @@ main {
   cursor: pointer;
 }
 
-.waveform-box {
+.waveform-wrapper {
+  position: relative;
   width: 100%;
-  min-height: 52px;
+  min-height: 64px;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.waveform-box {
+  position: relative;
+  width: 100%;
+  min-height: 64px;
 }
 
 /* ==========================================================================
@@ -1081,7 +1090,8 @@ main {
   bottom: 0;
   left: 0;
   width: 0;
-  background: rgba(16, 185, 129, 0.18);
+  height: 100%;
+  background: rgba(16, 185, 129, 0.22);
   border-left: 2px solid #10b981;
   border-right: 2px solid #10b981;
   pointer-events: none;
@@ -2461,6 +2471,595 @@ main {
 .btn-cache-flush-all:hover {
   background: linear-gradient(135deg, rgba(168, 120, 85, 0.5), rgba(138, 95, 65, 0.6));
   color: #ffffff;
+}
+
+/* ========================================================================= */
+/* SUB-PHASE 4.1: WORKSPACE STRUCTURE & VISUAL ENVIRONMENT                   */
+/* ========================================================================= */
+
+/* 4.1.A: Dual-Pane Workspace Container (Stacked vs Split) */
+.workspace-container {
+  width: 100%;
+  transition: all 0.25s ease;
+}
+
+/* Stacked Layout Mode (Waveforms on top, Editor below) */
+.workspace-container.layout-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.workspace-container.layout-stacked .workspace-audio-dock {
+  width: 100%;
+}
+
+.workspace-container.layout-stacked .studio-workspace-layout {
+  display: grid;
+  grid-template-columns: 290px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+/* Split Layout Mode (Side-by-Side Dual Pane for 16:9 / Ultrawide) */
+.workspace-container.layout-split {
+  display: grid;
+  grid-template-columns: minmax(360px, 460px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.workspace-container.layout-split .workspace-audio-dock {
+  position: sticky;
+  top: 90px;
+  max-height: calc(100vh - 110px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.workspace-container.layout-split .studio-workspace-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.workspace-container.layout-split .speaker-sidebar {
+  position: static;
+  max-height: none;
+}
+
+@media (max-width: 1100px) {
+  .workspace-container.layout-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Layout Switcher Buttons */
+.layout-toggle-group {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-dim);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.btn-layout {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-layout:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-layout.active {
+  background: var(--accent-pine);
+  color: #ffffff;
+  box-shadow: 0 0 6px rgba(61, 139, 99, 0.4);
+}
+
+/* 4.1.B: Ambient Reading Ruler Focus Dimming */
+.btn-tool-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-dim);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-tool-pill:hover {
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+
+.btn-tool-pill.active {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: #10b981;
+  color: #6ee7b7;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.25);
+}
+
+.ruler-bulb {
+  font-size: 12px;
+  transition: filter 0.2s ease;
+}
+
+.btn-tool-pill.active .ruler-bulb {
+  filter: drop-shadow(0 0 4px #10b981);
+}
+
+/* Reading Ruler Dimming on Feed */
+.reading-ruler-active .segment-block,
+.reading-ruler-active .segment-block:not(.active) {
+  opacity: 0.38;
+  filter: grayscale(20%);
+  transition: opacity 0.25s ease, filter 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.reading-ruler-active .segment-block:hover {
+  opacity: 0.88;
+  filter: none;
+}
+
+.reading-ruler-active .segment-block.active {
+  opacity: 1 !important;
+  filter: none !important;
+  border-left: 3px solid var(--accent-light) !important;
+  box-shadow: -4px 0 16px rgba(16, 185, 129, 0.3), 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+  background-color: var(--active-segment-bg);
+}
+
+/* 4.1.C: Vertical Document Mini-Map Scrub Bar */
+.transcript-feed-wrapper {
+  display: flex;
+  gap: 12px;
+  position: relative;
+  width: 100%;
+  align-items: stretch;
+}
+
+.transcript-feed-wrapper .transcript-feed {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-height: 650px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.transcript-minimap {
+  position: relative;
+  width: 36px;
+  flex: 0 0 36px;
+  height: 650px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-dim);
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.4);
+}
+
+.minimap-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.minimap-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  box-sizing: border-box;
+  cursor: grab;
+  transition: background 0.15s ease;
+  z-index: 4;
+}
+
+.minimap-slider:active {
+  cursor: grabbing;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.minimap-playhead {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: #f59e0b;
+  box-shadow: 0 0 6px #f59e0b;
+  pointer-events: none;
+  display: none;
+  z-index: 6;
+}
+
+/* ========================================================================= */
+/* SUB-PHASE 4.2: COUNCIL AUDITING & MODEL COMPARATOR LAB                    */
+/* SUB-PHASE 4.3: HIGH-SPEED EDITOR ERGONOMICS & STATE CONTROL               */
+/* ========================================================================= */
+
+/* 4.3.A: Undo / Redo History Buttons */
+.history-button-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.btn-history:disabled {
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+}
+
+/* 4.3.B: Smart Auto-Scroll Edit Lock */
+.btn-tool-pill.locked {
+  background: rgba(245, 158, 11, 0.16) !important;
+  border-color: #f59e0b !important;
+  color: #fcd34d !important;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.25) !important;
+}
+
+/* 4.2.B: Enhanced Juror Voting Inspector */
+.council-vote-row.is-winner {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.vote-winner-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.vote-winner-badge.consensus-win {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.vote-winner-badge.user-override {
+  background: rgba(16, 185, 129, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.btn-override-winner {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-dim);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-override-winner:hover {
+  background: var(--accent-pine);
+  border-color: #10b981;
+  color: #ffffff;
+}
+
+/* 4.3.C: Floating Quick-Action Selection Bubble Menu */
+.selection-bubble {
+  position: fixed;
+  z-index: 1200;
+  background: rgba(22, 27, 34, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 20px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  animation: bubbleFadeIn 0.15s ease-out;
+}
+
+@keyframes bubbleFadeIn {
+  from { opacity: 0; transform: translateY(4px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.btn-bubble-action {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-bubble-action:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.bubble-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.bubble-dropdown-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  background: rgba(22, 27, 34, 0.96);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  display: none;
+  flex-direction: column;
+  min-width: 110px;
+  z-index: 1210;
+}
+
+.bubble-dropdown.open .bubble-dropdown-menu {
+  display: flex;
+}
+
+.bubble-dropdown-item {
+  background: transparent;
+  border: none;
+  color: var(--text-color);
+  font-size: 11px;
+  text-align: left;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.bubble-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.btn-bubble-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: 10px;
+}
+
+.btn-bubble-close:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* 4.2.A: Model Comparator Lab Modal */
+.modal-content-wide {
+  max-width: 1400px !important;
+  width: 95vw !important;
+  height: 90vh !important;
+  max-height: 90vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 20px !important;
+  gap: 14px !important;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-dim);
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.modal-close:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.comparator-scorecards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.comparator-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-dim);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.2s ease;
+}
+
+.comparator-card:hover {
+  border-color: var(--border-focus);
+}
+
+.comparator-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.comparator-model-title {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.comparator-win-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+.comparator-metrics-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.comparator-conf-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.comparator-conf-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent-light);
+  transition: width 0.3s ease;
+}
+
+.comparator-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-dim);
+  flex-shrink: 0;
+}
+
+.comparator-filters {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.comparator-filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.comparator-grid-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  border: 1px solid var(--border-dim);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.comparator-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+
+.comparator-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-surface);
+  padding: 8px 12px;
+  font-weight: 700;
+  border-bottom: 2px solid var(--border-color);
+  color: var(--text-secondary);
+  z-index: 2;
+  white-space: nowrap;
+}
+
+.comparator-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-dim);
+  vertical-align: top;
+  line-height: 1.4;
+}
+
+.comparator-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.comparator-diff-token {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+  border-radius: 3px;
+  padding: 1px 3px;
+  font-weight: 600;
+}
+
+.comparator-win-token {
+  background: rgba(16, 185, 129, 0.2);
+  color: #86efac;
+  border-radius: 3px;
+  padding: 1px 3px;
+}
+
+.ingest-completed-banner {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: #6ee7b7;
+  font-size: 13px;
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* ========================================================================= */
@@ -4492,5 +5091,700 @@ main {
   color: var(--text-secondary);
   line-height: 1.4;
 }
+
+/* ==========================================================================
+   SUB-PHASE 4.4: FORMATTING AUTOMATION & ACCESSIBILITY CUSTOMIZATION
+   ========================================================================== */
+
+/* 4.4.D: Document Live Metrics Ribbon & Pacing Badges */
+.document-metrics-ribbon {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 8px 14px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+
+.doc-metric-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.doc-metric-pill strong {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-family: ui-monospace, monospace;
+}
+
+.badge-pacing {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.pace-slow {
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.pace-normal {
+  background: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.pace-fast {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fcd34d;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.pace-rush {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* 4.4.C: Global Search & Replace Bar */
+.search-replace-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  animation: slideDown 0.18s ease-out;
+}
+
+.sr-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sr-input-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.sr-input {
+  width: 100%;
+  padding: 6px 10px;
+  padding-right: 86px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary, rgba(0, 0, 0, 0.3));
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.sr-input:focus {
+  border-color: var(--primary);
+}
+
+.sr-toggles {
+  position: absolute;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+}
+
+.sr-toggle-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: ui-monospace, monospace;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.sr-toggle-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sr-toggle-btn.active {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.sr-count-badge {
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 60px;
+  text-align: right;
+  font-family: ui-monospace, monospace;
+}
+
+.sr-nav-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.sr-match-highlight {
+  background: rgba(245, 158, 11, 0.35);
+  border-bottom: 2px solid #f59e0b;
+  border-radius: 2px;
+}
+
+.sr-match-active {
+  background: rgba(16, 185, 129, 0.5) !important;
+  border-bottom: 2px solid #10b981 !important;
+  outline: 1px solid #10b981;
+}
+
+/* 4.4.B: Segment Split & Merge Action Buttons */
+.btn-segment-action {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.15s ease;
+}
+
+.btn-segment-action:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+/* 4.4.E: Typography & Accessibility Customizer */
+.font-choice-btn, .density-choice-btn {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.font-choice-btn:hover, .density-choice-btn:hover {
+  border-color: var(--border-focus);
+  color: var(--text-primary);
+}
+
+.font-choice-btn.active, .density-choice-btn.active {
+  border-color: var(--primary);
+  background: rgba(16, 185, 129, 0.14);
+  color: #10b981;
+  font-weight: 600;
+}
+
+/* Typography styles applied via body or container class */
+body.font-sans, .font-sans .segment-text, .font-sans .word-token {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+}
+
+body.font-dyslexic, .font-dyslexic .segment-text, .font-dyslexic .word-token {
+  font-family: "OpenDyslexic", "Comic Sans MS", "Arial Rounded MT Bold", sans-serif !important;
+  letter-spacing: 0.04em !important;
+  word-spacing: 0.08em !important;
+}
+
+body.font-mono, .font-mono .segment-text, .font-mono .word-token {
+  font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace !important;
+}
+
+body.font-serif, .font-serif .segment-text, .font-serif .word-token {
+  font-family: "Merriweather", Georgia, "Times New Roman", serif !important;
+}
+
+/* Line Densities */
+body.density-compact .segment-text {
+  line-height: 1.35 !important;
+}
+body.density-compact .segment-block {
+  padding: 8px 12px !important;
+  margin-bottom: 6px !important;
+}
+
+body.density-comfortable .segment-text {
+  line-height: 1.6 !important;
+}
+body.density-comfortable .segment-block {
+  padding: 12px 16px !important;
+  margin-bottom: 10px !important;
+}
+
+body.density-relaxed .segment-text {
+  line-height: 1.9 !important;
+}
+body.density-relaxed .segment-block {
+  padding: 16px 20px !important;
+  margin-bottom: 14px !important;
+}
+
+/* High Contrast Mode */
+body.high-contrast-mode {
+  --text-primary: #ffffff !important;
+  --text-secondary: #e2e8f0 !important;
+  --border-color: #64748b !important;
+}
+body.high-contrast-mode .segment-text {
+  color: #ffffff !important;
+  font-weight: 500 !important;
+}
+
+/* 4.4.F: Speaker Palette Modal */
+.speaker-palette-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.sp-avatar-btn {
+  font-size: 20px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.sp-avatar-btn:hover {
+  transform: scale(1.1);
+}
+
+.sp-color-swatches {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.sp-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.sp-swatch:hover {
+  transform: scale(1.15);
+}
+
+.sp-swatch.active {
+  border-color: #ffffff;
+  transform: scale(1.18);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.5);
+}
+
+/* 4.4.G: Shortcuts Cheatsheet */
+.shortcut-category-card {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shortcut-cat-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 6px;
+}
+
+.shortcut-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.shortcut-desc {
+  color: var(--text-secondary);
+}
+
+.shortcut-kbd {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+kbd {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* =========================================================================
+   PHASE 5: BATCH OPERATIONS, RELIABILITY & ARCHIVAL STYLING
+   ========================================================================= */
+
+/* 5.1.A: Multi-File Sequential Ingest Queue & Batch Drawer */
+.batch-queue-card {
+  margin-top: 18px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg, 12px);
+  padding: 16px 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.batch-queue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+}
+
+.batch-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.batch-icon {
+  font-size: 18px;
+}
+
+.batch-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.3px;
+}
+
+.batch-count-badge {
+  background: rgba(99, 102, 241, 0.18);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  color: #a5b4fc;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.batch-status-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+
+.batch-status-chip.processing {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.batch-status-chip.paused {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.batch-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-batch-control {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-batch-control:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.btn-batch-danger {
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.btn-batch-danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: #ef4444;
+}
+
+/* Active Batch Item */
+.batch-active-item {
+  background: rgba(16, 185, 129, 0.06);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+.batch-active-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.batch-active-label {
+  color: var(--text-muted);
+}
+
+.batch-active-pct {
+  font-weight: 700;
+  color: #34d399;
+}
+
+.batch-progress-bar {
+  background: rgba(255, 255, 255, 0.08);
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.batch-progress-fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #34d399);
+  transition: width 0.3s ease;
+}
+
+/* Queued Files List */
+.batch-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.batch-queue-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
+  padding: 18px 0;
+}
+
+.batch-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 12px;
+  transition: background 0.15s ease;
+}
+
+.batch-item-row:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.batch-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.batch-pos-tag {
+  font-weight: 700;
+  color: var(--accent-light);
+  min-width: 20px;
+}
+
+.batch-item-name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.batch-item-size {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.batch-item-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-batch-row {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.btn-batch-row:hover {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
+.btn-batch-row.danger {
+  color: #f87171;
+}
+
+.btn-batch-row.danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* 5.2.A: Checkpoints & Crash Recovery Section */
+.checkpoints-card {
+  margin-top: 14px;
+  background: rgba(245, 158, 11, 0.05);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: var(--radius-lg, 12px);
+  padding: 14px 18px;
+}
+
+.checkpoints-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.checkpoints-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkpoints-icon {
+  font-size: 16px;
+}
+
+.checkpoints-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fbbf24;
+}
+
+.checkpoints-badge {
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.checkpoints-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checkpoint-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.checkpoint-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.checkpoint-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.checkpoint-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.btn-checkpoint-resume {
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid #f59e0b;
+  color: #fbbf24;
+  font-weight: 600;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-checkpoint-resume:hover {
+  background: #f59e0b;
+  color: #000000;
+}
+
 
 

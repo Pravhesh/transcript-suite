@@ -150,9 +150,9 @@
       <div class="upload-card">
         <div class="dropzone" id="dropzone">
           <div class="dropzone-icon">🎙️</div>
-          <div class="dropzone-text" id="dropzoneText">Drop your AAC or audio file here, or click to browse</div>
-          <div class="dropzone-hint">Optimized for AAC & 16kHz audio with NVIDIA Canary-Qwen & Tri-Model Supreme Council</div>
-          <input type="file" id="fileInput" accept="audio/*,.aac,.wav,.mp3,.m4a" style="display: none;">
+          <div class="dropzone-text" id="dropzoneText">Drop single or multiple audio files here, or click to browse</div>
+          <div class="dropzone-hint">Multi-file sequential batch queueing with Canary-Qwen &amp; Tri-Model Supreme Council</div>
+          <input type="file" id="fileInput" accept="audio/*,.aac,.wav,.mp3,.m4a" multiple style="display: none;">
         </div>
 
         <!-- Feature 1.1.A & 1.1.B: Pre-Flight Audio Health Badge & Stereo Auto-Remix -->
@@ -306,224 +306,413 @@
         </div>
       </div>
 
-      <div class="player-card" id="playerCard">
-        <div class="studio-header">
-          <div class="studio-title-group">
-            <span class="studio-badge">🎙️ DUAL-TRACK AUDIO STUDIO</span>
-            <span class="sync-status-badge">⚡ Synchronized Lockstep</span>
+      <!-- Ingest Status Notice when finished -->
+      <div class="ingest-completed-banner" id="ingestCompletedBanner" style="display: none;">
+        <span>✅ Transcription complete! Switch to the <strong>Transcript & Editor</strong> tab to audit and edit.</span>
+      </div>
+
+      <!-- Sub-Phase 5.1.A: Multi-File Sequential Ingest Queue & Batch Drawer -->
+      <div class="batch-queue-card" id="batchQueueSection">
+        <div class="batch-queue-header">
+          <div class="batch-title-group">
+            <span class="batch-icon">📦</span>
+            <span class="batch-title">Batch Processing Queue</span>
+            <span class="batch-count-badge" id="batchCountBadge">0 in queue</span>
+            <span class="batch-status-chip" id="batchStatusChip" style="display: none;">Idle</span>
           </div>
-          <div class="mix-match-bar">
-            <div class="ab-toggle-group">
-              <button class="btn-ab active" id="btnABOriginal" title="Audition Original Audio Only">🎙️ Original</button>
-              <button class="btn-ab" id="btnABMix" title="Mix both tracks 50/50">🎛️ Mix 50/50</button>
-              <button class="btn-ab" id="btnABModel" title="Audition Model Classification Ingest Only">🤖 Model Ingested</button>
-            </div>
-            <div class="crossfader-container" title="Crossfader: blend between Original (left) and Model Ingested (right)">
-              <span class="crossfader-label">Orig</span>
-              <input type="range" class="crossfader" id="audioCrossfader" min="0" max="100" value="0">
-              <span class="crossfader-label">Model</span>
-            </div>
+          <div class="batch-actions-bar">
+            <button type="button" class="btn-batch-control" id="btnPauseBatch" title="Pause sequential queue execution">⏸ Pause Queue</button>
+            <button type="button" class="btn-batch-control" id="btnResumeBatch" style="display: none;" title="Resume sequential queue execution">▶ Resume Queue</button>
+            <button type="button" class="btn-batch-control btn-batch-danger" id="btnClearBatch" title="Clear all queued pending files">🗑️ Clear Pending</button>
           </div>
         </div>
 
-        <div class="track-row" id="trackOriginal">
-          <div class="track-channel-strip">
-            <div class="track-name">
-              <span class="track-dot dot-orig"></span>
-              <span class="track-title-text">Original Audio (Raw)</span>
-            </div>
-            <div class="track-channel-controls">
-              <button class="btn-strip btn-solo" id="soloOrig" title="Solo Original Track">S</button>
-              <button class="btn-strip btn-mute" id="muteOrig" title="Mute Original Track">M</button>
-              <input type="range" class="vol-slider" id="volOrig" min="0" max="1" step="0.05" value="1" title="Original Volume">
-            </div>
+        <!-- Active Batch Item Progress Bar -->
+        <div class="batch-active-item" id="batchActiveItem" style="display: none;">
+          <div class="batch-active-info">
+            <span class="batch-active-label">Currently Processing:</span>
+            <strong id="batchActiveName">filename.wav</strong>
+            <span class="batch-active-pct" id="batchActivePct">0%</span>
           </div>
-          <div id="waveformOrig" class="waveform-box">
-            <div class="waveform-selection-overlay" id="selectionOverlayOrig"></div>
+          <div class="batch-progress-bar">
+            <div class="batch-progress-fill" id="batchProgressFill"></div>
           </div>
         </div>
 
-        <div class="track-row" id="trackModel">
-          <div class="track-channel-strip">
-            <div class="track-name">
-              <span class="track-dot dot-model"></span>
-              <span class="track-title-text">Model Classification Ingest (16kHz Enhanced)</span>
-            </div>
-            <div class="track-channel-controls">
-              <button class="btn-strip btn-solo" id="soloModel" title="Solo Model Ingest Track">S</button>
-              <button class="btn-strip btn-mute" id="muteModel" title="Mute Model Ingest Track">M</button>
-              <input type="range" class="vol-slider" id="volModel" min="0" max="1" step="0.05" value="0" title="Model Ingest Volume">
-            </div>
-          </div>
-          <div id="waveformModel" class="waveform-box">
-            <div class="waveform-selection-overlay" id="selectionOverlayModel"></div>
-          </div>
+        <!-- Reorderable Queued Files List -->
+        <div class="batch-queue-list" id="batchQueueList">
+          <div class="batch-queue-empty" id="batchQueueEmpty">No batch files queued. Drop multiple audio files above to transcribe sequentially.</div>
         </div>
+      </div>
 
-        <!-- Sub-Phase 3.1.A: Waveform Acoustic Confidence Heatmap -->
-        <div class="track-row track-telemetry" id="trackHeatmapRow">
-          <div class="track-channel-strip track-channel-strip-sm">
-            <div class="track-name">
-              <span class="track-dot dot-heatmap"></span>
-              <span class="track-title-text">Acoustic Consensus Heatmap</span>
-            </div>
-            <div class="heatmap-legend">
-              <span class="legend-chip legend-green">≥85% Unanimous</span>
-              <span class="legend-chip legend-yellow">65-84% Majority</span>
-              <span class="legend-chip legend-red">&lt;65% Disputed</span>
-              <span class="legend-chip legend-pink">⚡ Breaker</span>
-            </div>
+      <!-- Sub-Phase 5.2.A: Crash Checkpoints & Resumable Tasks Drawer -->
+      <div class="checkpoints-card" id="checkpointsSection" style="display: none;">
+        <div class="checkpoints-header">
+          <div class="checkpoints-title-group">
+            <span class="checkpoints-icon">💾</span>
+            <span class="checkpoints-title">Resumable Tasks &amp; Crash Recovery</span>
+            <span class="checkpoints-badge" id="checkpointsBadge">0 resumable</span>
           </div>
-          <div class="timeline-ribbon-wrapper" id="heatmapRibbonWrapper">
-            <div class="timeline-ribbon" id="confidenceHeatmap"></div>
-            <div class="timeline-playhead" id="heatmapPlayhead"></div>
-          </div>
+          <button type="button" class="btn-secondary btn-sm" id="btnRefreshCheckpoints">🔄 Refresh</button>
         </div>
-
-        <!-- Sub-Phase 3.1.C: Multi-Speaker Timeline Gantt Ribbon -->
-        <div class="track-row track-telemetry" id="trackGanttRow">
-          <div class="track-channel-strip track-channel-strip-sm">
-            <div class="track-name">
-              <span class="track-dot dot-gantt"></span>
-              <span class="track-title-text">Speaker Timeline Gantt</span>
-            </div>
-            <div class="gantt-solo-bar" id="ganttSoloBar">
-              <button class="btn-gantt-solo active" data-speaker="ALL" id="btnGanttSoloAll">🎙️ All</button>
-            </div>
-          </div>
-          <div class="timeline-ribbon-wrapper" id="ganttRibbonWrapper">
-            <div class="timeline-ribbon" id="speakerGantt"></div>
-            <div class="timeline-playhead" id="ganttPlayhead"></div>
-          </div>
-        </div>
-
-        <!-- Sub-Phase 3.1.B: FFT Spectrogram Waterfall Display -->
-        <div class="track-row track-telemetry" id="trackSpectrogramRow">
-          <div class="track-channel-strip track-channel-strip-sm">
-            <div class="track-name">
-              <span class="track-dot dot-spectrogram"></span>
-              <span class="track-title-text">FFT Spectrogram Waterfall</span>
-            </div>
-            <div class="spectrogram-controls">
-              <span class="spectrogram-freq-axis">0 – 8 kHz Formants</span>
-              <button class="btn-strip btn-toggle-vis" id="btnToggleSpectrogram" title="Toggle Spectrogram Height">⤢</button>
-            </div>
-          </div>
-          <div class="timeline-ribbon-wrapper spectrogram-wrapper" id="spectrogramWrapper">
-            <canvas id="spectrogramCanvas" class="spectrogram-canvas" height="64"></canvas>
-            <div class="timeline-playhead" id="spectrogramPlayhead"></div>
-          </div>
-        </div>
-
-        <div class="player-controls">
-          <div class="player-controls-left">
-            <button class="btn-player" id="btnPlayPause">▶ Play Both</button>
-            <button class="btn-player" id="btnBack5">↺ -5s</button>
-            <button class="btn-player" id="btnFwd5">↻ +5s</button>
-            <select class="select-input" id="playbackSpeed">
-              <option value="1.0">1.0x Speed</option>
-              <option value="1.25">1.25x</option>
-              <option value="1.5">1.5x</option>
-              <option value="0.75">0.75x</option>
-            </select>
-
-            <!-- Sub-Phase 3.2.A: Waveform Zoom Controls -->
-            <div class="zoom-controls" id="zoomControls">
-              <button class="btn-zoom" id="btnZoomOut" title="Zoom Out (Ctrl + Scroll)">🔍−</button>
-              <span class="zoom-pill" id="zoomPill">Fit</span>
-              <button class="btn-zoom" id="btnZoomIn" title="Zoom In (Ctrl + Scroll)">🔍+</button>
-              <button class="btn-zoom" id="btnZoomFit" title="Fit to Width">Fit</button>
-            </div>
-
-            <!-- Sub-Phase 3.3.A: NLE J-K-L Shuttle Scrubbing Status -->
-            <div class="shuttle-badge" id="shuttleBadge" title="NLE Transport: J (Rev), K (Stop), L (Fwd), Space (Play)">
-              <span class="shuttle-icon">⏸</span>
-              <span class="shuttle-text" id="shuttleText">1.0x (J-K-L)</span>
-            </div>
-          </div>
-
-          <div class="player-controls-right">
-            <!-- Sub-Phase 3.2.A & 3.2.B: Loop Region Active Pill -->
-            <div class="loop-badge" id="loopRegionBadge" style="display: none;" title="Active Audition Loop Region">
-              <span class="loop-icon">🔁</span>
-              <span class="loop-time-text" id="loopTimeText">00:00 – 00:00</span>
-              <button class="btn-clear-loop" id="btnClearLoop" title="Clear Active Loop (Esc)">✕</button>
-            </div>
-
-            <!-- Sub-Phase 3.3.B: Human Listener 3-Band Vocal Clarity EQ -->
-            <div class="eq-controls-group" id="eqControlsGroup">
-              <span class="eq-label">🎧 Clarity EQ:</span>
-              <button class="btn-eq-pill active" id="btnEqFlat" data-preset="flat" title="Flat EQ (Unfiltered Bypass)">Flat</button>
-              <button class="btn-eq-pill" id="btnEqClarifier" data-preset="clarifier" title="Vocal Clarifier (+5dB Formants 2.8kHz, -120Hz Rumble Cut)">🎙️ Clarifier</button>
-              <button class="btn-eq-pill" id="btnEqDehiss" data-preset="dehiss" title="De-Hiss (-6.5kHz Low-pass, -100Hz Low-cut)">🎧 De-Hiss</button>
-            </div>
-
-            <div class="player-time" id="playerTime">00:00 / 00:00</div>
-          </div>
-        </div>
+        <div class="checkpoints-list" id="checkpointsList"></div>
       </div>
     </div>
 
     <!-- TAB 2: TRANSCRIPT & EDITOR PANE -->
     <div class="tab-pane" id="paneTranscript">
-      <div class="studio-workspace-layout">
-        <!-- Left Sidebar: Speaker Hub & Quick Filters -->
-        <aside class="speaker-sidebar" id="speakerSidebar">
-          <div class="speaker-sidebar-header">
-            <div class="speaker-sidebar-title">
-              <span>👥 Speakers</span>
-              <span class="speaker-count-badge" id="speakerCountBadge">0</span>
+      <div class="workspace-container layout-stacked" id="workspaceContainer">
+        <!-- Sub-Phase 4.1.A: Dual-Track Audio Studio Dock -->
+        <div class="workspace-audio-dock" id="workspaceAudioDock">
+          <div class="player-card" id="playerCard">
+            <div class="studio-header">
+              <div class="studio-title-group">
+                <span class="studio-badge">🎙️ DUAL-TRACK AUDIO STUDIO</span>
+                <span class="sync-status-badge">⚡ Synchronized Lockstep</span>
+              </div>
+              <div class="mix-match-bar">
+                <div class="ab-toggle-group">
+                  <button class="btn-ab active" id="btnABOriginal" title="Audition Original Audio Only">🎙️ Original</button>
+                  <button class="btn-ab" id="btnABMix" title="Mix both tracks 50/50">🎛️ Mix 50/50</button>
+                  <button class="btn-ab" id="btnABModel" title="Audition Model Classification Ingest Only">🤖 Model Ingested</button>
+                </div>
+                <div class="crossfader-container" title="Crossfader: blend between Original (left) and Model Ingested (right)">
+                  <span class="crossfader-label">Orig</span>
+                  <input type="range" class="crossfader" id="audioCrossfader" min="0" max="100" value="0">
+                  <span class="crossfader-label">Model</span>
+                </div>
+              </div>
             </div>
-            <button class="btn-sidebar-action" id="btnRenameModal" title="Batch rename speaker aliases">✏️ Aliases</button>
-          </div>
 
-          <div class="speaker-search-wrapper">
-            <input type="text" class="speaker-search-input" id="speakerSearchInput" placeholder="Filter speakers by name...">
-          </div>
+            <div class="track-row" id="trackOriginal">
+              <div class="track-channel-strip">
+                <div class="track-name">
+                  <span class="track-dot dot-orig"></span>
+                  <span class="track-title-text">Original Audio (Raw)</span>
+                </div>
+                <div class="track-channel-controls">
+                  <button class="btn-strip btn-solo" id="soloOrig" title="Solo Original Track">S</button>
+                  <button class="btn-strip btn-mute" id="muteOrig" title="Mute Original Track">M</button>
+                  <input type="range" class="vol-slider" id="volOrig" min="0" max="1" step="0.05" value="1" title="Original Volume">
+                </div>
+              </div>
+              <div class="waveform-wrapper" id="waveformWrapperOrig">
+                <div id="waveformOrig" class="waveform-box"></div>
+                <div class="waveform-selection-overlay" id="selectionOverlayOrig"></div>
+              </div>
+            </div>
 
-          <div class="sidebar-filter-group">
-            <div class="sidebar-filter-pill active" data-filter="ALL" id="pillFilterAll">
-              <span>All Chunks</span>
-              <span class="filter-count-chip" id="filterCountAll">0</span>
+            <div class="track-row" id="trackModel">
+              <div class="track-channel-strip">
+                <div class="track-name">
+                  <span class="track-dot dot-model"></span>
+                  <span class="track-title-text">Model Classification Ingest (16kHz Enhanced)</span>
+                </div>
+                <div class="track-channel-controls">
+                  <button class="btn-strip btn-solo" id="soloModel" title="Solo Model Ingest Track">S</button>
+                  <button class="btn-strip btn-mute" id="muteModel" title="Mute Model Ingest Track">M</button>
+                  <input type="range" class="vol-slider" id="volModel" min="0" max="1" step="0.05" value="0" title="Model Ingest Volume">
+                </div>
+              </div>
+              <div class="waveform-wrapper" id="waveformWrapperModel">
+                <div id="waveformModel" class="waveform-box"></div>
+                <div class="waveform-selection-overlay" id="selectionOverlayModel"></div>
+              </div>
             </div>
-            <div class="sidebar-filter-pill filter-review" data-filter="REVIEW" id="pillFilterReview" style="display: none;">
-              <span>⚠️ Needs Review</span>
-              <span class="filter-count-chip chip-review" id="filterCountReview">0</span>
-            </div>
-            <div class="sidebar-filter-pill filter-disputed" data-filter="DISPUTED" id="pillFilterDisputed" style="display: none;">
-              <span>⚖️ Disputed</span>
-              <span class="filter-count-chip chip-disputed" id="filterCountDisputed">0</span>
-            </div>
-          </div>
 
-          <div class="speaker-list-compact" id="speakerListCompact">
-            <!-- Dynamically populated speaker cards with talk-time stats -->
-          </div>
-        </aside>
-
-        <!-- Right Main Panel: Transcript Feed & Workspace -->
-        <section class="transcript-workspace" id="transcriptWorkspace">
-          <div class="transcript-toolbar">
-            <div class="transcript-search-box">
-              <span class="search-icon">🔍</span>
-              <input type="text" class="text-input" id="searchInput" placeholder="Search spoken text across all chunks...">
+            <!-- Sub-Phase 3.1.A: Waveform Acoustic Confidence Heatmap -->
+            <div class="track-row track-telemetry" id="trackHeatmapRow">
+              <div class="track-channel-strip track-channel-strip-sm">
+                <div class="track-name">
+                  <span class="track-dot dot-heatmap"></span>
+                  <span class="track-title-text">Acoustic Consensus Heatmap</span>
+                </div>
+                <div class="heatmap-legend">
+                  <span class="legend-chip legend-green">≥85% Unanimous</span>
+                  <span class="legend-chip legend-yellow">65-84% Majority</span>
+                  <span class="legend-chip legend-red">&lt;65% Disputed</span>
+                  <span class="legend-chip legend-pink">⚡ Breaker</span>
+                </div>
+              </div>
+              <div class="timeline-ribbon-wrapper" id="heatmapRibbonWrapper">
+                <div class="timeline-ribbon" id="confidenceHeatmap"></div>
+                <div class="timeline-playhead" id="heatmapPlayhead"></div>
+              </div>
             </div>
-            <div class="transcript-actions">
-              <span class="editor-tip" title="Click text to edit inline. Press Ctrl+Enter to save and advance.">💡 Tip: Ctrl+Enter saves</span>
-              <button class="btn-primary" id="btnExportTxt">📥 Export .TXT</button>
-            </div>
-          </div>
 
-          <div class="transcript-feed" id="transcriptFeed">
-            <div class="empty-state-notice">
-              <div style="font-size: 36px; margin-bottom: 8px;">🎙️</div>
-              <div style="font-weight: 600;">No transcript segments yet</div>
-              <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
-                Upload an audio file in the <strong>Studio & Ingest</strong> tab to begin transcription.
+            <!-- Sub-Phase 3.1.C: Multi-Speaker Timeline Gantt Ribbon -->
+            <div class="track-row track-telemetry" id="trackGanttRow">
+              <div class="track-channel-strip track-channel-strip-sm">
+                <div class="track-name">
+                  <span class="track-dot dot-gantt"></span>
+                  <span class="track-title-text">Speaker Timeline Gantt</span>
+                </div>
+                <div class="gantt-solo-bar" id="ganttSoloBar">
+                  <button class="btn-gantt-solo active" data-speaker="ALL" id="btnGanttSoloAll">🎙️ All</button>
+                </div>
+              </div>
+              <div class="timeline-ribbon-wrapper" id="ganttRibbonWrapper">
+                <div class="timeline-ribbon" id="speakerGantt"></div>
+                <div class="timeline-playhead" id="ganttPlayhead"></div>
+              </div>
+            </div>
+
+            <!-- Sub-Phase 3.1.B: FFT Spectrogram Waterfall Display -->
+            <div class="track-row track-telemetry" id="trackSpectrogramRow">
+              <div class="track-channel-strip track-channel-strip-sm">
+                <div class="track-name">
+                  <span class="track-dot dot-spectrogram"></span>
+                  <span class="track-title-text">FFT Spectrogram Waterfall</span>
+                </div>
+                <div class="spectrogram-controls">
+                  <span class="spectrogram-freq-axis">0 – 8 kHz Formants</span>
+                  <button class="btn-strip btn-toggle-vis" id="btnToggleSpectrogram" title="Toggle Spectrogram Height">⤢</button>
+                </div>
+              </div>
+              <div class="timeline-ribbon-wrapper spectrogram-wrapper" id="spectrogramWrapper">
+                <canvas id="spectrogramCanvas" class="spectrogram-canvas" height="64"></canvas>
+                <div class="timeline-playhead" id="spectrogramPlayhead"></div>
+              </div>
+            </div>
+
+            <div class="player-controls">
+              <div class="player-controls-left">
+                <button class="btn-player" id="btnPlayPause">▶ Play Both</button>
+                <button class="btn-player" id="btnBack5">↺ -5s</button>
+                <button class="btn-player" id="btnFwd5">↻ +5s</button>
+                <select class="select-input" id="playbackSpeed">
+                  <option value="1.0">1.0x Speed</option>
+                  <option value="1.25">1.25x</option>
+                  <option value="1.5">1.5x</option>
+                  <option value="0.75">0.75x</option>
+                </select>
+
+                <!-- Sub-Phase 3.2.A: Waveform Zoom Controls -->
+                <div class="zoom-controls" id="zoomControls">
+                  <button class="btn-zoom" id="btnZoomOut" title="Zoom Out (Ctrl + Scroll)">🔍−</button>
+                  <span class="zoom-pill" id="zoomPill">Fit</span>
+                  <button class="btn-zoom" id="btnZoomIn" title="Zoom In (Ctrl + Scroll)">🔍+</button>
+                  <button class="btn-zoom" id="btnZoomFit" title="Fit to Width">Fit</button>
+                </div>
+
+                <!-- Sub-Phase 3.3.A: NLE J-K-L Shuttle Scrubbing Status -->
+                <div class="shuttle-badge" id="shuttleBadge" title="NLE Transport: J (Rev), K (Stop), L (Fwd), Space (Play)">
+                  <span class="shuttle-icon">⏸</span>
+                  <span class="shuttle-text" id="shuttleText">1.0x (J-K-L)</span>
+                </div>
+              </div>
+
+              <div class="player-controls-right">
+                <!-- Sub-Phase 3.2.A & 3.2.B: Loop Region Active Pill -->
+                <div class="loop-badge" id="loopRegionBadge" style="display: none;" title="Active Audition Loop Region">
+                  <span class="loop-icon">🔁</span>
+                  <span class="loop-time-text" id="loopTimeText">00:00 – 00:00</span>
+                  <button class="btn-clear-loop" id="btnClearLoop" title="Clear Active Loop (Esc)">✕</button>
+                </div>
+
+                <!-- Sub-Phase 3.3.B: Human Listener 3-Band Vocal Clarity EQ -->
+                <div class="eq-controls-group" id="eqControlsGroup">
+                  <span class="eq-label">🎧 Clarity EQ:</span>
+                  <button class="btn-eq-pill active" id="btnEqFlat" data-preset="flat" title="Flat EQ (Unfiltered Bypass)">Flat</button>
+                  <button class="btn-eq-pill" id="btnEqClarifier" data-preset="clarifier" title="Vocal Clarifier (+5dB Formants 2.8kHz, -120Hz Rumble Cut)">🎙️ Clarifier</button>
+                  <button class="btn-eq-pill" id="btnEqDehiss" data-preset="dehiss" title="De-Hiss (-6.5kHz Low-pass, -100Hz Low-cut)">🎧 De-Hiss</button>
+                </div>
+
+                <div class="player-time" id="playerTime">00:00 / 00:00</div>
               </div>
             </div>
           </div>
-        </section>
+        </div>
+
+        <div class="studio-workspace-layout" id="studioWorkspaceLayout">
+          <!-- Left Sidebar: Speaker Hub & Quick Filters -->
+          <aside class="speaker-sidebar" id="speakerSidebar">
+            <div class="speaker-sidebar-header">
+              <div class="speaker-sidebar-title">
+                <span>👥 Speakers</span>
+                <span class="speaker-count-badge" id="speakerCountBadge">0</span>
+              </div>
+              <button class="btn-sidebar-action" id="btnRenameModal" title="Batch rename speaker aliases">✏️ Aliases</button>
+            </div>
+
+            <div class="speaker-search-wrapper">
+              <input type="text" class="speaker-search-input" id="speakerSearchInput" placeholder="Filter speakers by name...">
+            </div>
+
+            <div class="sidebar-filter-group">
+              <div class="sidebar-filter-pill active" data-filter="ALL" id="pillFilterAll">
+                <span>All Chunks</span>
+                <span class="filter-count-chip" id="filterCountAll">0</span>
+              </div>
+              <div class="sidebar-filter-pill filter-review" data-filter="REVIEW" id="pillFilterReview" style="display: none;">
+                <span>⚠️ Needs Review</span>
+                <span class="filter-count-chip chip-review" id="filterCountReview">0</span>
+              </div>
+              <div class="sidebar-filter-pill filter-disputed" data-filter="DISPUTED" id="pillFilterDisputed" style="display: none;">
+                <span>⚖️ Disputed</span>
+                <span class="filter-count-chip chip-disputed" id="filterCountDisputed">0</span>
+              </div>
+            </div>
+
+            <div class="speaker-list-compact" id="speakerListCompact">
+              <!-- Dynamically populated speaker cards with talk-time stats -->
+            </div>
+          </aside>
+
+          <!-- Right Main Panel: Transcript Feed & Mini-Map -->
+          <section class="transcript-workspace" id="transcriptWorkspace">
+            <div class="transcript-toolbar">
+              <div class="transcript-search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" class="text-input" id="searchInput" placeholder="Search spoken text across all chunks...">
+              </div>
+              <div class="transcript-actions">
+                <!-- Sub-Phase 4.1.A: Dual-Pane Layout Mode Toggle (Split / Stacked) -->
+                <div class="layout-toggle-group" id="layoutToggleGroup" title="Workspace Layout Mode (16:9 / Ultrawide)">
+                  <button type="button" class="btn-layout active" id="btnLayoutStacked" title="Stacked View (Waveform Studio on top, Editor below)">⯀ Stacked</button>
+                  <button type="button" class="btn-layout" id="btnLayoutSplit" title="Side-by-Side Split View (Waveforms on left, Editor on right)">⫴ Split</button>
+                </div>
+
+                <!-- Sub-Phase 4.1.B: Ambient Reading Ruler Focus Dimming Toggle -->
+                <button type="button" class="btn-tool-pill" id="btnToggleReadingRuler" title="Toggle Ambient Reading Ruler Focus Dimming (Alt + F)">
+                  <span class="ruler-bulb">💡</span> Reading Ruler
+                </button>
+
+                <!-- Sub-Phase 4.2.A: Model Comparator Lab Button -->
+                <button type="button" class="btn-tool-pill" id="btnModelComparator" title="Open Model Comparator Lab (Canary vs Whisper vs CTC vs Parakeet)">
+                  🔬 Comparator Lab
+                </button>
+
+                <!-- Sub-Phase 4.2.B: Expand/Collapse All Juror Voting Drawers -->
+                <button type="button" class="btn-tool-pill" id="btnToggleAllJurors" title="Expand/Collapse All Juror Voting Drawers">
+                  🏛️ All Jurors
+                </button>
+
+                <!-- Sub-Phase 4.3.A: Full Undo / Redo History Buttons -->
+                <div class="history-button-group">
+                  <button type="button" class="btn-tool-pill btn-history" id="btnUndo" title="Undo (Ctrl+Z)" disabled>↩ Undo</button>
+                  <button type="button" class="btn-tool-pill btn-history" id="btnRedo" title="Redo (Ctrl+Y)" disabled>↪ Redo</button>
+                </div>
+
+                <!-- Sub-Phase 4.3.B: Smart Auto-Scroll with Viewport Edit Lock Toggle -->
+                <button type="button" class="btn-tool-pill" id="btnAutoScrollLock" title="Toggle Auto-Scroll Lock (Freezes viewport scrolling during editing)">
+                  <span id="autoScrollLockIcon">🔓</span> <span id="autoScrollLockLabel">Auto-Scroll</span>
+                </button>
+
+                <!-- Sub-Phase 4.4.A: Deterministic Normalizer Button -->
+                <button type="button" class="btn-tool-pill" id="btnOpenNormalizer" title="Deterministic Numbers & Disfluency Normalizer">
+                  🪄 Normalizer
+                </button>
+
+                <!-- Sub-Phase 4.4.C: Global Search & Replace Toggle -->
+                <button type="button" class="btn-tool-pill" id="btnToggleSearchReplace" title="Global Search & Replace (Ctrl+H)">
+                  🔍 Find & Replace
+                </button>
+
+                <!-- Sub-Phase 4.4.E: Typography & Accessibility Customizer -->
+                <button type="button" class="btn-tool-pill" id="btnTypography" title="Typography & Dyslexia Customizer">
+                  🔤 Typography
+                </button>
+
+                <!-- Sub-Phase 4.4.F: Speaker Palette & Avatars -->
+                <button type="button" class="btn-tool-pill" id="btnSpeakerPalette" title="Customize Speaker Palettes & Roles">
+                  🎨 Speakers
+                </button>
+
+                <!-- Sub-Phase 4.4.G: Keyboard Shortcuts Cheatsheet -->
+                <button type="button" class="btn-tool-pill" id="btnShortcutsCheatsheet" title="Interactive Keyboard Shortcuts Cheatsheet (?)">
+                  ⌨️ Shortcuts
+                </button>
+
+                <span class="editor-tip" title="Click text to edit inline. Press Ctrl+Enter to save and advance.">💡 Tip: Ctrl+Enter saves</span>
+                <button class="btn-primary" id="btnExportTxt">📥 Export .TXT</button>
+              </div>
+            </div>
+
+            <!-- Sub-Phase 4.4.C: Global Search & Replace Bar -->
+            <div class="search-replace-bar" id="searchReplaceBar" style="display: none;">
+              <div class="sr-input-group">
+                <span class="sr-icon">🔍</span>
+                <input type="text" class="text-input text-input-sm" id="srFindInput" placeholder="Find text in transcript...">
+              </div>
+              <div class="sr-input-group">
+                <span class="sr-icon">✏️</span>
+                <input type="text" class="text-input text-input-sm" id="srReplaceInput" placeholder="Replace with...">
+              </div>
+              <div class="sr-toggles">
+                <button type="button" class="sr-toggle-btn" id="chkFindMatchCase" title="Match Case (Aa)">Aa</button>
+                <button type="button" class="sr-toggle-btn" id="chkFindWholeWord" title="Match Whole Word (\b)">\b</button>
+                <button type="button" class="sr-toggle-btn" id="chkFindRegex" title="Use Regular Expression (.*)">.*</button>
+              </div>
+              <div class="sr-nav-group">
+                <span class="sr-count-badge" id="srCountBadge">0 matches</span>
+                <button type="button" class="btn-secondary btn-sm" id="btnFindPrev" title="Previous match">▲</button>
+                <button type="button" class="btn-secondary btn-sm" id="btnFindNext" title="Next match">▼</button>
+                <button type="button" class="btn-secondary btn-sm" id="btnReplaceNext">Replace</button>
+                <button type="button" class="btn-primary btn-sm" id="btnReplaceAll">Replace All</button>
+                <button type="button" class="sr-close-btn" id="btnCloseSearchReplace" title="Close Search & Replace">✕</button>
+              </div>
+            </div>
+
+            <!-- Sub-Phase 4.4.D: Live Document Metrics Ribbon -->
+            <div class="document-metrics-ribbon" id="documentMetricsRibbon">
+              <div class="doc-metric-pill" id="metricTotalWords">
+                <span class="doc-metric-icon">📊</span>
+                <span class="doc-metric-val" id="metricValWords">0</span>
+                <span class="doc-metric-label">Words</span>
+              </div>
+              <div class="doc-metric-pill" id="metricTotalDuration">
+                <span class="doc-metric-icon">⏱️</span>
+                <span class="doc-metric-val" id="metricValDuration">00:00</span>
+                <span class="doc-metric-label">Duration</span>
+              </div>
+              <div class="doc-metric-pill" id="metricAvgWpm">
+                <span class="doc-metric-icon">⚡</span>
+                <span class="doc-metric-val" id="metricValWpm">0</span>
+                <span class="doc-metric-label">Avg WPM</span>
+              </div>
+              <div class="doc-metric-pill" id="metricAvgCps">
+                <span class="doc-metric-icon">💬</span>
+                <span class="doc-metric-val" id="metricValCps">0.0</span>
+                <span class="doc-metric-label">Avg CPS</span>
+              </div>
+            </div>
+
+            <!-- Sub-Phase 4.1.C: Vertical Document Mini-Map Scrub Bar -->
+            <div class="transcript-feed-wrapper" id="transcriptFeedWrapper">
+              <div class="transcript-feed" id="transcriptFeed">
+                <div class="empty-state-notice">
+                  <div style="font-size: 36px; margin-bottom: 8px;">🎙️</div>
+                  <div style="font-weight: 600;">No transcript segments yet</div>
+                  <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                    Upload an audio file in the <strong>Studio & Ingest</strong> tab to begin transcription.
+                  </div>
+                </div>
+              </div>
+              <div class="transcript-minimap" id="transcriptMinimap" title="Document Mini-Map (Click or drag to scrub transcript)">
+                <canvas class="minimap-canvas" id="minimapCanvas" width="36" height="600"></canvas>
+                <div class="minimap-slider" id="minimapSlider" title="Visible viewport (Drag to scrub)"></div>
+                <div class="minimap-playhead" id="minimapPlayhead" title="Active playback position"></div>
+              </div>
+            </div>
+
+            <!-- Sub-Phase 4.3.C: Floating Quick-Action Selection Bubble Menu -->
+            <div class="selection-bubble" id="selectionBubble" style="display: none;">
+              <button type="button" class="btn-bubble-action" id="bubbleBtnAudition" title="Audition highlighted text slice">🔊 Audition</button>
+              <button type="button" class="btn-bubble-action" id="bubbleBtnGlossary" title="Add highlighted text to domain glossary">📖 +Glossary</button>
+              <div class="bubble-dropdown">
+                <button type="button" class="btn-bubble-action" id="bubbleBtnCase" title="Transform text capitalization">Aa Case ▾</button>
+                <div class="bubble-dropdown-menu" id="bubbleCaseDropdown">
+                  <button type="button" class="bubble-dropdown-item" data-case="title">Title Case</button>
+                  <button type="button" class="bubble-dropdown-item" data-case="upper">UPPERCASE</button>
+                  <button type="button" class="bubble-dropdown-item" data-case="lower">lowercase</button>
+                </div>
+              </div>
+              <button type="button" class="btn-bubble-action" id="bubbleBtnFlag" title="Toggle human review flag for this chunk">🚩 Flag Review</button>
+              <button type="button" class="btn-bubble-close" id="bubbleBtnClose" title="Dismiss selection menu">✕</button>
+            </div>
+          </section>
+        </div>
       </div>
 
       <!-- Persistent Floating Play/Pause Audio Player Dock -->
@@ -1348,6 +1537,72 @@
           <div id="glossaryChipsContainer" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; min-height: 42px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid var(--border-color); align-items: center;">
             <span style="color: var(--text-muted); font-size: 12px; font-style: italic;" id="glossaryEmptyMsg">No custom terms added yet. Add terms above to prime the ASR council.</span>
           </div>
+        <!-- CARD 6: STORAGE QUOTA & AUTO-PURGE RETENTION (5.2.B) -->
+        <div class="model-card" id="storageRetentionCard" style="grid-column: 1 / -1;">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title">🗄️ Audio Retention Policies &amp; Storage Quotas</div>
+              <div class="model-card-arch">Automatic lifecycle purge of raw audio files (*_orig.wav, *_processed.wav, *_chunks/) with Zero Transcript Loss guarantee.</div>
+            </div>
+            <span class="status-badge-active" id="retentionStatusBadge">Retention Active</span>
+          </div>
+
+          <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 8px; padding: 12px; margin-top: 12px; font-size: 12px; color: #a7f3d0; line-height: 1.5;">
+            🛡️ <strong>Zero Data Loss Invariant:</strong> Audio retention purging only reclaims heavy raw <code>.wav</code> waveforms and chunk cache. Your transcripts (<code>.json</code>), subtitles (<code>.srt</code>, <code>.vtt</code>), formatting overrides, and speaker aliases are preserved permanently.
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 16px;">
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Audio Retention Horizon (Days)</label>
+              <input type="number" id="inputRetentionDays" class="text-input" min="0" max="365" value="14" style="width: 100%;" title="Purge audio older than N days (0 = unlimited retention)">
+              <span style="font-size: 11px; color: var(--text-muted);">Files older than this are targeted for purge (0 = disabled).</span>
+            </div>
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Audio Storage Quota (GB)</label>
+              <input type="number" id="inputStorageQuota" class="text-input" min="1" max="500" step="0.5" value="15.0" style="width: 100%;" title="Maximum disk GB allocated for audio files">
+              <span style="font-size: 11px; color: var(--text-muted);">Purges oldest raw audio when usage exceeds quota.</span>
+            </div>
+            <div style="display: flex; flex-direction: column; justify-content: center;">
+              <label class="checkbox-label" style="font-weight: 600;" title="Run retention purge automatically on pipeline completion">
+                <input type="checkbox" id="toggleAutoPurge">
+                <span>Auto-Purge Expired Audio</span>
+              </label>
+              <span style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Runs purge automatically after every transcription finishes.</span>
+            </div>
+          </div>
+
+          <!-- Retention Metrics Bar -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid var(--border-color); font-size: 12px;">
+            <div>
+              <span>Total Audio Usage: <strong id="retentionAudioTotalMb">0 MB</strong></span>
+              <span style="margin: 0 8px; opacity: 0.4;">|</span>
+              <span>Reclaimable: <strong id="retentionReclaimableMb" style="color: #f59e0b;">0 MB</strong> (<span id="retentionCandidateCount">0</span> targets)</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="btn-secondary btn-sm" id="btnSaveRetentionPolicy">💾 Save Policy</button>
+              <button type="button" class="btn-primary btn-sm" id="btnRunRetentionPurge" style="background: rgba(239, 68, 68, 0.8);">🧹 Run Purge Now</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 7: WORKSPACE FULL ARCHIVE BACKUP (5.3.A) -->
+        <div class="model-card" id="workspaceBackupCard" style="grid-column: 1 / -1;">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title">📦 Workspace Full Archive Backup &amp; Disaster Recovery</div>
+              <div class="model-card-arch">One-click comprehensive backup bundling all transcripts (.json, .txt, .srt, .vtt), domain glossaries, speaker palettes, settings, and supervisor audit journals into a portable ZIP.</div>
+            </div>
+            <span class="status-badge-active">Standard ZIP</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid var(--border-color); font-size: 12px;">
+            <div>
+              <span id="workspaceMetaSummaryText">Workspace: <strong>-- sessions</strong>, <strong>-- segments</strong>, <strong>-- words</strong>, <strong>-- hours</strong></span>
+            </div>
+            <button type="button" class="btn-primary" id="btnExportWorkspaceBackup" style="display: flex; align-items: center; gap: 6px;">
+              📥 Export Workspace Backup (.zip)
+            </button>
+          </div>
         </div>
 
       </div>
@@ -1361,6 +1616,240 @@
       <div style="display: flex; justify-content: flex-end; gap: 8px;">
         <button class="btn-secondary" id="btnCancelRename">Cancel</button>
         <button class="btn-primary" id="btnSaveAliases">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub-Phase 4.2.A: Supreme Council Model Comparator Lab Modal -->
+  <div class="modal-overlay" id="comparatorModal" style="display: none;">
+    <div class="modal-content modal-content-wide">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">🔬 Supreme Council Model Comparator Lab</div>
+          <div class="modal-subtitle">Direct side-by-side alignment of all active models against the synthesized consensus</div>
+        </div>
+        <button type="button" class="modal-close" id="btnCloseComparator" title="Close Comparator Lab">✕</button>
+      </div>
+      
+      <!-- Scorecards Overview Row -->
+      <div class="comparator-scorecards" id="comparatorScorecards">
+        <!-- Dynamically rendered: Consensus, Canary, Whisper, CTC, Parakeet -->
+      </div>
+
+      <!-- Filters & Toolbar -->
+      <div class="comparator-toolbar">
+        <div class="comparator-filters">
+          <label class="comparator-filter-label">
+            <input type="checkbox" id="chkDisagreementsOnly">
+            <span>Show Disagreements Only</span>
+          </label>
+          <input type="text" class="text-input text-input-sm" id="comparatorSearchInput" placeholder="Filter comparisons by keyword...">
+        </div>
+        <div class="comparator-actions">
+          <button type="button" class="btn-secondary btn-sm" id="btnExportComparatorTxt" title="Copy active comparisons to clipboard">📋 Copy Active View</button>
+        </div>
+      </div>
+
+      <!-- Synchronized Multi-Column Comparator Matrix -->
+      <div class="comparator-grid-wrapper" id="comparatorGridWrapper">
+        <!-- Dynamically rendered multi-model table/grid -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub-Phase 4.4.A: Deterministic Formatting & Disfluency Normalizer Modal -->
+  <div class="modal-overlay" id="normalizerModal" style="display: none;">
+    <div class="modal-content" style="max-width: 580px;">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">🪄 Deterministic Formatting &amp; Normalizer</div>
+          <div class="modal-subtitle">Transform spoken numbers, currencies, and disfluencies into standardized clean prose</div>
+        </div>
+        <button type="button" class="modal-close" id="btnCloseNormalizer" title="Close Normalizer">✕</button>
+      </div>
+      <div style="padding: 16px 0; display: flex; flex-direction: column; gap: 14px;">
+        <label class="pref-toggle-row">
+          <input type="checkbox" id="normOptNumbers" checked>
+          <div>
+            <strong>Convert Spoken Numbers to Digits</strong>
+            <div style="font-size: 11px; color: var(--text-muted);">Converts words like "one hundred and twenty-three" → "123", "first" → "1st"</div>
+          </div>
+        </label>
+        <label class="pref-toggle-row">
+          <input type="checkbox" id="normOptCurrencies" checked>
+          <div>
+            <strong>Standardize Currency Symbols</strong>
+            <div style="font-size: 11px; color: var(--text-muted);">Converts phrases like "one hundred dollars" → "$100", "fifty euros" → "€50"</div>
+          </div>
+        </label>
+        <label class="pref-toggle-row">
+          <input type="checkbox" id="normOptPercentages" checked>
+          <div>
+            <strong>Standardize Percentages</strong>
+            <div style="font-size: 11px; color: var(--text-muted);">Converts phrases like "twenty-five percent" → "25%"</div>
+          </div>
+        </label>
+        <label class="pref-toggle-row">
+          <input type="checkbox" id="normOptDisfluencies">
+          <div>
+            <strong>Remove Filler Words &amp; Disfluencies</strong>
+            <div style="font-size: 11px; color: var(--text-muted);">Removes hesitation fillers: "um", "uh", "erm", "ah", "you know", "like" (surrounded by pauses)</div>
+          </div>
+        </label>
+
+        <div style="margin-top: 8px;">
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Scope</label>
+          <select id="normScopeSelect" class="select-input" style="width: 100%;">
+            <option value="all">Entire Document (All Segments)</option>
+            <option value="active">Active Selected Segment Only</option>
+          </select>
+        </div>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
+        <button type="button" class="btn-secondary" id="btnCancelNormalizer">Cancel</button>
+        <button type="button" class="btn-primary" id="btnApplyNormalizer">✨ Run Normalization</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub-Phase 4.4.E: Typography & Accessibility Customizer Modal -->
+  <div class="modal-overlay" id="typographyModal" style="display: none;">
+    <div class="modal-content" style="max-width: 520px;">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">🎨 Typography &amp; Accessibility</div>
+          <div class="modal-subtitle">Customize reading font, text scale, line spacing, and dyslexia-friendly rendering</div>
+        </div>
+        <button type="button" class="modal-close" id="btnCloseTypography" title="Close Typography Settings">✕</button>
+      </div>
+      <div style="padding: 16px 0; display: flex; flex-direction: column; gap: 16px;">
+        <div>
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Font Family</label>
+          <div class="typography-font-picker" id="typographyFontPicker" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button type="button" class="font-choice-btn active" data-font="sans">Inter / Modern Sans</button>
+            <button type="button" class="font-choice-btn" data-font="dyslexic">OpenDyslexic / Readable</button>
+            <button type="button" class="font-choice-btn" data-font="mono">JetBrains Mono / Code</button>
+            <button type="button" class="font-choice-btn" data-font="serif">Merriweather / Serif</button>
+          </div>
+        </div>
+
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Font Size</label>
+            <span id="fontSizeDisplay" style="font-size: 12px; font-weight: 700; color: var(--primary);">14px</span>
+          </div>
+          <input type="range" id="fontSizeSlider" min="12" max="22" step="1" value="14" style="width: 100%;">
+        </div>
+
+        <div>
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Line Density &amp; Spacing</label>
+          <div class="typography-density-picker" id="typographyDensityPicker" style="display: flex; gap: 8px;">
+            <button type="button" class="density-choice-btn" data-density="compact" style="flex: 1;">Compact</button>
+            <button type="button" class="density-choice-btn active" data-density="comfortable" style="flex: 1;">Comfortable</button>
+            <button type="button" class="density-choice-btn" data-density="relaxed" style="flex: 1;">Relaxed</button>
+          </div>
+        </div>
+
+        <label class="pref-toggle-row">
+          <input type="checkbox" id="chkHighContrast">
+          <div>
+            <strong>High Contrast Text Mode</strong>
+            <div style="font-size: 11px; color: var(--text-muted);">Increases text luminances and sharpens boundary contrast for enhanced readability</div>
+          </div>
+        </label>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+        <button type="button" class="btn-secondary" id="btnResetTypography">Reset Defaults</button>
+        <button type="button" class="btn-primary" id="btnDoneTypography">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub-Phase 4.4.F: Speaker Palette & Role Avatar Customizer Modal -->
+  <div class="modal-overlay" id="speakerPaletteModal" style="display: none;">
+    <div class="modal-content modal-content-wide" style="max-width: 680px;">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">🎭 Speaker Palette &amp; Role Avatars</div>
+          <div class="modal-subtitle">Assign participant colors, role icons, and custom display tags</div>
+        </div>
+        <button type="button" class="modal-close" id="btnCloseSpeakerPalette" title="Close Speaker Palette">✕</button>
+      </div>
+      <div id="speakerPaletteList" style="max-height: 400px; overflow-y: auto; padding: 12px 0; display: flex; flex-direction: column; gap: 12px;">
+        <!-- Dynamically rendered speaker cards -->
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border-color);">
+        <button type="button" class="btn-secondary" id="btnResetSpeakerPalette">Reset Default Palette</button>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn-secondary" id="btnCancelSpeakerPalette">Cancel</button>
+          <button type="button" class="btn-primary" id="btnSaveSpeakerPalette">💾 Save Palette</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub-Phase 4.4.G: Keyboard Shortcuts Cheatsheet Modal -->
+  <div class="modal-overlay" id="shortcutsModal" style="display: none;">
+    <div class="modal-content modal-content-wide" style="max-width: 760px;">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">⌨️ Keyboard Shortcuts &amp; Cheatsheet</div>
+          <div class="modal-subtitle">Pro-editor transport, navigation, formatting, and history keybindings</div>
+        </div>
+        <button type="button" class="modal-close" id="btnCloseShortcuts" title="Close Shortcuts">✕</button>
+      </div>
+      <div class="shortcuts-grid-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 16px 0; max-height: 480px; overflow-y: auto;">
+        
+        <div class="shortcut-category-card">
+          <div class="shortcut-cat-title">Playback &amp; Transport</div>
+          <div class="shortcut-row"><span class="shortcut-desc">Play / Pause</span><span class="shortcut-kbd"><kbd>Space</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Seek Backward / Forward 5s</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>←</kbd> / <kbd>→</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Playback Speed Down / Up</span><span class="shortcut-kbd"><kbd>[</kbd> / <kbd>]</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Word / Syllable Micro-Loop</span><span class="shortcut-kbd"><kbd>R</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Exit Loop / Close Modals</span><span class="shortcut-kbd"><kbd>Esc</kbd></span></div>
+        </div>
+
+        <div class="shortcut-category-card">
+          <div class="shortcut-cat-title">Navigation &amp; Selection</div>
+          <div class="shortcut-row"><span class="shortcut-desc">Jump Previous / Next Segment</span><span class="shortcut-kbd"><kbd>J</kbd> / <kbd>K</kbd> or <kbd>Alt</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Jump to Active Audio Segment</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>L</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Step to Next Word in Segment</span><span class="shortcut-kbd"><kbd>Tab</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Step to Prev Word in Segment</span><span class="shortcut-kbd"><kbd>Shift</kbd> + <kbd>Tab</kbd></span></div>
+        </div>
+
+        <div class="shortcut-category-card">
+          <div class="shortcut-cat-title">Editing &amp; History</div>
+          <div class="shortcut-row"><span class="shortcut-desc">Undo Last Text Edit</span><span class="shortcut-kbd"><kbd>Ctrl</kbd> + <kbd>Z</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Redo Last Edit</span><span class="shortcut-kbd"><kbd>Ctrl</kbd> + <kbd>Y</kbd> / <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Find &amp; Replace Bar</span><span class="shortcut-kbd"><kbd>Ctrl</kbd> + <kbd>H</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Commit Active Inline Edit</span><span class="shortcut-kbd"><kbd>Enter</kbd> or Blur</span></div>
+        </div>
+
+        <div class="shortcut-category-card">
+          <div class="shortcut-cat-title">Segment Merging &amp; Tools</div>
+          <div class="shortcut-row"><span class="shortcut-desc">Merge Segment with Next</span><span class="shortcut-kbd"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>J</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Split Segment at Cursor</span><span class="shortcut-kbd"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Formatting &amp; Normalizer</span><span class="shortcut-kbd"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>N</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Council Model Comparator</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>M</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Shortcuts Cheatsheet</span><span class="shortcut-kbd"><kbd>?</kbd> or <kbd>Ctrl</kbd> + <kbd>/</kbd></span></div>
+        </div>
+
+        <div class="shortcut-category-card" style="grid-column: 1 / -1;">
+          <div class="shortcut-cat-title">Workspace &amp; Fast Navigation</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div class="shortcut-row"><span class="shortcut-desc">Switch to Studio Tab</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>1</kbd></span></div>
+            <div class="shortcut-row"><span class="shortcut-desc">Switch to Transcript Tab</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>2</kbd></span></div>
+            <div class="shortcut-row"><span class="shortcut-desc">Switch to Models Tab</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>3</kbd></span></div>
+            <div class="shortcut-row"><span class="shortcut-desc">Switch to Telemetry Tab</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>4</kbd></span></div>
+            <div class="shortcut-row"><span class="shortcut-desc">Switch to Settings Tab</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>5</kbd></span></div>
+            <div class="shortcut-row"><span class="shortcut-desc">Toggle Batch Queue Drawer</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>Q</kbd></span></div>
+            <div class="shortcut-row"><span class="shortcut-desc">Keyboard Shortcuts Cheatsheet</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>H</kbd></span></div>
+          </div>
+        </div>
+
+      </div>
+      <div style="display: flex; justify-content: flex-end; margin-top: 12px;">
+        <button type="button" class="btn-primary" id="btnDoneShortcuts">Got It</button>
       </div>
     </div>
   </div>

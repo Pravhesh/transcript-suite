@@ -183,10 +183,55 @@ const filterCountAll = document.getElementById("filterCountAll");
 const filterCountReview = document.getElementById("filterCountReview");
 const filterCountDisputed = document.getElementById("filterCountDisputed");
 
+const workspaceContainer = document.getElementById("workspaceContainer");
+const btnLayoutStacked = document.getElementById("btnLayoutStacked");
+const btnLayoutSplit = document.getElementById("btnLayoutSplit");
+const btnToggleReadingRuler = document.getElementById("btnToggleReadingRuler");
 const transcriptWorkspace = document.getElementById("transcriptWorkspace");
+const transcriptFeedWrapper = document.getElementById("transcriptFeedWrapper");
 const transcriptFeed = document.getElementById("transcriptFeed");
+const transcriptMinimap = document.getElementById("transcriptMinimap");
+const minimapCanvas = document.getElementById("minimapCanvas");
+const minimapSlider = document.getElementById("minimapSlider");
+const minimapPlayhead = document.getElementById("minimapPlayhead");
 const searchInput = document.getElementById("searchInput");
 const btnExportTxt = document.getElementById("btnExportTxt");
+
+let currentLayoutMode = "stacked";
+let isReadingRulerActive = false;
+let isMinimapInitialized = false;
+
+// Sub-Phase 4.2 & 4.3 Elements: Comparator, Juror Overrides, History, Auto-Scroll, Selection Bubble
+const btnModelComparator = document.getElementById("btnModelComparator");
+const btnToggleAllJurors = document.getElementById("btnToggleAllJurors");
+const btnUndo = document.getElementById("btnUndo");
+const btnRedo = document.getElementById("btnRedo");
+const btnAutoScrollLock = document.getElementById("btnAutoScrollLock");
+const autoScrollLockIcon = document.getElementById("autoScrollLockIcon");
+const autoScrollLockLabel = document.getElementById("autoScrollLockLabel");
+
+const selectionBubble = document.getElementById("selectionBubble");
+const bubbleBtnAudition = document.getElementById("bubbleBtnAudition");
+const bubbleBtnGlossary = document.getElementById("bubbleBtnGlossary");
+const bubbleBtnCase = document.getElementById("bubbleBtnCase");
+const bubbleCaseDropdown = document.getElementById("bubbleCaseDropdown");
+const bubbleBtnFlag = document.getElementById("bubbleBtnFlag");
+const bubbleBtnClose = document.getElementById("bubbleBtnClose");
+
+const comparatorModal = document.getElementById("comparatorModal");
+const btnCloseComparator = document.getElementById("btnCloseComparator");
+const comparatorScorecards = document.getElementById("comparatorScorecards");
+const chkDisagreementsOnly = document.getElementById("chkDisagreementsOnly");
+const comparatorSearchInput = document.getElementById("comparatorSearchInput");
+const btnExportComparatorTxt = document.getElementById("btnExportComparatorTxt");
+const comparatorGridWrapper = document.getElementById("comparatorGridWrapper");
+
+let isAutoScrollLocked = false;
+let autoScrollLockSource = null;
+let activeSelectionContext = null;
+let areAllJurorsExpanded = false;
+let isComparatorInitialized = false;
+let cachedComparatorData = null;
 
 // Floating Player Dock Elements
 const floatingPlayer = document.getElementById("floatingPlayer");
@@ -205,6 +250,69 @@ const btnRenameModal = document.getElementById("btnRenameModal");
 const btnCancelRename = document.getElementById("btnCancelRename");
 const btnSaveAliases = document.getElementById("btnSaveAliases");
 const aliasInputsContainer = document.getElementById("aliasInputsContainer");
+
+// Sub-Phase 4.4 Elements & State: Normalizer, Search/Replace, Metrics, Typography, Speaker Palette, Shortcuts
+const btnOpenNormalizer = document.getElementById("btnOpenNormalizer");
+const btnToggleSearchReplace = document.getElementById("btnToggleSearchReplace");
+const btnTypography = document.getElementById("btnTypography");
+const btnSpeakerPalette = document.getElementById("btnSpeakerPalette");
+const btnShortcutsCheatsheet = document.getElementById("btnShortcutsCheatsheet");
+
+const searchReplaceBar = document.getElementById("searchReplaceBar");
+const srFindInput = document.getElementById("srFindInput");
+const srReplaceInput = document.getElementById("srReplaceInput");
+const srMatchCase = document.getElementById("srMatchCase");
+const srWholeWord = document.getElementById("srWholeWord");
+const srRegex = document.getElementById("srRegex");
+const srMatchCount = document.getElementById("srMatchCount");
+const btnSrPrev = document.getElementById("btnSrPrev");
+const btnSrNext = document.getElementById("btnSrNext");
+const btnSrReplace = document.getElementById("btnSrReplace");
+const btnSrReplaceAll = document.getElementById("btnSrReplaceAll");
+const btnCloseSearchReplace = document.getElementById("btnCloseSearchReplace");
+
+const documentMetricsRibbon = document.getElementById("documentMetricsRibbon");
+const metricWordCount = document.getElementById("metricWordCount");
+const metricDuration = document.getElementById("metricDuration");
+const metricWpm = document.getElementById("metricWpm");
+const metricCps = document.getElementById("metricCps");
+
+const normalizerModal = document.getElementById("normalizerModal");
+const btnCloseNormalizer = document.getElementById("btnCloseNormalizer");
+const btnCancelNormalizer = document.getElementById("btnCancelNormalizer");
+const btnApplyNormalizer = document.getElementById("btnApplyNormalizer");
+const normOptNumbers = document.getElementById("normOptNumbers");
+const normOptCurrencies = document.getElementById("normOptCurrencies");
+const normOptPercentages = document.getElementById("normOptPercentages");
+const normOptDisfluencies = document.getElementById("normOptDisfluencies");
+const normScopeSelect = document.getElementById("normScopeSelect");
+
+const typographyModal = document.getElementById("typographyModal");
+const btnCloseTypography = document.getElementById("btnCloseTypography");
+const btnResetTypography = document.getElementById("btnResetTypography");
+const btnDoneTypography = document.getElementById("btnDoneTypography");
+const fontSizeSlider = document.getElementById("fontSizeSlider");
+const fontSizeDisplay = document.getElementById("fontSizeDisplay");
+const chkHighContrast = document.getElementById("chkHighContrast");
+
+const speakerPaletteModal = document.getElementById("speakerPaletteModal");
+const btnCloseSpeakerPalette = document.getElementById("btnCloseSpeakerPalette");
+const btnCancelSpeakerPalette = document.getElementById("btnCancelSpeakerPalette");
+const btnResetSpeakerPalette = document.getElementById("btnResetSpeakerPalette");
+const btnSaveSpeakerPalette = document.getElementById("btnSaveSpeakerPalette");
+const speakerPaletteList = document.getElementById("speakerPaletteList");
+
+const shortcutsModal = document.getElementById("shortcutsModal");
+const btnCloseShortcuts = document.getElementById("btnCloseShortcuts");
+const btnDoneShortcuts = document.getElementById("btnDoneShortcuts");
+
+let activeSegmentIndex = 0;
+let speakerPalettes = {};
+let searchReplaceState = {
+  matches: [],
+  currentMatchIndex: -1,
+  isOpen: false
+};
 
 // --- 1. Theme Management ---
 function applyTheme(theme) {
@@ -262,6 +370,13 @@ function switchTab(tabId) {
     setTimeout(() => {
       try { wavesurferOrig?.drawBuffer(); } catch(e){}
       try { wavesurferModel?.drawBuffer(); } catch(e){}
+    }, 60);
+  } else if (tabId === "paneTranscript") {
+    setTimeout(() => {
+      try { wavesurferOrig?.drawBuffer(); } catch(e){}
+      try { wavesurferModel?.drawBuffer(); } catch(e){}
+      renderDocumentMinimap();
+      updateMinimapSlider();
     }, 60);
   }
 }
@@ -437,19 +552,40 @@ dropzone.addEventListener("dragleave", () => {
   dropzone.style.borderColor = "var(--border-dim)";
 });
 
+let selectedFiles = [];
+
 dropzone.addEventListener("drop", (e) => {
   e.preventDefault();
   dropzone.style.borderColor = "var(--border-dim)";
-  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-    handleFile(e.dataTransfer.files[0]);
+  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    if (e.dataTransfer.files.length > 1) {
+      handleMultipleFiles(e.dataTransfer.files);
+    } else {
+      handleFile(e.dataTransfer.files[0]);
+    }
   }
 });
 
 fileInput.addEventListener("change", (e) => {
-  if (e.target.files && e.target.files[0]) {
-    handleFile(e.target.files[0]);
+  if (e.target.files && e.target.files.length > 0) {
+    if (e.target.files.length > 1) {
+      handleMultipleFiles(e.target.files);
+    } else {
+      handleFile(e.target.files[0]);
+    }
   }
 });
+
+function handleMultipleFiles(fileList) {
+  selectedFiles = Array.from(fileList);
+  selectedFile = null;
+  const count = selectedFiles.length;
+  const totalBytes = selectedFiles.reduce((acc, f) => acc + f.size, 0);
+  dropzoneText.innerHTML = `<strong>Selected ${count} files for batch queue:</strong> <span style="font-size: 12px; color: var(--text-muted);">${selectedFiles.map(f => escapeHtml(f.name)).slice(0, 3).join(", ")}${count > 3 ? ` +${count - 3} more` : ''} (${formatFileSize(totalBytes)})</span>`;
+  btnStart.disabled = false;
+  btnStart.innerText = `📦 Enqueue & Start Batch (${count} Files)`;
+  if (audioHealthBadgeBar) audioHealthBadgeBar.style.display = "none";
+}
 
 if (btnDismissHealthBadge) {
   btnDismissHealthBadge.addEventListener("click", () => {
@@ -640,6 +776,8 @@ async function runPreflightHealthCheck(file) {
 
 function handleFile(file) {
   selectedFile = file;
+  selectedFiles = [file];
+  btnStart.innerText = "Transcribe Audio";
   dropzoneText.innerHTML = `<strong>Selected:</strong> ${escapeHtml(file.name)} <span style="font-size: 12px; color: var(--text-muted);">(${formatFileSize(file.size)})</span>`;
   btnStart.disabled = false;
   runPreflightHealthCheck(file);
@@ -652,7 +790,56 @@ function formatFileSize(bytes) {
 }
 
 btnStart.addEventListener("click", async () => {
-  if (!selectedFile) return;
+  if (!selectedFile && (!selectedFiles || selectedFiles.length === 0)) return;
+
+  // Multi-file batch submission
+  if (selectedFiles && selectedFiles.length > 1) {
+    btnStart.disabled = true;
+    progressCard.style.display = "block";
+    progressStatus.innerText = `Enqueuing ${selectedFiles.length} files into sequential batch queue...`;
+    progressFill.style.width = "10%";
+    progressPercentage.innerText = "10%";
+
+    const formData = new FormData();
+    for (const f of selectedFiles) {
+      formData.append("files", f);
+    }
+    formData.append("diarizer", diarizerSelect.value);
+    formData.append("speaker_labels", speakerLabelsCheckbox.checked);
+    formData.append("enable_enhancer", voiceEnhancerCheckbox ? voiceEnhancerCheckbox.checked : true);
+    formData.append("enable_ambiguity", ambiguityCheckbox ? ambiguityCheckbox.checked : true);
+    formData.append("enable_council", councilCheckbox ? councilCheckbox.checked : true);
+    formData.append("council_mode", councilModeSelect ? councilModeSelect.value : "sequential");
+    formData.append("enable_lufs", lufsNormCheckbox ? lufsNormCheckbox.checked : true);
+    formData.append("target_lufs", -16.0);
+    formData.append("chunk_overlap", (chunkOverlapCheckbox && !chunkOverlapCheckbox.checked) ? 0.0 : 0.5);
+    formData.append("enable_dedup", chunkOverlapCheckbox ? chunkOverlapCheckbox.checked : true);
+    const vocalBoostSelect = document.getElementById("vocalBoostSelect");
+    if (vocalBoostSelect) {
+      formData.append("vocal_boost_level", vocalBoostSelect.value);
+    }
+    if (currentActiveGlossary && currentActiveGlossary.length > 0) {
+      formData.append("glossary", JSON.stringify(currentActiveGlossary));
+    }
+    if (currentAttentionBackend) {
+      formData.append("attention_backend", currentAttentionBackend);
+    }
+
+    try {
+      const res = await fetch("/api/ingest/batch", { method: "POST", body: formData });
+      if (!res.ok) throw new Error("Failed to enqueue batch");
+      const data = await res.json();
+      if (typeof fetchBatchStatus === "function") fetchBatchStatus();
+      progressStatus.innerText = `Batch enqueued: ${data.count} files running sequentially.`;
+      selectedFiles = [];
+      btnStart.innerText = "Transcribe Audio";
+    } catch (err) {
+      alert("Error enqueueing batch: " + err.message);
+      btnStart.disabled = false;
+      progressCard.style.display = "none";
+    }
+    return;
+  }
 
   btnStart.disabled = true;
   progressCard.style.display = "block";
@@ -1182,6 +1369,7 @@ function updateTimelinePlayheads(currentTime, duration) {
   if (heatmapPlayhead) heatmapPlayhead.style.left = pctStr;
   if (ganttPlayhead) ganttPlayhead.style.left = pctStr;
   if (spectrogramPlayhead) spectrogramPlayhead.style.left = pctStr;
+  updateMinimapPlayhead(currentTime, duration);
 }
 
 function renderConfidenceHeatmap(segments, duration) {
@@ -1612,8 +1800,15 @@ function clearActiveLoop() {
   updateSelectionOverlayUI();
 }
 
+function getSelectionOverlays() {
+  return [
+    document.getElementById("selectionOverlayOrig"),
+    document.getElementById("selectionOverlayModel")
+  ].filter(Boolean);
+}
+
 function updateSelectionOverlayUI() {
-  const overlays = [selectionOverlayOrig, selectionOverlayModel].filter(Boolean);
+  const overlays = getSelectionOverlays();
   if (!activeLoopRegion || !wavesurferOrig) {
     overlays.forEach(o => { o.style.display = "none"; });
     return;
@@ -1631,57 +1826,60 @@ function updateSelectionOverlayUI() {
 }
 
 function initWaveformDragSelection() {
-  const wfBox = document.getElementById("waveformOrig");
-  if (!wfBox) return;
+  const targets = [
+    document.getElementById("waveformWrapperOrig") || document.getElementById("waveformOrig"),
+    document.getElementById("waveformWrapperModel") || document.getElementById("waveformModel")
+  ].filter(Boolean);
 
-  let dragStartPos = null;
-  let isDragging = false;
+  if (targets.length === 0) return;
 
-  wfBox.addEventListener("mousedown", (e) => {
-    if (e.button !== 0 || !wavesurferOrig) return;
-    const rect = wfBox.getBoundingClientRect();
-    dragStartPos = e.clientX - rect.left;
-    isDragging = false;
+  targets.forEach(target => {
+    target.addEventListener("mousedown", (e) => {
+      if (e.button !== 0 || !wavesurferOrig) return;
+      const rect = target.getBoundingClientRect();
+      const dragStartPos = e.clientX - rect.left;
+      let isDragging = false;
 
-    const onMouseMove = (moveEvt) => {
-      const currentX = moveEvt.clientX - rect.left;
-      if (Math.abs(currentX - dragStartPos) > 6) {
-        isDragging = true;
-        const dur = wavesurferOrig.getDuration();
-        if (dur > 0) {
-          const x1 = Math.max(0, Math.min(dragStartPos, currentX));
-          const x2 = Math.min(rect.width, Math.max(dragStartPos, currentX));
-          const s = (x1 / rect.width) * dur;
-          const end = (x2 / rect.width) * dur;
-          const leftPct = (s / dur) * 100;
-          const widthPct = ((end - s) / dur) * 100;
-          [selectionOverlayOrig, selectionOverlayModel].filter(Boolean).forEach(o => {
-            o.style.display = "block";
-            o.style.left = `${leftPct}%`;
-            o.style.width = `${widthPct}%`;
-          });
-        }
-      }
-    };
-
-    const onMouseUp = (upEvt) => {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-      if (isDragging) {
-        const upX = upEvt.clientX - rect.left;
-        const dur = wavesurferOrig.getDuration();
-        if (dur > 0) {
-          const t1 = (Math.min(dragStartPos, upX) / rect.width) * dur;
-          const t2 = (Math.max(dragStartPos, upX) / rect.width) * dur;
-          if (t2 - t1 >= 0.2) {
-            setActiveLoop(t1, t2, false);
+      const onMouseMove = (moveEvt) => {
+        const currentX = moveEvt.clientX - rect.left;
+        if (Math.abs(currentX - dragStartPos) > 6) {
+          isDragging = true;
+          const dur = wavesurferOrig.getDuration();
+          if (dur > 0) {
+            const x1 = Math.max(0, Math.min(dragStartPos, currentX));
+            const x2 = Math.min(rect.width, Math.max(dragStartPos, currentX));
+            const s = (x1 / rect.width) * dur;
+            const end = (x2 / rect.width) * dur;
+            const leftPct = (s / dur) * 100;
+            const widthPct = ((end - s) / dur) * 100;
+            getSelectionOverlays().forEach(o => {
+              o.style.display = "block";
+              o.style.left = `${leftPct}%`;
+              o.style.width = `${widthPct}%`;
+            });
           }
         }
-      }
-    };
+      };
 
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
+      const onMouseUp = (upEvt) => {
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        if (isDragging) {
+          const upX = upEvt.clientX - rect.left;
+          const dur = wavesurferOrig.getDuration();
+          if (dur > 0) {
+            const t1 = (Math.min(dragStartPos, upX) / rect.width) * dur;
+            const t2 = (Math.max(dragStartPos, upX) / rect.width) * dur;
+            if (t2 - t1 >= 0.2) {
+              setActiveLoop(t1, t2, false);
+            }
+          }
+        }
+      };
+
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+    });
   });
 
   if (btnClearLoop) {
@@ -1811,6 +2009,12 @@ function initNLEShuttleShortcuts() {
       return;
     }
 
+    if (e.altKey && (e.key === "f" || e.key === "F")) {
+      e.preventDefault();
+      toggleReadingRuler();
+      return;
+    }
+
     if (e.key === "Escape") {
       clearActiveLoop();
       return;
@@ -1924,6 +2128,1303 @@ function initNavigationAndTransport() {
   initWaveformDragSelection();
   initNLEShuttleShortcuts();
   initEQControls();
+  initWorkspaceLayoutToggle();
+  initReadingRuler();
+  initMinimapScrubbing();
+  initEditorStateAndHistory();
+  initAutoScrollLockControls();
+  initSelectionBubble();
+  initComparatorLabControls();
+  initSearchAndReplace();
+  initNormalizerModal();
+  initTypographyCustomizer();
+  initSpeakerPaletteModal();
+  initShortcutsModal();
+}
+
+// --- 7.B Sub-Phase 4.1: Workspace Structure, Reading Ruler & Document Mini-Map ---
+
+function setWorkspaceLayoutMode(mode) {
+  currentLayoutMode = (mode === "split") ? "split" : "stacked";
+  if (workspaceContainer) {
+    workspaceContainer.className = (currentLayoutMode === "split")
+      ? "workspace-container layout-split"
+      : "workspace-container layout-stacked";
+  }
+  if (btnLayoutStacked) btnLayoutStacked.classList.toggle("active", currentLayoutMode === "stacked");
+  if (btnLayoutSplit) btnLayoutSplit.classList.toggle("active", currentLayoutMode === "split");
+  try {
+    localStorage.setItem("transcript_layout_mode", currentLayoutMode);
+  } catch (e) {}
+
+  setTimeout(() => {
+    try { wavesurferOrig?.drawBuffer(); } catch (e) {}
+    try { wavesurferModel?.drawBuffer(); } catch (e) {}
+    renderDocumentMinimap();
+    updateMinimapSlider();
+  }, 60);
+}
+
+function initWorkspaceLayoutToggle() {
+  if (btnLayoutStacked) {
+    btnLayoutStacked.addEventListener("click", () => setWorkspaceLayoutMode("stacked"));
+  }
+  if (btnLayoutSplit) {
+    btnLayoutSplit.addEventListener("click", () => setWorkspaceLayoutMode("split"));
+  }
+
+  try {
+    const saved = localStorage.getItem("transcript_layout_mode");
+    if (saved === "split" || saved === "stacked") {
+      setWorkspaceLayoutMode(saved);
+    } else {
+      setWorkspaceLayoutMode("stacked");
+    }
+  } catch (e) {
+    setWorkspaceLayoutMode("stacked");
+  }
+}
+
+function toggleReadingRuler(forceVal) {
+  isReadingRulerActive = (forceVal !== undefined) ? !!forceVal : !isReadingRulerActive;
+  if (transcriptWorkspace) {
+    transcriptWorkspace.classList.toggle("reading-ruler-active", isReadingRulerActive);
+  }
+  if (btnToggleReadingRuler) {
+    btnToggleReadingRuler.classList.toggle("active", isReadingRulerActive);
+  }
+  try {
+    localStorage.setItem("transcript_reading_ruler", isReadingRulerActive ? "true" : "false");
+  } catch (e) {}
+}
+
+function initReadingRuler() {
+  if (btnToggleReadingRuler) {
+    btnToggleReadingRuler.addEventListener("click", () => toggleReadingRuler());
+  }
+
+  try {
+    const saved = localStorage.getItem("transcript_reading_ruler");
+    if (saved === "true") {
+      toggleReadingRuler(true);
+    }
+  } catch (e) {}
+}
+
+function renderDocumentMinimap() {
+  const canvas = document.getElementById("minimapCanvas");
+  const container = document.getElementById("transcriptMinimap");
+  if (!canvas || !container) return;
+
+  const rect = container.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = rect.width || 36;
+  const h = rect.height || 650;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  canvas.style.width = `${w}px`;
+  canvas.style.height = `${h}px`;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  if (!currentSegments || currentSegments.length === 0) return;
+
+  const totalSegments = currentSegments.length;
+  const stepH = h / totalSegments;
+
+  currentSegments.forEach((seg, i) => {
+    const y = i * stepH;
+    const blockH = Math.max(2, stepH - 0.5);
+
+    // Speaker Color
+    const spk = seg.speaker || "Speaker 0";
+    const spkClass = getSpeakerClass(spk);
+    let barColor = "#6c945d"; // default sage/pine
+    if (spkClass === "spk-0") barColor = "#4ade80";
+    else if (spkClass === "spk-1") barColor = "#38bdf8";
+    else if (spkClass === "spk-2") barColor = "#fbbf24";
+    else if (spkClass === "spk-3") barColor = "#c084fc";
+
+    // Main speaker block (left part of canvas)
+    ctx.fillStyle = barColor;
+    ctx.globalAlpha = 0.75;
+    ctx.fillRect(2, y, w - 10, blockH);
+
+    // Disputed / Review / Breaker Indicator (right 6px edge)
+    const isBreaker = !!(seg.loop_circuit_breaker_tripped || seg.council?.loop_circuit_breaker_tripped);
+    const isDisputed = seg.needs_review || (seg.council && seg.council.consensus_score < 0.65) || (seg.council && seg.council.agreement_type === "SPLIT_DECISION");
+    const isMajority = seg.council && seg.council.consensus_score >= 0.65 && seg.council.consensus_score < 0.85;
+
+    if (isBreaker) {
+      ctx.fillStyle = "#ec4899"; // pink
+      ctx.globalAlpha = 1.0;
+      ctx.fillRect(w - 7, y, 5, blockH);
+    } else if (isDisputed) {
+      ctx.fillStyle = "#ef4444"; // red
+      ctx.globalAlpha = 1.0;
+      ctx.fillRect(w - 7, y, 5, blockH);
+    } else if (isMajority) {
+      ctx.fillStyle = "#f59e0b"; // amber
+      ctx.globalAlpha = 0.9;
+      ctx.fillRect(w - 7, y, 5, blockH);
+    }
+  });
+
+  ctx.globalAlpha = 1.0;
+  updateMinimapSlider();
+}
+
+function updateMinimapSlider() {
+  const feed = document.getElementById("transcriptFeed");
+  const slider = document.getElementById("minimapSlider");
+  const container = document.getElementById("transcriptMinimap");
+  if (!feed || !slider || !container) return;
+
+  const totalScroll = feed.scrollHeight;
+  const clientH = feed.clientHeight;
+  const containerH = container.clientHeight;
+
+  if (totalScroll <= clientH || totalScroll <= 0) {
+    slider.style.top = "0px";
+    slider.style.height = `${containerH}px`;
+    return;
+  }
+
+  const sliderH = Math.max(22, (clientH / totalScroll) * containerH);
+  const maxScrollTop = totalScroll - clientH;
+  const scrollRatio = Math.max(0, Math.min(1, feed.scrollTop / maxScrollTop));
+  const sliderTop = scrollRatio * (containerH - sliderH);
+
+  slider.style.top = `${sliderTop}px`;
+  slider.style.height = `${sliderH}px`;
+}
+
+function updateMinimapPlayhead(currentTime, totalDuration) {
+  const playhead = document.getElementById("minimapPlayhead");
+  const container = document.getElementById("transcriptMinimap");
+  if (!playhead || !container) return;
+
+  if (!currentSegments || currentSegments.length === 0 || !totalDuration || totalDuration <= 0) {
+    playhead.style.display = "none";
+    return;
+  }
+
+  const containerH = container.clientHeight;
+  const activeIdx = currentSegments.findIndex(s => currentTime >= s.start && currentTime <= s.end);
+  if (activeIdx >= 0) {
+    playhead.style.display = "block";
+    const ratio = (activeIdx + 0.5) / currentSegments.length;
+    playhead.style.top = `${Math.round(ratio * containerH)}px`;
+  } else {
+    const ratio = Math.max(0, Math.min(1, currentTime / totalDuration));
+    playhead.style.display = "block";
+    playhead.style.top = `${Math.round(ratio * containerH)}px`;
+  }
+}
+
+function initMinimapScrubbing() {
+  if (isMinimapInitialized) return;
+  isMinimapInitialized = true;
+
+  const container = document.getElementById("transcriptMinimap");
+  const feed = document.getElementById("transcriptFeed");
+  const slider = document.getElementById("minimapSlider");
+  if (!container || !feed || !slider) return;
+
+  let isDraggingSlider = false;
+  let dragStartY = 0;
+  let scrollStartTop = 0;
+
+  const scrollToRatio = (ratio) => {
+    const maxScroll = feed.scrollHeight - feed.clientHeight;
+    if (maxScroll <= 0) return;
+    feed.scrollTop = Math.max(0, Math.min(maxScroll, ratio * maxScroll));
+    updateMinimapSlider();
+  };
+
+  container.addEventListener("click", (e) => {
+    if (e.target === slider) return;
+    const rect = container.getBoundingClientRect();
+    const clickY = e.clientY - rect.top;
+    const ratio = Math.max(0, Math.min(1, clickY / rect.height));
+    scrollToRatio(ratio);
+  });
+
+  slider.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    isDraggingSlider = true;
+    dragStartY = e.clientY;
+    scrollStartTop = feed.scrollTop;
+    document.body.style.userSelect = "none";
+
+    const onMouseMove = (moveEvt) => {
+      if (!isDraggingSlider) return;
+      const deltaY = moveEvt.clientY - dragStartY;
+      const containerH = container.clientHeight;
+      const sliderH = slider.clientHeight;
+      const trackH = containerH - sliderH;
+      if (trackH > 0) {
+        const deltaRatio = deltaY / trackH;
+        const maxScroll = feed.scrollHeight - feed.clientHeight;
+        feed.scrollTop = Math.max(0, Math.min(maxScroll, scrollStartTop + deltaRatio * maxScroll));
+        updateMinimapSlider();
+      }
+    };
+
+    const onMouseUp = () => {
+      isDraggingSlider = false;
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  });
+
+  feed.addEventListener("scroll", () => {
+    updateMinimapSlider();
+  });
+
+  window.addEventListener("resize", () => {
+    renderDocumentMinimap();
+    updateMinimapSlider();
+  });
+}
+
+// --- 7.C Sub-Phases 4.2 & 4.3: Undo/Redo Engine, Auto-Scroll Lock, Selection Bubble & Model Comparator Lab ---
+
+const UndoRedoManager = {
+  history: [],
+  cursor: -1,
+  maxSteps: 100,
+
+  record(action) {
+    if (this.cursor < this.history.length - 1) {
+      this.history = this.history.slice(0, this.cursor + 1);
+    }
+    this.history.push(action);
+    if (this.history.length > this.maxSteps) {
+      this.history.shift();
+    } else {
+      this.cursor++;
+    }
+    this.updateUI();
+  },
+
+  canUndo() {
+    return this.cursor >= 0;
+  },
+
+  canRedo() {
+    return this.cursor < this.history.length - 1;
+  },
+
+  async undo() {
+    if (!this.canUndo()) return;
+    const action = this.history[this.cursor];
+    this.cursor--;
+    await this.applyAction(action, true);
+    this.updateUI();
+    addNotification("Undo", `Reverted ${action.description || 'action'}`, "info");
+  },
+
+  async redo() {
+    if (!this.canRedo()) return;
+    this.cursor++;
+    const action = this.history[this.cursor];
+    await this.applyAction(action, false);
+    this.updateUI();
+    addNotification("Redo", `Reapplied ${action.description || 'action'}`, "info");
+  },
+
+  async applyAction(action, isUndo) {
+    if (!currentSegments) return;
+    const segIdx = action.segIdx;
+
+    switch (action.type) {
+      case "TEXT_EDIT": {
+        const textToApply = isUndo ? action.prevText : action.newText;
+        if (currentSegments[segIdx]) {
+          currentSegments[segIdx].text = textToApply;
+          currentSegments[segIdx].edited = isUndo ? action.prevEdited : true;
+          renderTranscriptFeed();
+          if (currentTaskId) {
+            fetch(`/api/tasks/${currentTaskId}/segments/${segIdx}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: textToApply, edited: currentSegments[segIdx].edited })
+            }).catch(console.warn);
+          }
+        }
+        break;
+      }
+      case "OVERRIDE_JUROR": {
+        const textToApply = isUndo ? action.prevText : action.newText;
+        const winnerToApply = isUndo ? action.prevWinner : action.newWinner;
+        if (currentSegments[segIdx]) {
+          currentSegments[segIdx].text = textToApply;
+          currentSegments[segIdx].edited = isUndo ? action.prevEdited : true;
+          currentSegments[segIdx].winning_juror = winnerToApply;
+          renderTranscriptFeed();
+          if (currentTaskId) {
+            fetch(`/api/tasks/${currentTaskId}/segments/${segIdx}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                text: textToApply,
+                edited: currentSegments[segIdx].edited,
+                winning_juror: winnerToApply
+              })
+            }).catch(console.warn);
+          }
+        }
+        break;
+      }
+      case "FLAG_REVIEW": {
+        const reviewToApply = isUndo ? action.prevReview : action.newReview;
+        if (currentSegments[segIdx]) {
+          currentSegments[segIdx].needs_review = reviewToApply;
+          renderTranscriptFeed();
+          if (currentTaskId) {
+            fetch(`/api/tasks/${currentTaskId}/segments/${segIdx}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ needs_review: reviewToApply })
+            }).catch(console.warn);
+          }
+        }
+        break;
+      }
+      case "DELETE_SEGMENT": {
+        if (isUndo) {
+          currentSegments.splice(segIdx, 0, action.segment);
+          if (tabTranscriptBadge) tabTranscriptBadge.innerText = currentSegments.length;
+          renderSpeakerSidebar();
+          renderTranscriptFeed();
+          if (currentTaskId) {
+            fetch(`/api/tasks/${currentTaskId}/segments/restore`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ segment_idx: segIdx, segment: action.segment })
+            }).catch(console.warn);
+          }
+        } else {
+          currentSegments.splice(segIdx, 1);
+          if (tabTranscriptBadge) tabTranscriptBadge.innerText = currentSegments.length;
+          renderSpeakerSidebar();
+          renderTranscriptFeed();
+          if (currentTaskId) {
+            fetch(`/api/tasks/${currentTaskId}/segments/${segIdx}`, { method: "DELETE" }).catch(console.warn);
+          }
+        }
+        break;
+      }
+      case "MERGE_SEGMENTS": {
+        if (isUndo) {
+          currentSegments.splice(segIdx, 1, action.prevFirstSeg, action.prevSecondSeg);
+        } else {
+          currentSegments.splice(segIdx, 2, action.mergedSeg);
+        }
+        if (tabTranscriptBadge) tabTranscriptBadge.innerText = currentSegments.length;
+        renderSpeakerSidebar();
+        renderTranscriptFeed();
+        if (typeof updateDocumentMetrics === "function") updateDocumentMetrics();
+        break;
+      }
+      case "SPLIT_SEGMENT": {
+        if (isUndo) {
+          currentSegments.splice(segIdx, 2, action.prevSeg);
+        } else {
+          currentSegments.splice(segIdx, 1, action.firstPart, action.secondPart);
+        }
+        if (tabTranscriptBadge) tabTranscriptBadge.innerText = currentSegments.length;
+        renderSpeakerSidebar();
+        renderTranscriptFeed();
+        if (typeof updateDocumentMetrics === "function") updateDocumentMetrics();
+        break;
+      }
+      case "BULK_REPLACE": {
+        currentSegments = isUndo ? JSON.parse(JSON.stringify(action.prevSegments)) : JSON.parse(JSON.stringify(action.newSegments));
+        if (tabTranscriptBadge) tabTranscriptBadge.innerText = currentSegments.length;
+        renderSpeakerSidebar();
+        renderTranscriptFeed();
+        if (typeof updateDocumentMetrics === "function") updateDocumentMetrics();
+        break;
+      }
+    }
+  },
+
+  updateUI() {
+    if (btnUndo) btnUndo.disabled = !this.canUndo();
+    if (btnRedo) btnRedo.disabled = !this.canRedo();
+  }
+};
+
+function initEditorStateAndHistory() {
+  if (btnUndo) {
+    btnUndo.addEventListener("click", () => UndoRedoManager.undo());
+  }
+  if (btnRedo) {
+    btnRedo.addEventListener("click", () => UndoRedoManager.redo());
+  }
+
+  // Global Undo / Redo & Editor Shortcuts
+  window.addEventListener("keydown", (e) => {
+    // Esc closes modals and search bar
+    if (e.key === "Escape") {
+      if (searchReplaceState.isOpen) {
+        toggleSearchReplaceBar(false);
+        return;
+      }
+      if (normalizerModal && normalizerModal.style.display !== "none") {
+        normalizerModal.style.display = "none";
+        return;
+      }
+      if (typographyModal && typographyModal.style.display !== "none") {
+        typographyModal.style.display = "none";
+        return;
+      }
+      if (speakerPaletteModal && speakerPaletteModal.style.display !== "none") {
+        speakerPaletteModal.style.display = "none";
+        return;
+      }
+      if (shortcutsModal && shortcutsModal.style.display !== "none") {
+        shortcutsModal.style.display = "none";
+        return;
+      }
+    }
+
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === "z" || e.key === "Z") {
+        if (e.shiftKey) {
+          e.preventDefault();
+          UndoRedoManager.redo();
+        } else {
+          e.preventDefault();
+          UndoRedoManager.undo();
+        }
+      } else if (e.key === "y" || e.key === "Y") {
+        e.preventDefault();
+        UndoRedoManager.redo();
+      } else if ((e.key === "h" || e.key === "H") && !e.shiftKey) {
+        e.preventDefault();
+        toggleSearchReplaceBar();
+      } else if (e.shiftKey && (e.key === "j" || e.key === "J")) {
+        e.preventDefault();
+        mergeSegmentWithNext(activeSegmentIndex);
+      } else if (e.shiftKey && (e.key === "s" || e.key === "S")) {
+        e.preventDefault();
+        splitSegmentAtCursor(activeSegmentIndex);
+      } else if (e.shiftKey && (e.key === "n" || e.key === "N")) {
+        e.preventDefault();
+        if (normalizerModal) normalizerModal.style.display = "flex";
+      } else if (e.key === "/") {
+        e.preventDefault();
+        if (shortcutsModal) shortcutsModal.style.display = "flex";
+      }
+    } else if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+      if (e.key === "1") {
+        e.preventDefault();
+        const tabBtn = document.getElementById("tabBtnStudio");
+        if (tabBtn) tabBtn.click();
+      } else if (e.key === "2") {
+        e.preventDefault();
+        const tabBtn = document.getElementById("tabBtnTranscript");
+        if (tabBtn) tabBtn.click();
+      } else if (e.key === "3") {
+        e.preventDefault();
+        const tabBtn = document.getElementById("tabBtnModels");
+        if (tabBtn) tabBtn.click();
+      } else if (e.key === "4") {
+        e.preventDefault();
+        const tabBtn = document.getElementById("tabBtnTelemetry");
+        if (tabBtn) tabBtn.click();
+      } else if (e.key === "5") {
+        e.preventDefault();
+        const tabBtn = document.getElementById("tabBtnSettings");
+        if (tabBtn) tabBtn.click();
+      } else if (e.key === "q" || e.key === "Q") {
+        e.preventDefault();
+        const bq = document.getElementById("batchQueueSection");
+        if (bq) {
+          bq.scrollIntoView({ behavior: "smooth" });
+          bq.style.boxShadow = "0 0 16px rgba(99, 102, 241, 0.6)";
+          setTimeout(() => { bq.style.boxShadow = ""; }, 1500);
+        }
+      } else if (e.key === "h" || e.key === "H") {
+        e.preventDefault();
+        if (shortcutsModal) {
+          shortcutsModal.style.display = (shortcutsModal.style.display === "flex") ? "none" : "flex";
+        }
+      }
+    } else if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const activeEl = document.activeElement;
+      const isInput = activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.isContentEditable);
+      if (!isInput) {
+        e.preventDefault();
+        if (shortcutsModal) shortcutsModal.style.display = "flex";
+      }
+    }
+  });
+
+  // Toggle All Jurors Button
+  if (btnToggleAllJurors) {
+    btnToggleAllJurors.addEventListener("click", () => toggleAllJurorDrawers());
+  }
+}
+
+function setAutoScrollLock(locked, source = "manual") {
+  if (source === "manual") {
+    isAutoScrollLocked = !!locked;
+    autoScrollLockSource = isAutoScrollLocked ? "manual" : null;
+  } else if (source === "edit") {
+    if (autoScrollLockSource === "manual") return;
+    isAutoScrollLocked = !!locked;
+    autoScrollLockSource = isAutoScrollLocked ? "edit" : null;
+  }
+  updateAutoScrollLockUI();
+}
+
+function updateAutoScrollLockUI() {
+  if (btnAutoScrollLock) {
+    btnAutoScrollLock.classList.toggle("locked", isAutoScrollLocked);
+    if (autoScrollLockIcon) autoScrollLockIcon.textContent = isAutoScrollLocked ? "🔒" : "🔓";
+    if (autoScrollLockLabel) {
+      autoScrollLockLabel.textContent = isAutoScrollLocked ? "Scroll Locked" : "Auto-Scroll";
+    }
+  }
+}
+
+function initAutoScrollLockControls() {
+  if (btnAutoScrollLock) {
+    btnAutoScrollLock.addEventListener("click", () => {
+      setAutoScrollLock(!isAutoScrollLocked, "manual");
+      addNotification(
+        isAutoScrollLocked ? "Auto-Scroll Locked" : "Auto-Scroll Unlocked",
+        isAutoScrollLocked ? "Transcript viewport will remain frozen during playback." : "Transcript viewport will track the active playback segment.",
+        "info"
+      );
+    });
+  }
+}
+
+function overrideJurorWinner(segIdx, jurorMember, adoptedText) {
+  if (!currentSegments[segIdx]) return;
+  const prevText = currentSegments[segIdx].text;
+  const prevWinner = currentSegments[segIdx].winning_juror || null;
+  const prevEdited = !!currentSegments[segIdx].edited;
+
+  UndoRedoManager.record({
+    type: "OVERRIDE_JUROR",
+    segIdx: segIdx,
+    prevText: prevText,
+    newText: adoptedText,
+    prevEdited: prevEdited,
+    prevWinner: prevWinner,
+    newWinner: jurorMember,
+    description: `override chunk #${segIdx + 1} to ${jurorMember}`
+  });
+
+  currentSegments[segIdx].text = adoptedText;
+  currentSegments[segIdx].edited = true;
+  currentSegments[segIdx].winning_juror = jurorMember;
+
+  renderTranscriptFeed();
+  if (currentTaskId) {
+    fetch(`/api/tasks/${currentTaskId}/segments/${segIdx}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: adoptedText,
+        edited: true,
+        winning_juror: jurorMember
+      })
+    }).catch(console.warn);
+  }
+  addNotification("Winner Overridden", `Segment #${segIdx + 1} hypothesis updated to ${jurorMember}`, "success");
+}
+
+function toggleAllJurorDrawers() {
+  areAllJurorsExpanded = !areAllJurorsExpanded;
+  if (areAllJurorsExpanded) {
+    currentSegments.forEach((_, idx) => expandedCouncilSet.add(idx));
+    if (btnToggleAllJurors) btnToggleAllJurors.textContent = "🏛️ Collapse Jurors";
+  } else {
+    expandedCouncilSet.clear();
+    if (btnToggleAllJurors) btnToggleAllJurors.textContent = "🏛️ All Jurors";
+  }
+  renderTranscriptFeed();
+}
+
+function initSelectionBubble() {
+  if (!selectionBubble) return;
+
+  const handleSelection = () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) {
+      hideSelectionBubble();
+      return;
+    }
+
+    const range = sel.getRangeAt(0);
+    const selectedText = sel.toString().trim();
+    if (!selectedText || selectedText.length < 1) {
+      hideSelectionBubble();
+      return;
+    }
+
+    const commonNode = range.commonAncestorContainer;
+    const textEl = (commonNode.nodeType === Node.ELEMENT_NODE)
+      ? commonNode.closest(".segment-text")
+      : commonNode.parentElement?.closest(".segment-text");
+    if (!textEl) {
+      hideSelectionBubble();
+      return;
+    }
+
+    const block = textEl.closest(".segment-block");
+    const segIdx = block ? parseInt(block.dataset.index, 10) : -1;
+    if (segIdx < 0 || !currentSegments[segIdx]) {
+      hideSelectionBubble();
+      return;
+    }
+
+    const seg = currentSegments[segIdx];
+    const fullText = seg.text || "";
+    const charStart = fullText.toLowerCase().indexOf(selectedText.toLowerCase());
+    let selStartSec = seg.start;
+    let selEndSec = seg.end;
+    if (charStart >= 0 && fullText.length > 0) {
+      const dur = seg.end - seg.start;
+      selStartSec = seg.start + (charStart / fullText.length) * dur;
+      selEndSec = Math.min(seg.end, selStartSec + Math.max(0.5, (selectedText.length / fullText.length) * dur));
+    }
+
+    activeSelectionContext = {
+      text: selectedText,
+      range: range.cloneRange(),
+      segIdx: segIdx,
+      startSec: selStartSec,
+      endSec: selEndSec,
+      textEl: textEl
+    };
+
+    const rect = range.getBoundingClientRect();
+    const bubbleW = 320;
+    const bubbleH = 38;
+    let left = rect.left + (rect.width / 2) - (bubbleW / 2);
+    let top = rect.top - bubbleH - 8;
+
+    if (top < 10) top = rect.bottom + 8;
+    if (left < 10) left = 10;
+    if (left + bubbleW > window.innerWidth - 10) left = window.innerWidth - bubbleW - 10;
+
+    selectionBubble.style.left = `${Math.round(left)}px`;
+    selectionBubble.style.top = `${Math.round(top)}px`;
+    selectionBubble.style.display = "flex";
+  };
+
+  document.addEventListener("mouseup", (e) => {
+    if (selectionBubble && selectionBubble.contains(e.target)) return;
+    setTimeout(handleSelection, 40);
+  });
+
+  document.addEventListener("keyup", (e) => {
+    if (selectionBubble && selectionBubble.contains(e.target)) return;
+    if (e.key === "Shift" || e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      setTimeout(handleSelection, 40);
+    }
+  });
+
+  document.addEventListener("mousedown", (e) => {
+    if (selectionBubble && !selectionBubble.contains(e.target) && !e.target.closest(".segment-text")) {
+      hideSelectionBubble();
+    }
+  });
+
+  if (bubbleBtnAudition) {
+    bubbleBtnAudition.addEventListener("click", () => {
+      if (!activeSelectionContext) return;
+      setActiveLoop(activeSelectionContext.startSec, activeSelectionContext.endSec, true);
+      if (wavesurferOrig) {
+        wavesurferOrig.setTime(activeSelectionContext.startSec);
+        wavesurferOrig.play();
+      }
+      if (wavesurferModel) {
+        wavesurferModel.setTime(activeSelectionContext.startSec);
+        wavesurferModel.play();
+      }
+      addNotification("Audition Selection", `Looping "${activeSelectionContext.text}"`, "info");
+      hideSelectionBubble();
+    });
+  }
+
+  if (bubbleBtnGlossary) {
+    bubbleBtnGlossary.addEventListener("click", () => {
+      if (!activeSelectionContext) return;
+      const word = activeSelectionContext.text.trim();
+      addGlossaryTerms(word);
+      addNotification("Glossary Added", `Added "${word}" to acoustic council glossary`, "success");
+      hideSelectionBubble();
+    });
+  }
+
+  if (bubbleBtnCase && bubbleCaseDropdown) {
+    bubbleBtnCase.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const parentDropdown = bubbleBtnCase.closest(".bubble-dropdown");
+      if (parentDropdown) parentDropdown.classList.toggle("open");
+    });
+
+    bubbleCaseDropdown.querySelectorAll(".bubble-dropdown-item").forEach(item => {
+      item.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const caseType = item.dataset.case;
+        applyCaseTransformation(caseType);
+        const parentDropdown = bubbleBtnCase.closest(".bubble-dropdown");
+        if (parentDropdown) parentDropdown.classList.remove("open");
+        hideSelectionBubble();
+      });
+    });
+  }
+
+  if (bubbleBtnFlag) {
+    bubbleBtnFlag.addEventListener("click", () => {
+      if (!activeSelectionContext) return;
+      const idx = activeSelectionContext.segIdx;
+      if (currentSegments[idx]) {
+        const prevVal = !!currentSegments[idx].needs_review;
+        const newVal = !prevVal;
+        UndoRedoManager.record({
+          type: "FLAG_REVIEW",
+          segIdx: idx,
+          prevReview: prevVal,
+          newReview: newVal,
+          description: `toggle review flag on segment #${idx + 1}`
+        });
+        currentSegments[idx].needs_review = newVal;
+        renderTranscriptFeed();
+        if (currentTaskId) {
+          fetch(`/api/tasks/${currentTaskId}/segments/${idx}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ needs_review: newVal })
+          }).catch(console.warn);
+        }
+        addNotification("Review Flag", newVal ? "Marked segment for human review" : "Cleared review flag", "info");
+      }
+      hideSelectionBubble();
+    });
+  }
+
+  if (bubbleBtnClose) {
+    bubbleBtnClose.addEventListener("click", () => {
+      hideSelectionBubble();
+    });
+  }
+}
+
+function hideSelectionBubble() {
+  if (selectionBubble) selectionBubble.style.display = "none";
+  if (bubbleCaseDropdown) {
+    const parentDropdown = bubbleCaseDropdown.closest(".bubble-dropdown");
+    if (parentDropdown) parentDropdown.classList.remove("open");
+  }
+  activeSelectionContext = null;
+}
+
+function applyCaseTransformation(caseType) {
+  if (!activeSelectionContext || !activeSelectionContext.text) return;
+  const original = activeSelectionContext.text;
+  let transformed = original;
+  if (caseType === "upper") {
+    transformed = original.toUpperCase();
+  } else if (caseType === "lower") {
+    transformed = original.toLowerCase();
+  } else if (caseType === "title") {
+    transformed = original.replace(/\\w\\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+  }
+
+  if (transformed === original) return;
+
+  const idx = activeSelectionContext.segIdx;
+  if (currentSegments[idx]) {
+    const prevText = currentSegments[idx].text;
+    const newText = prevText.replace(original, transformed);
+
+    UndoRedoManager.record({
+      type: "TEXT_EDIT",
+      segIdx: idx,
+      prevText: prevText,
+      newText: newText,
+      prevEdited: !!currentSegments[idx].edited,
+      description: `change case to ${caseType}`
+    });
+
+    currentSegments[idx].text = newText;
+    currentSegments[idx].edited = true;
+    renderTranscriptFeed();
+    if (currentTaskId) {
+      fetch(`/api/tasks/${currentTaskId}/segments/${idx}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: newText, edited: true })
+      }).catch(console.warn);
+    }
+  }
+}
+
+// Sub-Phase 4.2.A: Model Comparator Lab
+function initComparatorLabControls() {
+  if (btnModelComparator) {
+    btnModelComparator.addEventListener("click", () => openComparatorLab());
+  }
+  if (btnCloseComparator) {
+    btnCloseComparator.addEventListener("click", () => closeComparatorLab());
+  }
+  if (comparatorModal) {
+    comparatorModal.addEventListener("click", (e) => {
+      if (e.target === comparatorModal) closeComparatorLab();
+    });
+  }
+  if (chkDisagreementsOnly) {
+    chkDisagreementsOnly.addEventListener("change", () => {
+      if (cachedComparatorData) renderComparatorTable(cachedComparatorData);
+    });
+  }
+  if (comparatorSearchInput) {
+    comparatorSearchInput.addEventListener("input", () => {
+      if (cachedComparatorData) renderComparatorTable(cachedComparatorData);
+    });
+  }
+  if (btnExportComparatorTxt) {
+    btnExportComparatorTxt.addEventListener("click", () => copyComparatorView());
+  }
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && comparatorModal && comparatorModal.style.display !== "none") {
+      closeComparatorLab();
+    }
+  });
+}
+
+async function openComparatorLab() {
+  if (!comparatorModal) return;
+  comparatorModal.style.display = "flex";
+
+  if (comparatorScorecards) {
+    comparatorScorecards.innerHTML = `<div style="color: var(--text-muted); font-size: 13px; padding: 10px;">Loading multi-model metrics...</div>`;
+  }
+  if (comparatorGridWrapper) {
+    comparatorGridWrapper.innerHTML = `<div style="color: var(--text-muted); font-size: 13px; padding: 20px;">Fetching aligned model hypotheses...</div>`;
+  }
+
+  try {
+    let data = null;
+    if (currentTaskId) {
+      const res = await fetch(`/api/tasks/${currentTaskId}/comparator`);
+      if (res.ok) data = await res.json();
+    }
+    if (!data || !data.models || data.models.length === 0) {
+      data = buildClientSideComparatorData();
+    }
+    cachedComparatorData = data;
+    renderComparatorLab(data);
+  } catch (err) {
+    console.warn("Error loading comparator endpoint, using client data:", err);
+    const data = buildClientSideComparatorData();
+    cachedComparatorData = data;
+    renderComparatorLab(data);
+  }
+}
+
+function closeComparatorLab() {
+  if (comparatorModal) comparatorModal.style.display = "none";
+}
+
+function buildClientSideComparatorData() {
+  const segs = currentSegments || [];
+  const totalChunks = segs.length;
+  const modelsDict = {};
+
+  segs.forEach(seg => {
+    const votes = seg.council?.votes || [];
+    votes.forEach(v => {
+      const m = v.member || "Model";
+      if (!modelsDict[m]) {
+        let cleanName = m.split("/").pop().replace(/_/g, " ").replace(/\\b\\w/g, c => c.toUpperCase());
+        if (m.toLowerCase().includes("canary")) cleanName = "Canary-1B";
+        else if (m.toLowerCase().includes("whisper")) cleanName = "Whisper Large v3";
+        else if (m.toLowerCase().includes("conformer")) cleanName = "Conformer CTC";
+        else if (m.toLowerCase().includes("parakeet")) cleanName = "Parakeet TDT";
+
+        modelsDict[m] = {
+          member: m,
+          display_name: cleanName,
+          role: v.role || "Juror",
+          hypotheses: [],
+          confidences: [],
+          win_count: 0
+        };
+      }
+    });
+  });
+
+  if (Object.keys(modelsDict).length === 0) {
+    modelsDict["primary"] = {
+      member: "Primary Transcriber",
+      display_name: "Primary Model",
+      role: "Lead",
+      hypotheses: segs.map(s => s.text || ""),
+      confidences: segs.map(() => 0.95),
+      win_count: segs.length
+    };
+  }
+
+  let unanimousChunks = 0;
+  let majorityChunks = 0;
+  let splitChunks = 0;
+  let loopBreakerChunks = 0;
+
+  const chunkAlignments = segs.map((seg, idx) => {
+    const segText = (seg.text || "").trim();
+    const cData = seg.council || {};
+    const agreeType = cData.agreement_type || "UNANIMOUS";
+    const isBreaker = !!(seg.loop_circuit_breaker_tripped || cData.loop_circuit_breaker_tripped);
+
+    if (isBreaker) loopBreakerChunks++;
+    else if (agreeType === "UNANIMOUS") unanimousChunks++;
+    else if (agreeType === "MAJORITY" || agreeType === "CTC_ANCHORED") majorityChunks++;
+    else splitChunks++;
+
+    const votesInSeg = cData.votes || [];
+    const votesPayload = [];
+
+    if (votesInSeg.length > 0) {
+      votesInSeg.forEach(v => {
+        const m = v.member || "Model";
+        const hyp = (v.hypothesis || "").trim();
+        const conf = parseFloat(v.confidence || 0.85);
+        const isWin = (hyp.toLowerCase() === segText.toLowerCase());
+
+        if (modelsDict[m]) {
+          modelsDict[m].hypotheses.push(hyp);
+          modelsDict[m].confidences.push(conf);
+          if (isWin) modelsDict[m].win_count++;
+        }
+
+        votesPayload.push({
+          member: m,
+          role: v.role || "",
+          hypothesis: hyp,
+          confidence: roundDec(conf, 3),
+          is_winner: isWin
+        });
+      });
+    } else {
+      Object.keys(modelsDict).forEach(m => {
+        votesPayload.push({
+          member: m,
+          role: modelsDict[m].role,
+          hypothesis: segText,
+          confidence: 0.95,
+          is_winner: true
+        });
+      });
+    }
+
+    return {
+      index: idx,
+      start: seg.start,
+      end: seg.end,
+      duration: seg.duration || (seg.end - seg.start),
+      speaker: seg.speaker || "Speaker 0",
+      consensus_text: segText,
+      agreement_type: agreeType,
+      consensus_score: cData.consensus_score || 1.0,
+      disputed_tokens: cData.disputed_tokens || [],
+      needs_review: !!seg.needs_review,
+      loop_circuit_breaker_tripped: isBreaker,
+      votes: votesPayload
+    };
+  });
+
+  const fullConsensusText = segs.map(s => s.text || "").join(" ");
+  const consensusWords = fullConsensusText.trim().split(/\\s+/).filter(Boolean).length;
+
+  const modelsList = Object.values(modelsDict).map(info => {
+    const fullText = info.hypotheses.join(" ");
+    const words = fullText.trim().split(/\\s+/).filter(Boolean).length;
+    const avgConf = info.confidences.length > 0
+      ? (info.confidences.reduce((a, b) => a + b, 0) / info.confidences.length)
+      : 0.85;
+    const winRate = totalChunks > 0 ? (info.win_count / totalChunks) : 1.0;
+
+    return {
+      member: info.member,
+      display_name: info.display_name,
+      role: info.role,
+      full_text: fullText,
+      word_count: words,
+      avg_confidence: roundDec(avgConf, 3),
+      win_count: info.win_count,
+      win_rate: roundDec(winRate, 3),
+      agreement_score: roundDec(winRate, 3),
+      total_chunks: totalChunks
+    };
+  });
+
+  return {
+    task_id: currentTaskId || "local",
+    total_chunks: totalChunks,
+    consensus: {
+      full_text: fullConsensusText,
+      word_count: consensusWords,
+      unanimous_chunks: unanimousChunks,
+      majority_chunks: majorityChunks,
+      split_chunks: splitChunks,
+      loop_breaker_chunks: loopBreakerChunks,
+      unanimous_rate: totalChunks > 0 ? roundDec(unanimousChunks / totalChunks, 3) : 1.0
+    },
+    models: modelsList,
+    chunk_alignments: chunkAlignments
+  };
+}
+
+function roundDec(val, dec) {
+  const factor = Math.pow(10, dec);
+  return Math.round(val * factor) / factor;
+}
+
+function renderComparatorLab(data) {
+  if (!data) return;
+
+  if (comparatorScorecards) {
+    let scorecardsHtml = `
+      <div class="comparator-card" style="border-left: 3px solid var(--accent-light);">
+        <div class="comparator-card-header">
+          <span class="comparator-model-title">🏛️ Synthesized Consensus</span>
+          <span class="comparator-win-badge" style="background: rgba(16, 185, 129, 0.2); color: #4ade80;">Official Output</span>
+        </div>
+        <div class="comparator-metrics-row">
+          <span>Words: <strong>${data.consensus?.word_count || 0}</strong></span>
+          <span>Chunks: <strong>${data.total_chunks || 0}</strong></span>
+        </div>
+        <div class="comparator-metrics-row">
+          <span>Unanimous: <strong>${data.consensus?.unanimous_chunks || 0}</strong></span>
+          <span>Split / Review: <strong>${(data.consensus?.split_chunks || 0) + (data.consensus?.loop_breaker_chunks || 0)}</strong></span>
+        </div>
+        <div class="comparator-conf-bar">
+          <div class="comparator-conf-fill" style="width: ${(data.consensus?.unanimous_rate || 1) * 100}%; background: #10b981;"></div>
+        </div>
+      </div>
+    `;
+
+    (data.models || []).forEach(m => {
+      const winPct = Math.round((m.win_rate || 0) * 100);
+      const confPct = Math.round((m.avg_confidence || 0.85) * 100);
+      scorecardsHtml += `
+        <div class="comparator-card">
+          <div class="comparator-card-header">
+            <span class="comparator-model-title">${escapeHtml(m.display_name)}</span>
+            <span class="comparator-win-badge">🏆 ${winPct}% Won</span>
+          </div>
+          <div class="comparator-metrics-row">
+            <span>Role: <strong>${escapeHtml(m.role || 'Juror')}</strong></span>
+            <span>Words: <strong>${m.word_count || 0}</strong></span>
+          </div>
+          <div class="comparator-metrics-row">
+            <span>Confidence: <strong>${confPct}%</strong></span>
+            <span>Wins: <strong>${m.win_count || 0}/${m.total_chunks || 0}</strong></span>
+          </div>
+          <div class="comparator-conf-bar">
+            <div class="comparator-conf-fill" style="width: ${confPct}%;"></div>
+          </div>
+        </div>
+      `;
+    });
+
+    comparatorScorecards.innerHTML = scorecardsHtml;
+  }
+
+  renderComparatorTable(data);
+}
+
+function renderComparatorTable(data) {
+  if (!comparatorGridWrapper || !data) return;
+
+  const disagreementsOnly = chkDisagreementsOnly ? chkDisagreementsOnly.checked : false;
+  const filterQuery = comparatorSearchInput ? comparatorSearchInput.value.toLowerCase().trim() : "";
+
+  const models = data.models || [];
+  const alignments = data.chunk_alignments || [];
+
+  let tableHeaderHtml = `
+    <tr>
+      <th style="width: 110px;">Chunk</th>
+      <th style="width: 100px;">Speaker</th>
+  `;
+  models.forEach(m => {
+    tableHeaderHtml += `<th>${escapeHtml(m.display_name)}</th>`;
+  });
+  tableHeaderHtml += `<th style="background: rgba(16, 185, 129, 0.1); color: #6ee7b7;">Consensus Verdict</th></tr>`;
+
+  let rowsHtml = "";
+  let renderedCount = 0;
+
+  alignments.forEach(chunk => {
+    const isUnanimous = (chunk.agreement_type === "UNANIMOUS");
+    if (disagreementsOnly && isUnanimous && !chunk.loop_circuit_breaker_tripped) {
+      return;
+    }
+
+    if (filterQuery) {
+      const matchText = (chunk.consensus_text + " " + chunk.votes.map(v => v.hypothesis).join(" ")).toLowerCase();
+      if (!matchText.includes(filterQuery)) return;
+    }
+
+    renderedCount++;
+    const spkClass = getSpeakerClass(chunk.speaker);
+    const displayName = speakerAliases[chunk.speaker] || chunk.speaker;
+
+    let chunkCells = `
+      <td>
+        <div style="font-weight: 700;">#${chunk.index + 1}</div>
+        <div style="font-size: 10px; color: var(--text-muted);">${formatSeconds(chunk.start)} - ${formatSeconds(chunk.end)}</div>
+      </td>
+      <td>
+        <span class="speaker-badge ${spkClass}" style="font-size: 10px; padding: 2px 6px;">${escapeHtml(displayName)}</span>
+      </td>
+    `;
+
+    models.forEach(m => {
+      const vote = chunk.votes.find(v => v.member === m.member);
+      const hyp = vote ? vote.hypothesis : "—";
+      const isWin = vote ? vote.is_winner : false;
+
+      let cellContent = "";
+      if (hyp === "—") {
+        cellContent = `<span style="color: var(--text-muted); font-style: italic;">—</span>`;
+      } else {
+        const diffHtml = renderDiffTokens(hyp, chunk.consensus_text);
+        cellContent = `
+          <div>${diffHtml}</div>
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px; display: flex; justify-content: space-between;">
+            <span>${vote ? Math.round(vote.confidence * 100) : '--'}% conf</span>
+            ${isWin ? '<span style="color: #4ade80; font-weight: 700;">👑 Won</span>' : ''}
+          </div>
+        `;
+      }
+
+      chunkCells += `<td>${cellContent}</td>`;
+    });
+
+    let agreeBadge = `<span class="badge-stage" style="font-size: 10px;">${chunk.agreement_type}</span>`;
+    if (chunk.loop_circuit_breaker_tripped) {
+      agreeBadge = `<span class="badge-council badge-council-tripped" style="font-size: 10px;">⚡ Loop Breaker</span>`;
+    }
+
+    chunkCells += `
+      <td style="background: rgba(16, 185, 129, 0.04);">
+        <div style="font-weight: 600; color: var(--text-primary);">${escapeHtml(chunk.consensus_text)}</div>
+        <div style="margin-top: 4px; display: flex; align-items: center; gap: 6px;">
+          ${agreeBadge}
+          <button class="btn-jump-segment" style="font-size: 10px; padding: 2px 6px;" onclick="jumpToComparatorChunk(${chunk.index})">Jump ⤶</button>
+        </div>
+      </td>
+    `;
+
+    rowsHtml += `<tr>${chunkCells}</tr>`;
+  });
+
+  if (renderedCount === 0) {
+    rowsHtml = `<tr><td colspan="${models.length + 3}" style="text-align: center; color: var(--text-muted); padding: 30px;">No chunks match the current filter criteria.</td></tr>`;
+  }
+
+  comparatorGridWrapper.innerHTML = `
+    <table class="comparator-table">
+      <thead>${tableHeaderHtml}</thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  `;
+}
+
+function renderDiffTokens(hypText, consensusText) {
+  if (!hypText) return "";
+  if (!consensusText || hypText.trim().toLowerCase() === consensusText.trim().toLowerCase()) {
+    return `<span class="comparator-win-token">${escapeHtml(hypText)}</span>`;
+  }
+
+  const hypWords = hypText.trim().split(/\\s+/);
+  const cWords = consensusText.trim().split(/\\s+/);
+  const cSet = new Set(cWords.map(w => w.toLowerCase().replace(/[^\\w]/g, "")));
+
+  return hypWords.map(w => {
+    const cleanW = w.toLowerCase().replace(/[^\\w]/g, "");
+    if (!cSet.has(cleanW)) {
+      return `<span class="comparator-diff-token" title="Differs from consensus">${escapeHtml(w)}</span>`;
+    }
+    return escapeHtml(w);
+  }).join(" ");
+}
+
+window.jumpToComparatorChunk = function(segIdx) {
+  closeComparatorLab();
+  const tabBtn = document.getElementById("tabBtnTranscript");
+  if (tabBtn) tabBtn.click();
+  setTimeout(() => {
+    const block = document.querySelector(`.segment-block[data-index="${segIdx}"]`);
+    if (block) {
+      block.scrollIntoView({ behavior: "smooth", block: "center" });
+      block.classList.add("active");
+    }
+    if (currentSegments && currentSegments[segIdx] && wavesurferOrig) {
+      wavesurferOrig.setTime(currentSegments[segIdx].start);
+      if (wavesurferModel) wavesurferModel.setTime(currentSegments[segIdx].start);
+    }
+  }, 100);
+};
+
+function copyComparatorView() {
+  if (!cachedComparatorData) return;
+  const models = cachedComparatorData.models || [];
+  const lines = [
+    `=== SUPREME COUNCIL MODEL COMPARATOR LAB REPORT ===`,
+    `Generated: ${new Date().toLocaleString()}`,
+    `Total Chunks: ${cachedComparatorData.total_chunks}`,
+    `Consensus Words: ${cachedComparatorData.consensus?.word_count || 0}`,
+    `Unanimous Chunks: ${cachedComparatorData.consensus?.unanimous_chunks || 0}`,
+    `Split / Review Chunks: ${(cachedComparatorData.consensus?.split_chunks || 0) + (cachedComparatorData.consensus?.loop_breaker_chunks || 0)}`,
+    ``,
+    `=== MODEL SCORECARDS ===`
+  ];
+
+  models.forEach(m => {
+    lines.push(`• ${m.display_name} (${m.role}): Words: ${m.word_count} | Wins: ${m.win_count}/${m.total_chunks} (${Math.round((m.win_rate || 0)*100)}%) | Confidence: ${Math.round((m.avg_confidence || 0)*100)}%`);
+  });
+
+  lines.push(``);
+  lines.push(`=== CHUNK ALIGNMENTS ===`);
+
+  (cachedComparatorData.chunk_alignments || []).forEach(c => {
+    lines.push(`[Chunk #${c.index + 1} | ${formatSeconds(c.start)} - ${formatSeconds(c.end)} | ${c.speaker} | ${c.agreement_type}]`);
+    c.votes.forEach(v => {
+      lines.push(`  - ${v.member}: "${v.hypothesis}" (${Math.round(v.confidence * 100)}% conf)${v.is_winner ? ' [WINNER]' : ''}`);
+    });
+    lines.push(`  => Consensus: "${c.consensus_text}"`);
+    lines.push(``);
+  });
+
+  navigator.clipboard.writeText(lines.join("\\n")).then(() => {
+    addNotification("Report Copied", "Comparator Lab report copied to clipboard.", "success");
+  }).catch(() => {
+    alert("Failed to copy report to clipboard.");
+  });
 }
 
 // --- 7. Floating Audio Player Dock Synchronization ---
@@ -2090,6 +3591,8 @@ function renderTranscriptFeed() {
         </div>
       </div>
     `;
+    renderDocumentMinimap();
+    updateMinimapSlider();
     return;
   }
 
@@ -2190,16 +3693,35 @@ function renderTranscriptFeed() {
           else if (v.role && v.role.includes("Auditor")) roleIcon = "🐢";
 
           const confPct = Math.round((v.confidence || 0.8) * 100);
+          const isWinningVote = seg.winning_juror
+            ? (v.member === seg.winning_juror)
+            : (v.hypothesis && seg.text && v.hypothesis.trim().toLowerCase() === seg.text.trim().toLowerCase());
+
+          let winnerTag = "";
+          if (isWinningVote) {
+            winnerTag = seg.winning_juror === v.member
+              ? `<span class="vote-winner-badge user-override">👑 User Override</span>`
+              : `<span class="vote-winner-badge consensus-win">👑 Consensus Winner</span>`;
+          }
+
+          let actionBtn = "";
+          if (isWinningVote) {
+            actionBtn = `<span style="font-size: 11px; color: var(--accent-light); font-weight: 600; padding: 3px 6px;">Active</span>`;
+          } else if (v.hypothesis) {
+            actionBtn = `<button class="btn-override-winner btn-adopt-hyp" data-seg="${index}" data-member="${escapeHtml(v.member)}" data-text="${encodeURIComponent(v.hypothesis)}" title="Override segment with this juror's hypothesis">👑 Override Winner</button>`;
+          }
+
           votesHtml += `
-            <div class="council-vote-row">
+            <div class="council-vote-row ${isWinningVote ? 'is-winner' : ''}">
               <div class="council-vote-meta">
                 <span>${roleIcon}</span>
                 <span class="council-vote-member">${v.member}</span>
                 <span class="council-vote-role">(${v.role})</span>
                 <span class="badge-stage" style="font-size: 10px;">${confPct}%</span>
+                ${winnerTag}
               </div>
-              <div class="council-vote-text" title="${v.hypothesis}">"${v.hypothesis || '— [silence] —'}"</div>
-              ${v.hypothesis ? `<button class="btn-adopt-hyp" data-seg="${index}" data-text="${encodeURIComponent(v.hypothesis)}" title="Adopt this juror's hypothesis for this segment">Adopt</button>` : ''}
+              <div class="council-vote-text" title="${escapeHtml(v.hypothesis)}">"${v.hypothesis || '— [silence] —'}"</div>
+              ${actionBtn}
             </div>
           `;
         });
@@ -2241,6 +3763,29 @@ function renderTranscriptFeed() {
     // Delete chunk button
     const deleteBtn = `<button class="btn-delete-segment" data-index="${index}" title="Delete this chunk from transcript">🗑️</button>`;
 
+    // Sub-Phase 4.4.D: Pacing badge calculation
+    const segDur = Math.max(0.1, (seg.end || 0) - (seg.start || 0));
+    const segWords = (seg.text || "").trim().split(/\s+/).filter(Boolean).length;
+    const segWpm = Math.round((segWords / segDur) * 60);
+    let pacingClass = "pace-normal";
+    if (segWpm < 110) pacingClass = "pace-slow";
+    else if (segWpm > 210) pacingClass = "pace-rush";
+    else if (segWpm > 175) pacingClass = "pace-fast";
+    const pacingBadge = `<span class="badge-pacing ${pacingClass}" title="Speech Rate: ${segWpm} WPM (${(segWords / segDur).toFixed(1)} words/sec)">⚡ ${segWpm} wpm</span>`;
+
+    // Sub-Phase 4.4.B: Segment split & join buttons
+    const splitBtn = `<button class="btn-segment-action btn-split-segment" data-index="${index}" title="Split segment at cursor or midpoint (Ctrl+Shift+S)">⤹ Split</button>`;
+    const joinBtn = (index < currentSegments.length - 1)
+      ? `<button class="btn-segment-action btn-join-segment" data-index="${index}" title="Merge with next segment (Ctrl+Shift+J)">⤸ Join Next</button>`
+      : "";
+
+    // Sub-Phase 4.4.F: Speaker custom palette & avatar
+    const customPalette = speakerPalettes[rawSpeaker];
+    const avatarIcon = (customPalette && customPalette.avatar) ? customPalette.avatar : "";
+    const customStyle = (customPalette && customPalette.color)
+      ? `style="background-color: ${customPalette.color}22; color: ${customPalette.color}; border: 1px solid ${customPalette.color}55;"`
+      : "";
+
     // Render words with spans for Alt + Click syllable micro-looping (Feature 3.2.B)
     const rawWords = (seg.text || "").trim().split(/\s+/);
     const wordDur = rawWords.length > 0 ? (seg.end - seg.start) / rawWords.length : 0;
@@ -2252,13 +3797,16 @@ function renderTranscriptFeed() {
 
     block.innerHTML = `
       <div class="segment-header">
-        <span class="speaker-badge ${spkClass}">${displayName}</span>
+        <span class="speaker-badge ${spkClass}" ${customStyle}>${avatarIcon ? avatarIcon + ' ' : ''}${escapeHtml(displayName)}</span>
         <span class="timestamp-pill">[${formatSeconds(seg.start)} - ${formatSeconds(seg.end)}]</span>
+        ${pacingBadge}
         ${badgeExtras}
         ${decompBadges}
         ${councilBadge}
         ${councilToggleBtn}
         ${auditionBtn}
+        ${splitBtn}
+        ${joinBtn}
         ${deleteBtn}
       </div>
       <div class="segment-text" contenteditable="true" spellcheck="false" data-index="${index}">${wordsHtml}</div>
@@ -2306,24 +3854,14 @@ function renderTranscriptFeed() {
       });
     }
 
-    // Adopt Juror Hypothesis
-    block.querySelectorAll(".btn-adopt-hyp").forEach((btn) => {
+    // Adopt / Override Juror Hypothesis
+    block.querySelectorAll(".btn-adopt-hyp, .btn-override-winner").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const segIdx = parseInt(btn.dataset.seg, 10);
         const adoptedText = decodeURIComponent(btn.dataset.text);
-        if (currentSegments[segIdx]) {
-          currentSegments[segIdx].text = adoptedText;
-          currentSegments[segIdx].edited = true;
-          renderTranscriptFeed();
-          if (currentTaskId) {
-            fetch(`/api/tasks/${currentTaskId}/segments/${segIdx}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ text: adoptedText })
-            }).catch(console.warn);
-          }
-        }
+        const jurorMember = btn.dataset.member || "Juror";
+        overrideJurorWinner(segIdx, jurorMember, adoptedText);
       });
     });
 
@@ -2334,6 +3872,13 @@ function renderTranscriptFeed() {
         e.stopPropagation();
         const segIdx = parseInt(delBtn.dataset.index, 10);
         if (confirm(`Delete chunk [${formatSeconds(seg.start)} - ${formatSeconds(seg.end)}]?`)) {
+          const removed = currentSegments[segIdx];
+          UndoRedoManager.record({
+            type: "DELETE_SEGMENT",
+            segIdx: segIdx,
+            segment: { ...removed },
+            description: `deletion of chunk #${segIdx + 1}`
+          });
           currentSegments.splice(segIdx, 1);
           if (tabTranscriptBadge) tabTranscriptBadge.innerText = currentSegments.length;
           renderSpeakerSidebar();
@@ -2342,6 +3887,24 @@ function renderTranscriptFeed() {
             fetch(`/api/tasks/${currentTaskId}/segments/${segIdx}`, { method: "DELETE" }).catch(console.warn);
           }
         }
+      });
+    }
+
+    // Split segment button
+    const spkSplitBtn = block.querySelector(".btn-split-segment");
+    if (spkSplitBtn) {
+      spkSplitBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        splitSegmentAtCursor(index);
+      });
+    }
+
+    // Join with next segment button
+    const spkJoinBtn = block.querySelector(".btn-join-segment");
+    if (spkJoinBtn) {
+      spkJoinBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        mergeSegmentWithNext(index);
       });
     }
 
@@ -2371,7 +3934,8 @@ function renderTranscriptFeed() {
 
     // Click block to jump both players
     block.addEventListener("click", (e) => {
-      if (e.target.classList.contains("segment-text") || e.target.classList.contains("btn-audition") || e.target.classList.contains("btn-council-toggle") || e.target.classList.contains("btn-adopt-hyp") || e.target.classList.contains("btn-delete-segment")) return;
+      activeSegmentIndex = index;
+      if (e.target.classList.contains("segment-text") || e.target.classList.contains("btn-audition") || e.target.classList.contains("btn-council-toggle") || e.target.classList.contains("btn-adopt-hyp") || e.target.classList.contains("btn-delete-segment") || e.target.classList.contains("btn-segment-action")) return;
       if (wavesurferOrig) {
         wavesurferOrig.setTime(seg.start);
         if (wavesurferModel) wavesurferModel.setTime(seg.start);
@@ -2382,16 +3946,30 @@ function renderTranscriptFeed() {
 
     // Contenteditable events & keyboard shortcuts
     const textEl = block.querySelector(".segment-text");
+    textEl.addEventListener("focus", () => {
+      activeSegmentIndex = index;
+      setAutoScrollLock(true, "edit");
+    });
     textEl.addEventListener("blur", () => {
+      setAutoScrollLock(false, "edit");
       const newTxt = textEl.innerText.trim();
       if (newTxt !== seg.text) {
+        UndoRedoManager.record({
+          type: "TEXT_EDIT",
+          segIdx: index,
+          prevText: seg.text,
+          newText: newTxt,
+          prevEdited: !!seg.edited,
+          description: `segment #${index + 1} text edit`
+        });
         seg.text = newTxt;
         seg.edited = true;
+        if (typeof updateDocumentMetrics === "function") updateDocumentMetrics();
         if (currentTaskId) {
           fetch(`/api/tasks/${currentTaskId}/segments/${index}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: newTxt })
+            body: JSON.stringify({ text: newTxt, edited: true })
           }).catch(console.warn);
         }
       }
@@ -2412,6 +3990,9 @@ function renderTranscriptFeed() {
 
     transcriptFeed.appendChild(block);
   });
+  renderDocumentMinimap();
+  updateMinimapSlider();
+  if (typeof updateDocumentMetrics === "function") updateDocumentMetrics();
 }
 
 function syncActiveSegment(currentTime, forceScroll = false) {
@@ -2422,7 +4003,9 @@ function syncActiveSegment(currentTime, forceScroll = false) {
     if (currentTime >= start && currentTime <= end) {
       if (!b.classList.contains("active") || forceScroll) {
         b.classList.add("active");
-        b.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        if (!isAutoScrollLocked || forceScroll) {
+          b.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
 
         // Update floating snippet
         const idx = parseInt(b.dataset.index, 10);
@@ -5023,6 +6606,1087 @@ function initSettingsTab() {
   loadGlossary();
 }
 
+// ==========================================================================
+// SUB-PHASE 4.4: FORMATTING AUTOMATION & ACCESSIBILITY CUSTOMIZATION
+// ==========================================================================
+
+// 4.4.D: Live Document Metrics
+function updateDocumentMetrics() {
+  if (!documentMetricsRibbon || !currentSegments) return;
+
+  let totalWords = 0;
+  let totalChars = 0;
+  let totalDuration = 0;
+
+  if (currentSegments.length > 0) {
+    const firstStart = currentSegments[0].start || 0;
+    const lastEnd = currentSegments[currentSegments.length - 1].end || 0;
+    totalDuration = Math.max(0.1, lastEnd - firstStart);
+
+    currentSegments.forEach(seg => {
+      const text = (seg.text || "").trim();
+      if (text) {
+        const words = text.split(/\s+/).filter(Boolean);
+        totalWords += words.length;
+        totalChars += text.length;
+      }
+    });
+  }
+
+  const avgWpm = totalDuration > 0 ? Math.round((totalWords / totalDuration) * 60) : 0;
+  const avgCps = totalDuration > 0 ? (totalChars / totalDuration).toFixed(1) : 0;
+
+  if (metricWordCount) metricWordCount.textContent = totalWords.toLocaleString();
+  if (metricDuration) metricDuration.textContent = formatSeconds(totalDuration);
+  if (metricWpm) metricWpm.textContent = `${avgWpm} wpm`;
+  if (metricCps) metricCps.textContent = `${avgCps} cps`;
+}
+
+// 4.4.B: Instant Segment Merge & Split
+async function mergeSegmentWithNext(idx) {
+  if (idx == null || idx < 0 || idx >= currentSegments.length - 1) {
+    addNotification("Merge Skipped", "Cannot merge the last segment or an invalid segment index.", "warning");
+    return;
+  }
+  const seg1 = currentSegments[idx];
+  const seg2 = currentSegments[idx + 1];
+
+  const mergedText = `${(seg1.text || '').trim()} ${(seg2.text || '').trim()}`.trim();
+  const mergedSeg = {
+    ...seg1,
+    end: seg2.end,
+    text: mergedText,
+    edited: true
+  };
+
+  UndoRedoManager.record({
+    type: "MERGE_SEGMENTS",
+    segIdx: idx,
+    prevFirstSeg: JSON.parse(JSON.stringify(seg1)),
+    prevSecondSeg: JSON.parse(JSON.stringify(seg2)),
+    mergedSeg: JSON.parse(JSON.stringify(mergedSeg)),
+    description: `Merge segments #${idx + 1} & #${idx + 2}`
+  });
+
+  currentSegments.splice(idx, 2, mergedSeg);
+  if (tabTranscriptBadge) tabTranscriptBadge.innerText = currentSegments.length;
+  renderSpeakerSidebar();
+  renderTranscriptFeed();
+  updateDocumentMetrics();
+
+  addNotification("Segments Merged", `Joined segments #${idx + 1} and #${idx + 2}.`, "success");
+
+  if (currentTaskId) {
+    try {
+      await fetch(`/api/tasks/${currentTaskId}/segments/merge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ first_idx: idx })
+      });
+    } catch (e) {
+      console.warn("Failed to persist segment merge:", e);
+    }
+  }
+}
+
+async function splitSegmentAtCursor(idx, charOffset) {
+  if (idx == null || idx < 0 || idx >= currentSegments.length) {
+    idx = activeSegmentIndex;
+  }
+  if (idx < 0 || idx >= currentSegments.length) return;
+
+  const seg = currentSegments[idx];
+  const fullText = (seg.text || "").trim();
+  if (fullText.length < 2) {
+    addNotification("Split Skipped", "Segment text is too short to split.", "warning");
+    return;
+  }
+
+  // Determine split point
+  let offset = charOffset;
+  if (offset == null) {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const activeEl = document.activeElement;
+      if (activeEl && activeEl.classList.contains("segment-text") && parseInt(activeEl.dataset.index, 10) === idx) {
+        const range = sel.getRangeAt(0);
+        const preCaretRange = range.cloneRange();
+        preCaretRange.selectNodeContents(activeEl);
+        preCaretRange.setEnd(range.endContainer, range.endOffset);
+        offset = preCaretRange.toString().length;
+      }
+    }
+  }
+
+  if (offset == null || offset <= 1 || offset >= fullText.length - 1) {
+    const words = fullText.split(/\s+/);
+    if (words.length > 1) {
+      const half = Math.floor(words.length / 2);
+      offset = words.slice(0, half).join(" ").length + 1;
+    } else {
+      offset = Math.floor(fullText.length / 2);
+    }
+  }
+
+  const text1 = fullText.substring(0, offset).trim();
+  const text2 = fullText.substring(offset).trim();
+  if (!text1 || !text2) {
+    addNotification("Split Skipped", "Cannot split into empty segments.", "warning");
+    return;
+  }
+
+  const totalDur = Math.max(0.1, seg.end - seg.start);
+  const ratio = Math.max(0.1, Math.min(0.9, text1.length / fullText.length));
+  const splitTime = parseFloat((seg.start + (totalDur * ratio)).toFixed(3));
+
+  const part1 = { ...seg, end: splitTime, text: text1, edited: true };
+  const part2 = { ...seg, start: splitTime, text: text2, edited: true };
+
+  UndoRedoManager.record({
+    type: "SPLIT_SEGMENT",
+    segIdx: idx,
+    prevSeg: JSON.parse(JSON.stringify(seg)),
+    firstPart: JSON.parse(JSON.stringify(part1)),
+    secondPart: JSON.parse(JSON.stringify(part2)),
+    description: `Split segment #${idx + 1} at ${formatSeconds(splitTime)}`
+  });
+
+  currentSegments.splice(idx, 1, part1, part2);
+  if (tabTranscriptBadge) tabTranscriptBadge.innerText = currentSegments.length;
+  renderSpeakerSidebar();
+  renderTranscriptFeed();
+  updateDocumentMetrics();
+
+  addNotification("Segment Split", `Divided segment #${idx + 1} at ${formatSeconds(splitTime)}.`, "success");
+
+  if (currentTaskId) {
+    try {
+      await fetch(`/api/tasks/${currentTaskId}/segments/split`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seg_idx: idx, char_offset: offset, split_time: splitTime })
+      });
+    } catch (e) {
+      console.warn("Failed to persist segment split:", e);
+    }
+  }
+}
+
+// 4.4.C: Global Search & Replace Bar
+function toggleSearchReplaceBar(forceVal) {
+  if (!searchReplaceBar) return;
+  const willOpen = (forceVal !== undefined) ? !!forceVal : (searchReplaceBar.style.display === "none");
+  searchReplaceBar.style.display = willOpen ? "flex" : "none";
+  searchReplaceState.isOpen = willOpen;
+  if (btnToggleSearchReplace) btnToggleSearchReplace.classList.toggle("active", willOpen);
+
+  if (willOpen && srFindInput) {
+    srFindInput.focus();
+    srFindInput.select();
+    executeSearch();
+  } else {
+    clearSearchHighlights();
+  }
+}
+
+function clearSearchHighlights() {
+  if (srMatchCount) srMatchCount.textContent = "0 matches";
+  searchReplaceState.matches = [];
+  searchReplaceState.currentMatchIndex = -1;
+}
+
+function executeSearch() {
+  if (!srFindInput || !currentSegments) return;
+  clearSearchHighlights();
+  const query = srFindInput.value;
+  if (!query) {
+    if (srMatchCount) srMatchCount.textContent = "0 matches";
+    return;
+  }
+
+  const isCase = srMatchCase && srMatchCase.classList.contains("active");
+  const isWord = srWholeWord && srWholeWord.classList.contains("active");
+  const isRegex = srRegex && srRegex.classList.contains("active");
+
+  let regex;
+  try {
+    let pattern = query;
+    if (!isRegex) {
+      pattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+    if (isWord) {
+      pattern = `\\b${pattern}\\b`;
+    }
+    regex = new RegExp(pattern, isCase ? "g" : "gi");
+  } catch (err) {
+    if (srMatchCount) srMatchCount.textContent = "Regex error";
+    return;
+  }
+
+  const matches = [];
+  currentSegments.forEach((seg, sIdx) => {
+    const text = seg.text || "";
+    let m;
+    while ((m = regex.exec(text)) !== null) {
+      matches.push({ segIdx: sIdx, index: m.index, length: m[0].length, text: m[0] });
+      if (m.index === regex.lastIndex) regex.lastIndex++;
+    }
+  });
+
+  searchReplaceState.matches = matches;
+  if (matches.length > 0) {
+    searchReplaceState.currentMatchIndex = 0;
+    if (srMatchCount) srMatchCount.textContent = `1 / ${matches.length}`;
+    highlightMatches(matches, 0);
+  } else {
+    searchReplaceState.currentMatchIndex = -1;
+    if (srMatchCount) srMatchCount.textContent = "0 matches";
+  }
+}
+
+function highlightMatches(matches, activeIdx) {
+  matches.forEach((m, idx) => {
+    const block = transcriptFeed.querySelector(`.segment-block[data-index="${m.segIdx}"]`);
+    if (!block) return;
+    if (idx === activeIdx) {
+      block.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      block.classList.add("active");
+    }
+  });
+}
+
+function stepSearchMatch(dir) {
+  const count = searchReplaceState.matches.length;
+  if (count === 0) return;
+  searchReplaceState.currentMatchIndex = (searchReplaceState.currentMatchIndex + dir + count) % count;
+  if (srMatchCount) {
+    srMatchCount.textContent = `${searchReplaceState.currentMatchIndex + 1} / ${count}`;
+  }
+  highlightMatches(searchReplaceState.matches, searchReplaceState.currentMatchIndex);
+}
+
+function replaceCurrentMatch() {
+  const idx = searchReplaceState.currentMatchIndex;
+  if (idx < 0 || idx >= searchReplaceState.matches.length) return;
+  const match = searchReplaceState.matches[idx];
+  const replaceStr = srReplaceInput ? srReplaceInput.value : "";
+  const seg = currentSegments[match.segIdx];
+  if (!seg) return;
+
+  const oldText = seg.text || "";
+  const newText = oldText.substring(0, match.index) + replaceStr + oldText.substring(match.index + match.length);
+
+  UndoRedoManager.record({
+    type: "TEXT_EDIT",
+    segIdx: match.segIdx,
+    prevText: oldText,
+    newText: newText,
+    prevEdited: !!seg.edited,
+    description: `Replace in segment #${match.segIdx + 1}`
+  });
+
+  seg.text = newText;
+  seg.edited = true;
+  if (currentTaskId) {
+    fetch(`/api/tasks/${currentTaskId}/segments/${match.segIdx}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: newText, edited: true })
+    }).catch(console.warn);
+  }
+
+  renderTranscriptFeed();
+  executeSearch();
+}
+
+function replaceAllMatches() {
+  if (searchReplaceState.matches.length === 0) return;
+  const query = srFindInput ? srFindInput.value : "";
+  const replaceStr = srReplaceInput ? srReplaceInput.value : "";
+  if (!query) return;
+
+  const isCase = srMatchCase && srMatchCase.classList.contains("active");
+  const isWord = srWholeWord && srWholeWord.classList.contains("active");
+  const isRegex = srRegex && srRegex.classList.contains("active");
+
+  let regex;
+  try {
+    let pattern = query;
+    if (!isRegex) pattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (isWord) pattern = `\\b${pattern}\\b`;
+    regex = new RegExp(pattern, isCase ? "g" : "gi");
+  } catch (e) {
+    return;
+  }
+
+  const prevSegments = JSON.parse(JSON.stringify(currentSegments));
+  let replaceCount = 0;
+
+  currentSegments.forEach((seg, sIdx) => {
+    const original = seg.text || "";
+    const replaced = original.replace(regex, () => {
+      replaceCount++;
+      return replaceStr;
+    });
+    if (replaced !== original) {
+      seg.text = replaced;
+      seg.edited = true;
+      if (currentTaskId) {
+        fetch(`/api/tasks/${currentTaskId}/segments/${sIdx}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: replaced, edited: true })
+        }).catch(console.warn);
+      }
+    }
+  });
+
+  UndoRedoManager.record({
+    type: "BULK_REPLACE",
+    prevSegments: prevSegments,
+    newSegments: JSON.parse(JSON.stringify(currentSegments)),
+    description: `Replaced ${replaceCount} matches across document`
+  });
+
+  renderTranscriptFeed();
+  executeSearch();
+  addNotification("Global Replace", `Replaced ${replaceCount} occurrences across document.`, "success");
+}
+
+function initSearchAndReplace() {
+  if (btnToggleSearchReplace) {
+    btnToggleSearchReplace.addEventListener("click", () => toggleSearchReplaceBar());
+  }
+  if (btnCloseSearchReplace) {
+    btnCloseSearchReplace.addEventListener("click", () => toggleSearchReplaceBar(false));
+  }
+  if (srFindInput) {
+    srFindInput.addEventListener("input", () => executeSearch());
+    srFindInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        stepSearchMatch(e.shiftKey ? -1 : 1);
+      }
+    });
+  }
+  if (srReplaceInput) {
+    srReplaceInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        replaceCurrentMatch();
+      }
+    });
+  }
+
+  [srMatchCase, srWholeWord, srRegex].forEach(toggle => {
+    if (toggle) {
+      toggle.addEventListener("click", () => {
+        toggle.classList.toggle("active");
+        executeSearch();
+      });
+    }
+  });
+
+  if (btnSrPrev) btnSrPrev.addEventListener("click", () => stepSearchMatch(-1));
+  if (btnSrNext) btnSrNext.addEventListener("click", () => stepSearchMatch(1));
+  if (btnSrReplace) btnSrReplace.addEventListener("click", () => replaceCurrentMatch());
+  if (btnSrReplaceAll) btnSrReplaceAll.addEventListener("click", () => replaceAllMatches());
+}
+
+// 4.4.A: Deterministic Normalizer Modal & Execution
+function initNormalizerModal() {
+  if (btnOpenNormalizer) {
+    btnOpenNormalizer.addEventListener("click", () => {
+      if (normalizerModal) normalizerModal.style.display = "flex";
+    });
+  }
+  if (btnCloseNormalizer) {
+    btnCloseNormalizer.addEventListener("click", () => {
+      if (normalizerModal) normalizerModal.style.display = "none";
+    });
+  }
+  if (btnCancelNormalizer) {
+    btnCancelNormalizer.addEventListener("click", () => {
+      if (normalizerModal) normalizerModal.style.display = "none";
+    });
+  }
+  if (btnApplyNormalizer) {
+    btnApplyNormalizer.addEventListener("click", () => normalizeDocument());
+  }
+}
+
+async function normalizeDocument() {
+  if (!currentSegments || currentSegments.length === 0) {
+    addNotification("Normalizer Skipped", "No transcript segments available to normalize.", "warning");
+    return;
+  }
+
+  const payload = {
+    convert_numbers: normOptNumbers ? normOptNumbers.checked : true,
+    normalize_currencies: normOptCurrencies ? normOptCurrencies.checked : true,
+    normalize_percentages: normOptPercentages ? normOptPercentages.checked : true,
+    remove_disfluencies: normOptDisfluencies ? normOptDisfluencies.checked : false,
+    scope: normScopeSelect ? normScopeSelect.value : "all",
+    segment_idx: activeSegmentIndex
+  };
+
+  const prevSegments = JSON.parse(JSON.stringify(currentSegments));
+
+  if (btnApplyNormalizer) {
+    btnApplyNormalizer.disabled = true;
+    btnApplyNormalizer.textContent = "Normalizing...";
+  }
+
+  try {
+    let updatedSegments = null;
+    let modifiedCount = 0;
+
+    if (currentTaskId) {
+      const resp = await fetch(`/api/tasks/${currentTaskId}/normalize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        updatedSegments = data.segments;
+        modifiedCount = data.modified_segments_count || 0;
+      }
+    }
+
+    if (!updatedSegments) {
+      updatedSegments = JSON.parse(JSON.stringify(currentSegments));
+      const startIdx = (payload.scope === "active") ? activeSegmentIndex : 0;
+      const endIdx = (payload.scope === "active") ? activeSegmentIndex + 1 : updatedSegments.length;
+      for (let i = startIdx; i < endIdx && i < updatedSegments.length; i++) {
+        let txt = updatedSegments[i].text || "";
+        const orig = txt;
+        if (payload.normalize_currencies) {
+          txt = txt.replace(/\b(\d+)\s*(?:dollars|bucks)\b/gi, "$$$1")
+                   .replace(/\b(\d+)\s*(?:euros)\b/gi, "€$1")
+                   .replace(/\b(\d+)\s*(?:pounds)\b/gi, "£$1");
+        }
+        if (payload.normalize_percentages) {
+          txt = txt.replace(/\b(\d+)\s*(?:percent|percentage)\b/gi, "$1%");
+        }
+        if (payload.remove_disfluencies) {
+          txt = txt.replace(/\b(um|uh|erm|ah|you know|like)\b/gi, "")
+                   .replace(/\s{2,}/g, " ").trim();
+        }
+        if (txt !== orig) {
+          updatedSegments[i].text = txt;
+          updatedSegments[i].edited = true;
+          modifiedCount++;
+        }
+      }
+    }
+
+    currentSegments = updatedSegments;
+
+    UndoRedoManager.record({
+      type: "BULK_REPLACE",
+      prevSegments: prevSegments,
+      newSegments: JSON.parse(JSON.stringify(currentSegments)),
+      description: `Normalized ${modifiedCount} segment(s)`
+    });
+
+    renderSpeakerSidebar();
+    renderTranscriptFeed();
+    updateDocumentMetrics();
+
+    addNotification("Normalization Complete", `Standardized ${modifiedCount} segment(s) prose formatting.`, "success");
+    if (normalizerModal) normalizerModal.style.display = "none";
+  } catch (err) {
+    addNotification("Normalization Failed", err.message, "danger");
+  } finally {
+    if (btnApplyNormalizer) {
+      btnApplyNormalizer.disabled = false;
+      btnApplyNormalizer.textContent = "✨ Run Normalization";
+    }
+  }
+}
+
+// 4.4.E: Typography & Accessibility Customizer
+function applyTypography(settings) {
+  document.body.classList.remove("font-sans", "font-dyslexic", "font-mono", "font-serif");
+  document.body.classList.add(`font-${settings.font}`);
+
+  const fontBtns = document.querySelectorAll(".font-choice-btn");
+  fontBtns.forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.font === settings.font);
+  });
+
+  if (transcriptFeed) {
+    transcriptFeed.style.fontSize = `${settings.size}px`;
+  }
+  if (fontSizeSlider) fontSizeSlider.value = settings.size;
+  if (fontSizeDisplay) fontSizeDisplay.textContent = `${settings.size}px`;
+
+  document.body.classList.remove("density-compact", "density-comfortable", "density-relaxed");
+  document.body.classList.add(`density-${settings.density}`);
+
+  const densityBtns = document.querySelectorAll(".density-choice-btn");
+  densityBtns.forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.density === settings.density);
+  });
+
+  document.body.classList.toggle("high-contrast-mode", !!settings.highContrast);
+  if (chkHighContrast) chkHighContrast.checked = !!settings.highContrast;
+
+  try {
+    localStorage.setItem("ts_typography", JSON.stringify(settings));
+  } catch (e) {}
+}
+
+function initTypographyCustomizer() {
+  if (btnTypography) {
+    btnTypography.addEventListener("click", () => {
+      if (typographyModal) typographyModal.style.display = "flex";
+    });
+  }
+  if (btnCloseTypography) {
+    btnCloseTypography.addEventListener("click", () => {
+      if (typographyModal) typographyModal.style.display = "none";
+    });
+  }
+  if (btnDoneTypography) {
+    btnDoneTypography.addEventListener("click", () => {
+      if (typographyModal) typographyModal.style.display = "none";
+    });
+  }
+
+  let currentPrefs = { font: "sans", size: 14, density: "comfortable", highContrast: false };
+  try {
+    const saved = localStorage.getItem("ts_typography");
+    if (saved) currentPrefs = { ...currentPrefs, ...JSON.parse(saved) };
+  } catch (e) {}
+  applyTypography(currentPrefs);
+
+  document.querySelectorAll(".font-choice-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      currentPrefs.font = btn.dataset.font;
+      applyTypography(currentPrefs);
+    });
+  });
+
+  if (fontSizeSlider) {
+    fontSizeSlider.addEventListener("input", () => {
+      currentPrefs.size = parseInt(fontSizeSlider.value, 10);
+      applyTypography(currentPrefs);
+    });
+  }
+
+  document.querySelectorAll(".density-choice-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      currentPrefs.density = btn.dataset.density;
+      applyTypography(currentPrefs);
+    });
+  });
+
+  if (chkHighContrast) {
+    chkHighContrast.addEventListener("change", () => {
+      currentPrefs.highContrast = chkHighContrast.checked;
+      applyTypography(currentPrefs);
+    });
+  }
+
+  if (btnResetTypography) {
+    btnResetTypography.addEventListener("click", () => {
+      currentPrefs = { font: "sans", size: 14, density: "comfortable", highContrast: false };
+      applyTypography(currentPrefs);
+      addNotification("Typography Reset", "Restored default reading typography.", "info");
+    });
+  }
+}
+
+// 4.4.F: Speaker Palette & Role Avatars Customizer
+const PALETTE_COLORS = [
+  "#10b981", // Pine/Emerald
+  "#06b6d4", // Cyan
+  "#3b82f6", // Sky
+  "#8b5cf6", // Violet
+  "#ec4899", // Rose
+  "#f59e0b", // Amber
+  "#ef4444", // Coral/Red
+  "#64748b"  // Slate
+];
+
+const PALETTE_AVATARS = ["🎙️", "👤", "🎯", "💼", "🎓", "💻", "🩺", "⚖️", "🤖"];
+
+function renderSpeakerPaletteRows() {
+  if (!speakerPaletteList || !currentSegments) return;
+  speakerPaletteList.innerHTML = "";
+
+  const distinct = [...new Set(currentSegments.map(s => s.speaker || "Speaker 0"))].sort();
+  if (distinct.length === 0) {
+    speakerPaletteList.innerHTML = `<div style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px;">No speakers detected yet.</div>`;
+    return;
+  }
+
+  distinct.forEach(spk => {
+    if (!speakerPalettes[spk]) {
+      const match = spk.match(/\d+/);
+      const num = match ? parseInt(match[0], 10) % PALETTE_COLORS.length : 0;
+      speakerPalettes[spk] = {
+        color: PALETTE_COLORS[num],
+        avatar: "🎙️",
+        alias: speakerAliases[spk] || spk
+      };
+    }
+    const current = speakerPalettes[spk];
+
+    const row = document.createElement("div");
+    row.className = "speaker-palette-item";
+    row.dataset.speaker = spk;
+
+    let swatchHtml = PALETTE_COLORS.map(c => `
+      <span class="sp-swatch ${c === current.color ? 'active' : ''}" data-color="${c}" style="background-color: ${c};" title="${c}"></span>
+    `).join("");
+
+    let avatarOptions = PALETTE_AVATARS.map(av => `
+      <option value="${av}" ${av === current.avatar ? 'selected' : ''}>${av}</option>
+    `).join("");
+
+    row.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+        <select class="sp-avatar-select select-input" style="width: 58px; font-size: 16px; padding: 4px;">
+          ${avatarOptions}
+        </select>
+        <div style="flex: 1;">
+          <input type="text" class="sp-alias-input text-input" style="width: 100%; font-size: 13px;" value="${escapeHtml(current.alias || spk)}" placeholder="${spk}">
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Original: ${spk}</div>
+        </div>
+      </div>
+      <div class="sp-color-swatches">
+        ${swatchHtml}
+      </div>
+    `;
+
+    row.querySelectorAll(".sp-swatch").forEach(sw => {
+      sw.addEventListener("click", () => {
+        row.querySelectorAll(".sp-swatch").forEach(s => s.classList.remove("active"));
+        sw.classList.add("active");
+        current.color = sw.dataset.color;
+      });
+    });
+
+    const avSelect = row.querySelector(".sp-avatar-select");
+    if (avSelect) {
+      avSelect.addEventListener("change", () => {
+        current.avatar = avSelect.value;
+      });
+    }
+
+    const aliasIn = row.querySelector(".sp-alias-input");
+    if (aliasIn) {
+      aliasIn.addEventListener("input", () => {
+        current.alias = aliasIn.value.trim();
+        speakerAliases[spk] = current.alias || spk;
+      });
+    }
+
+    speakerPaletteList.appendChild(row);
+  });
+}
+
+function initSpeakerPaletteModal() {
+  try {
+    const saved = localStorage.getItem("ts_speaker_palettes");
+    if (saved) speakerPalettes = JSON.parse(saved);
+  } catch (e) {}
+
+  if (btnSpeakerPalette) {
+    btnSpeakerPalette.addEventListener("click", () => {
+      renderSpeakerPaletteRows();
+      if (speakerPaletteModal) speakerPaletteModal.style.display = "flex";
+    });
+  }
+  if (btnCloseSpeakerPalette) {
+    btnCloseSpeakerPalette.addEventListener("click", () => {
+      if (speakerPaletteModal) speakerPaletteModal.style.display = "none";
+    });
+  }
+  if (btnCancelSpeakerPalette) {
+    btnCancelSpeakerPalette.addEventListener("click", () => {
+      if (speakerPaletteModal) speakerPaletteModal.style.display = "none";
+    });
+  }
+  if (btnResetSpeakerPalette) {
+    btnResetSpeakerPalette.addEventListener("click", () => {
+      speakerPalettes = {};
+      try { localStorage.removeItem("ts_speaker_palettes"); } catch (e) {}
+      renderSpeakerPaletteRows();
+      renderSpeakerSidebar();
+      renderTranscriptFeed();
+      addNotification("Palette Reset", "Speaker colors and icons reset to default theme.", "info");
+    });
+  }
+  if (btnSaveSpeakerPalette) {
+    btnSaveSpeakerPalette.addEventListener("click", async () => {
+      try {
+        localStorage.setItem("ts_speaker_palettes", JSON.stringify(speakerPalettes));
+      } catch (e) {}
+
+      if (currentTaskId) {
+        fetch(`/api/tasks/${currentTaskId}/speakers/palette`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ palette: speakerPalettes })
+        }).catch(console.warn);
+      }
+
+      renderSpeakerSidebar();
+      renderTranscriptFeed();
+      if (speakerPaletteModal) speakerPaletteModal.style.display = "none";
+      addNotification("Palette Saved", "Participant roles and accent colors updated.", "success");
+    });
+  }
+}
+
+// 4.4.G: Keyboard Shortcuts Cheatsheet Modal
+function initShortcutsModal() {
+  if (btnShortcutsCheatsheet) {
+    btnShortcutsCheatsheet.addEventListener("click", () => {
+      if (shortcutsModal) shortcutsModal.style.display = "flex";
+    });
+  }
+  if (btnCloseShortcuts) {
+    btnCloseShortcuts.addEventListener("click", () => {
+      if (shortcutsModal) shortcutsModal.style.display = "none";
+    });
+  }
+  if (btnDoneShortcuts) {
+    btnDoneShortcuts.addEventListener("click", () => {
+      if (shortcutsModal) shortcutsModal.style.display = "none";
+    });
+  }
+}
+
+// =========================================================================
+// PHASE 5: BATCH OPERATIONS, SYSTEM RELIABILITY & ARCHIVAL (v1.5.0)
+// =========================================================================
+
+async function fetchBatchStatus() {
+  const bqSection = document.getElementById("batchQueueSection");
+  if (!bqSection) return;
+  try {
+    const res = await fetch("/api/ingest/batch");
+    if (!res.ok) return;
+    const data = await res.json();
+    renderBatchQueueUI(data);
+  } catch (err) {
+    console.warn("Failed to fetch batch status:", err);
+  }
+}
+
+function renderBatchQueueUI(data) {
+  const badge = document.getElementById("batchCountBadge");
+  const chip = document.getElementById("batchStatusChip");
+  const btnPause = document.getElementById("btnPauseBatch");
+  const btnResume = document.getElementById("btnResumeBatch");
+  const activeBox = document.getElementById("batchActiveItem");
+  const activeName = document.getElementById("batchActiveName");
+  const activePct = document.getElementById("batchActivePct");
+  const fill = document.getElementById("batchProgressFill");
+  const list = document.getElementById("batchQueueList");
+
+  if (badge) badge.innerText = `${data.queued_count || 0} in queue`;
+
+  if (chip) {
+    chip.style.display = "inline-block";
+    if (data.is_paused) {
+      chip.className = "batch-status-chip paused";
+      chip.innerText = "Queue Paused";
+    } else if (data.has_active_task) {
+      chip.className = "batch-status-chip processing";
+      chip.innerText = "Processing";
+    } else {
+      chip.className = "batch-status-chip";
+      chip.innerText = "Idle";
+    }
+  }
+
+  if (btnPause && btnResume) {
+    if (data.is_paused) {
+      btnPause.style.display = "none";
+      btnResume.style.display = "inline-block";
+    } else {
+      btnPause.style.display = "inline-block";
+      btnResume.style.display = "none";
+    }
+  }
+
+  if (activeBox) {
+    if (data.has_active_task && data.current_item) {
+      activeBox.style.display = "block";
+      if (activeName) activeName.innerText = data.current_item.filename;
+      const pct = (data.current_item.progress || 0).toFixed(0);
+      if (activePct) activePct.innerText = `${pct}%`;
+      if (fill) fill.style.width = `${pct}%`;
+
+      if (data.current_item.task_id && currentTaskId !== data.current_item.task_id) {
+        currentTaskId = data.current_item.task_id;
+        progressCard.style.display = "block";
+        pollTaskStatus(currentTaskId);
+      }
+    } else {
+      activeBox.style.display = "none";
+    }
+  }
+
+  if (list) {
+    const queue = data.queue || [];
+    if (queue.length === 0) {
+      list.innerHTML = `<div class="batch-queue-empty" id="batchQueueEmpty">No batch files queued. Drop multiple audio files above to transcribe sequentially.</div>`;
+    } else {
+      list.innerHTML = queue.map((item, idx) => `
+        <div class="batch-item-row" data-id="${item.item_id}">
+          <div class="batch-item-left">
+            <span class="batch-pos-tag">#${item.queue_position}</span>
+            <span class="batch-item-name" title="${escapeHtml(item.filename)}">${escapeHtml(item.filename)}</span>
+            <span class="batch-item-size">${item.file_size_mb} MB</span>
+          </div>
+          <div class="batch-item-controls">
+            ${idx > 0 ? `<button class="btn-batch-row btn-move-up" data-id="${item.item_id}" data-pos="${idx}" title="Move Up">↑</button>` : ''}
+            ${idx < queue.length - 1 ? `<button class="btn-batch-row btn-move-down" data-id="${item.item_id}" data-pos="${idx + 2}" title="Move Down">↓</button>` : ''}
+            <button class="btn-batch-row danger btn-remove-batch" data-id="${item.item_id}" title="Cancel Item">✕</button>
+          </div>
+        </div>
+      `).join("");
+
+      list.querySelectorAll(".btn-move-up").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const id = btn.getAttribute("data-id");
+          const pos = parseInt(btn.getAttribute("data-pos"), 10) - 1;
+          await fetch("/api/ingest/batch/reorder", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ item_id: id, new_position: Math.max(0, pos) })
+          });
+          fetchBatchStatus();
+        });
+      });
+
+      list.querySelectorAll(".btn-move-down").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const id = btn.getAttribute("data-id");
+          const pos = parseInt(btn.getAttribute("data-pos"), 10);
+          await fetch("/api/ingest/batch/reorder", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ item_id: id, new_position: pos })
+          });
+          fetchBatchStatus();
+        });
+      });
+
+      list.querySelectorAll(".btn-remove-batch").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const id = btn.getAttribute("data-id");
+          await fetch(`/api/ingest/batch/${id}`, { method: "DELETE" });
+          fetchBatchStatus();
+        });
+      });
+    }
+  }
+}
+
+async function fetchCheckpoints() {
+  const section = document.getElementById("checkpointsSection");
+  const list = document.getElementById("checkpointsList");
+  const badge = document.getElementById("checkpointsBadge");
+  if (!section || !list) return;
+
+  try {
+    const res = await fetch("/api/tasks/checkpoints");
+    if (!res.ok) return;
+    const data = await res.json();
+    const ckpts = data.checkpoints || [];
+    if (ckpts.length === 0) {
+      section.style.display = "none";
+      return;
+    }
+
+    section.style.display = "block";
+    if (badge) badge.innerText = `${ckpts.length} resumable`;
+
+    list.innerHTML = ckpts.map(c => `
+      <div class="checkpoint-row">
+        <div class="checkpoint-info">
+          <span class="checkpoint-name">${escapeHtml(c.filename || c.task_id)}</span>
+          <span class="checkpoint-meta">Last chunk processed: ${c.last_chunk_index + 1}/${c.total_chunks} (${c.segments_count} segments) • Status: ${c.status}</span>
+        </div>
+        <button class="btn-checkpoint-resume" data-id="${c.task_id}">
+          ⚡ Resume from Chunk ${c.last_chunk_index + 2}
+        </button>
+      </div>
+    `).join("");
+
+    list.querySelectorAll(".btn-checkpoint-resume").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const tid = btn.getAttribute("data-id");
+        btn.disabled = true;
+        btn.innerText = "Resuming...";
+        try {
+          const r = await fetch(`/api/tasks/${tid}/resume`, { method: "POST" });
+          if (!r.ok) {
+            const err = await r.json();
+            alert("Could not resume: " + (err.detail || "Unknown error"));
+            btn.disabled = false;
+            return;
+          }
+          currentTaskId = tid;
+          progressCard.style.display = "block";
+          progressStatus.innerText = `Resumed from chunk checkpoint...`;
+          pollTaskStatus(tid);
+          fetchCheckpoints();
+        } catch (err) {
+          alert("Resume failed: " + err.message);
+          btn.disabled = false;
+        }
+      });
+    });
+  } catch (err) {
+    console.warn("Failed to fetch checkpoints:", err);
+  }
+}
+
+async function fetchRetentionStatus() {
+  const card = document.getElementById("storageRetentionCard");
+  if (!card) return;
+  try {
+    const res = await fetch("/api/storage/retention");
+    if (!res.ok) return;
+    const data = await res.json();
+    const policy = data.policy || {};
+    const daysIn = document.getElementById("inputRetentionDays");
+    const quotaIn = document.getElementById("inputStorageQuota");
+    const autoIn = document.getElementById("toggleAutoPurge");
+    const totalMb = document.getElementById("retentionAudioTotalMb");
+    const reclaimMb = document.getElementById("retentionReclaimableMb");
+    const count = document.getElementById("retentionCandidateCount");
+
+    if (daysIn && policy.audio_retention_days !== undefined) daysIn.value = policy.audio_retention_days;
+    if (quotaIn && policy.storage_quota_gb !== undefined) quotaIn.value = policy.storage_quota_gb;
+    if (autoIn && policy.auto_purge_enabled !== undefined) autoIn.checked = !!policy.auto_purge_enabled;
+    if (totalMb) totalMb.innerText = `${data.total_audio_mb || 0} MB`;
+    if (reclaimMb) reclaimMb.innerText = `${data.reclaimable_mb || 0} MB`;
+    if (count) count.innerText = data.candidates_count || 0;
+  } catch (err) {
+    console.warn("Failed to fetch retention status:", err);
+  }
+}
+
+async function fetchWorkspaceSummary() {
+  const summaryEl = document.getElementById("workspaceMetaSummaryText");
+  if (!summaryEl) return;
+  try {
+    const res = await fetch("/api/workspace/summary");
+    if (!res.ok) return;
+    const data = await res.json();
+    summaryEl.innerHTML = `Workspace: <strong>${data.total_sessions} sessions</strong>, <strong>${data.total_segments} segments</strong>, <strong>${(data.total_words || 0).toLocaleString()} words</strong>, <strong>${data.total_duration_hours} hours</strong>`;
+  } catch (err) {
+    console.warn("Failed to fetch workspace summary:", err);
+  }
+}
+
+function initPhase5Handlers() {
+  // Batch Queue Controls
+  const btnPauseBatch = document.getElementById("btnPauseBatch");
+  if (btnPauseBatch) {
+    btnPauseBatch.addEventListener("click", async () => {
+      await fetch("/api/ingest/batch/pause", { method: "POST" });
+      fetchBatchStatus();
+    });
+  }
+
+  const btnResumeBatch = document.getElementById("btnResumeBatch");
+  if (btnResumeBatch) {
+    btnResumeBatch.addEventListener("click", async () => {
+      await fetch("/api/ingest/batch/resume", { method: "POST" });
+      fetchBatchStatus();
+    });
+  }
+
+  const btnClearBatch = document.getElementById("btnClearBatch");
+  if (btnClearBatch) {
+    btnClearBatch.addEventListener("click", async () => {
+      if (!confirm("Clear all pending unstarted batch items?")) return;
+      await fetch("/api/ingest/batch/clear", { method: "POST" });
+      fetchBatchStatus();
+    });
+  }
+
+  const btnRefreshCheckpoints = document.getElementById("btnRefreshCheckpoints");
+  if (btnRefreshCheckpoints) {
+    btnRefreshCheckpoints.addEventListener("click", fetchCheckpoints);
+  }
+
+  // Retention Policy
+  const btnSaveRetentionPolicy = document.getElementById("btnSaveRetentionPolicy");
+  if (btnSaveRetentionPolicy) {
+    btnSaveRetentionPolicy.addEventListener("click", async () => {
+      const days = parseInt(document.getElementById("inputRetentionDays").value, 10);
+      const quota = parseFloat(document.getElementById("inputStorageQuota").value);
+      const autoPurge = document.getElementById("toggleAutoPurge").checked;
+      try {
+        const res = await fetch("/api/storage/retention/policy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            audio_retention_days: isNaN(days) ? 14 : days,
+            storage_quota_gb: isNaN(quota) ? 15.0 : quota,
+            auto_purge_enabled: autoPurge
+          })
+        });
+        if (res.ok) {
+          alert("Storage retention policy saved successfully!");
+          fetchRetentionStatus();
+        }
+      } catch (err) {
+        alert("Failed to save retention policy: " + err.message);
+      }
+    });
+  }
+
+  const btnRunRetentionPurge = document.getElementById("btnRunRetentionPurge");
+  if (btnRunRetentionPurge) {
+    btnRunRetentionPurge.addEventListener("click", async () => {
+      if (!confirm("Run audio retention purge now? Raw audio waveforms older than the policy or exceeding quota will be deleted. All transcript JSON files and subtitles are 100% protected and preserved.")) return;
+      try {
+        const res = await fetch("/api/storage/retention/run", { method: "POST" });
+        if (res.ok) {
+          const data = await res.json();
+          alert(`Retention purge completed!\nFreed: ${data.freed_mb} MB across ${data.removed_count} files.\nTranscripts preserved: ${data.preserved_transcripts}.`);
+          fetchRetentionStatus();
+          fetchMemoryStats();
+        }
+      } catch (err) {
+        alert("Failed to run retention purge: " + err.message);
+      }
+    });
+  }
+
+  // Workspace Backup
+  const btnExportWorkspaceBackup = document.getElementById("btnExportWorkspaceBackup");
+  if (btnExportWorkspaceBackup) {
+    btnExportWorkspaceBackup.addEventListener("click", () => {
+      window.location.href = "/api/workspace/backup";
+    });
+  }
+
+  // Periodic polling for batch status & checkpoints
+  setInterval(fetchBatchStatus, 4000);
+  setInterval(fetchCheckpoints, 10000);
+  fetchBatchStatus();
+  fetchCheckpoints();
+  fetchRetentionStatus();
+  fetchWorkspaceSummary();
+}
+
 // Initialize Everything on Load
 initTheme();
 initCacheDropdown();
@@ -5040,6 +7704,8 @@ initSettingsTab();
 initNavigationAndTransport();
 startTelemetryPolling();
 fetchTelemetryData();
+initPhase5Handlers();
+
 
 
 
