@@ -1,0 +1,1991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transcript Suite | Canary-Qwen-2.5B Supreme Council</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌲</text></svg>">
+  <link rel="stylesheet" href="/static/style.css?v=2.1">
+  <link rel="stylesheet" href="/static/paradigms.css?v=2.0">
+  <link rel="stylesheet" href="/static/crt/crt_overlay.css">
+  <link rel="stylesheet" href="/static/evangelion_theme.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Serif+JP:wght@700;900&family=Orbitron:wght@600;800;900&family=Space+Grotesk:wght@500;700;900&family=VT323&display=swap" rel="stylesheet">
+  <!-- WaveSurfer.js for audio waveform visualization -->
+  <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
+</head>
+<body class="evangelion-theme">
+  <!-- Full-Screen Global CRT Overlay -->
+  <div class="crt-global-overlay" id="crtGlobalOverlay"></div>
+
+  <!-- NERV Top Workstation Header -->
+  <header class="ev-workstation-header">
+    <div class="ev-header-branding">
+      <span class="ev-brand-magi">MAGI</span>
+      <span class="ev-brand-kernel">NERV TACTICAL AUDIO KERNEL // SGI 6.2</span>
+    </div>
+
+    <!-- Monospace Technical Bracket Tabs -->
+    <nav class="ev-tab-bar main-tabs-bar">
+      <button class="ev-tab-btn main-tab-btn active" data-tab="paneStudio" id="tabBtnStudio">[ 01 // STUDIO &amp; INGEST ]</button>
+      <button class="ev-tab-btn main-tab-btn" data-tab="paneTranscript" id="tabBtnTranscript">
+        [ 02 // TRANSCRIPT ] <span class="tab-badge" id="tabTranscriptBadge">0</span>
+      </button>
+      <button class="ev-tab-btn main-tab-btn" data-tab="paneHistory" id="tabBtnHistory">
+        [ 03 // HISTORY ] <span class="tab-badge" id="tabHistoryBadge">0</span>
+      </button>
+      <button class="ev-tab-btn main-tab-btn" data-tab="paneModels" id="tabBtnModels">[ 04 // NEURAL MODELS ]</button>
+      <button class="ev-tab-btn main-tab-btn" data-tab="paneTelemetry" id="tabBtnTelemetry">[ 05 // TELEMETRY ]</button>
+      <button class="ev-tab-btn main-tab-btn" data-tab="paneSettings" id="tabBtnSettings">[ 06 // KERNEL CONFIG ]</button>
+    </nav>
+
+    <div class="ev-header-controls">
+      <!-- Master CRT Shader Toggle Switch -->
+      <button type="button" class="ev-crt-toggle-btn" id="btnCrtToggle" onclick="window.toggleCRT()" title="Toggle authentic CRT monitor filter (scanlines, phosphor glow, curvature)">
+        ⚡ CRT SHADER: ON
+      </button>
+
+      <!-- VRAM & RAM Telemetry Readouts -->
+      <div class="vram-meter" id="sysRamMeter" title="Total RAM breakdown" style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ev-text-muted);">
+        <span style="color: var(--ev-green-bright);">RAM:</span>
+        <span id="appRamText" style="color: #60f0a0; font-weight: 700;">-- GB</span>
+        <span style="color: #405060;">|</span>
+        <span id="sysWithoutSuiteText" style="display: none;">-- GB</span>
+        <div class="vram-bar" style="width: 32px; height: 6px; background: #141c24; border: 1px solid #203040;">
+          <div class="vram-bar-fill" id="ramBarFill" style="background-color: var(--ev-orange); height: 100%;"></div>
+        </div>
+        <span id="ramText" style="color: var(--ev-text-muted);">-- / -- GB</span>
+      </div>
+
+      <div class="vram-meter" id="vramMeter" title="GPU VRAM Usage" style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ev-text-muted);">
+        <span style="color: var(--ev-orange);">VRAM:</span>
+        <div class="vram-bar" style="width: 32px; height: 6px; background: #141c24; border: 1px solid #203040;">
+          <div class="vram-bar-fill" id="vramBarFill" style="background-color: var(--ev-green-bright); height: 100%;"></div>
+        </div>
+        <span id="vramText" style="color: var(--ev-text-muted);">-- / 7.6 GB</span>
+      </div>
+
+      <!-- Cache & Storage Dropdown Container -->
+      <div class="cache-dropdown-container" id="cacheDropdownContainer">
+        <button class="btn-clear-cache-header ev-btn" id="btnCacheDropdownToggle" style="padding: 4px 8px; font-size: 10px;">
+          🧹 FLUSH ▾
+        </button>
+        <div class="cache-dropdown-menu" id="cacheDropdownMenu">
+          <div class="cache-dropdown-header">
+            <span>⚡ Memory &amp; Storage Footprint</span>
+            <span class="cache-status-live" id="cacheLiveStatus">Live</span>
+          </div>
+
+          <!-- Section 1: Active System Memory -->
+          <div class="cache-section">
+            <div class="cache-section-title">ACTIVE MEMORY</div>
+            <div class="cache-row">
+              <div class="cache-label-group">
+                <span class="cache-label">GPU VRAM Cache</span>
+                <span class="cache-val" id="cacheVramVal">-- MB</span>
+              </div>
+              <button class="btn-cache-action" id="btnClearVramOnly" data-target="vram">Clear VRAM</button>
+            </div>
+            <div class="cache-row">
+              <div class="cache-label-group">
+                <span class="cache-label">Process Engine (RAM)</span>
+                <span class="cache-val" id="cacheRamVal">-- MB</span>
+              </div>
+              <button class="btn-cache-action" id="btnClearRamOnly" data-target="ram">Trim Heap</button>
+            </div>
+          </div>
+
+          <!-- Section 2: On-Disk Storage Footprint -->
+          <div class="cache-section">
+            <div class="cache-section-title">STORAGE &amp; CHECKPOINTS</div>
+            <div class="cache-row">
+              <div class="cache-label-group">
+                <span class="cache-label">Temp Audio &amp; Chunks</span>
+                <span class="cache-val" id="cacheTempAudioVal">-- MB</span>
+              </div>
+              <button class="btn-cache-action" id="btnClearTempAudio" data-target="temp_audio">Purge Temp</button>
+            </div>
+            <div class="cache-row">
+              <div class="cache-label-group">
+                <span class="cache-label">Hugging Face Hub</span>
+                <span class="cache-val" id="cacheHfVal">-- GB</span>
+              </div>
+              <span class="cache-pill">Models</span>
+            </div>
+            <div class="cache-row">
+              <div class="cache-label-group">
+                <span class="cache-label">NeMo / Torch Cache</span>
+                <span class="cache-val" id="cacheNemoVal">-- GB</span>
+              </div>
+              <span class="cache-pill">Checkpoints</span>
+            </div>
+            <div class="cache-row cache-row-total">
+              <span class="cache-label" style="font-weight: 600;">Total Disk Footprint:</span>
+              <span class="cache-val-total" id="cacheTotalDiskVal">-- GB</span>
+            </div>
+          </div>
+
+          <!-- Section 3: Master Action Button -->
+          <div class="cache-dropdown-footer">
+            <button class="btn-cache-flush-all ev-btn ev-btn-primary" id="btnFlushAllMemory" data-target="all">
+              🧹 Flush All Memory &amp; Temp Cache
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notifications -->
+      <button class="btn-notif-header ev-btn" id="btnToggleNotifDrawer" style="padding: 4px 8px; font-size: 10px;">
+        🔔 <span class="notif-badge" id="notifCountBadge">0</span>
+      </button>
+
+      <select class="theme-select" id="themeSelect" style="display: none;">
+        <option value="foggy-woodland" selected>Evangelion NERV</option>
+      </select>
+    </div>
+  </header>
+
+  <!-- Emergency Notification HUD Banner -->
+  <div class="emergency-hud-banner" id="emergencyHudBanner" style="display: none;">
+    <div class="emergency-hud-content">
+      <span class="emergency-hud-icon" id="emergencyHudIcon">🚨</span>
+      <div class="emergency-hud-text">
+        <strong id="emergencyHudTitle">Emergency Intervention Triggered</strong>
+        <span id="emergencyHudMessage">VRAM velocity exceeded safety threshold.</span>
+      </div>
+      <div class="emergency-hud-actions">
+        <button class="btn-hud-action" id="btnEmergencyAbortBanner">🚨 Abort Task</button>
+        <button class="btn-hud-dismiss" id="btnDismissEmergencyHud">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Emergency Hazard Stripe Banner (Stage 4 Active) -->
+  <div class="ev-emergency-hazard-banner" id="evEmergencyBanner">
+    <div class="ev-hazard-stripes"></div>
+    <div class="ev-emergency-content">
+      <span class="ev-emergency-kanji-banner">非常事態 // EMERGENCY HAZARD // PRIORITY LEVEL 1</span>
+      <span style="color: var(--ev-red); font-size: 11px; letter-spacing: 2px;">CODE : 666 // NEURAL ARBITRATION IN PROGRESS</span>
+    </div>
+    <div class="ev-hazard-stripes"></div>
+  </div>
+
+  <!-- Master Paradigm Shell Wrapper (v2) -->
+  <div id="paradigm-wrapper" data-active-paradigm="hybrid">
+    <div id="shell-hybrid" class="paradigm-shell">
+      <main style="width: 100%; height: 100%;">
+        <!-- TAB 1: STUDIO & INGEST PANE (EVANGELION 4:3 WORKSTATION) -->
+        <div class="tab-pane active" id="paneStudio" style="padding: 0; margin: 0; width: 100vw; height: calc(100vh - 48px); overflow: hidden;">
+          <div class="ev-workstation-body">
+            
+            <!-- LEFT COLUMN: Ingestion & Control Hub -->
+            <aside class="ev-column-left">
+              <!-- Ingest Card -->
+              <div class="ev-card">
+                <div class="ev-card-title">
+                  <span>■ AUDIO INGESTION</span>
+                  <span style="color: var(--ev-green-bright); font-size: 10px;">READY</span>
+                </div>
+                <div class="ev-dropzone" id="dropzone">
+                  <div class="ev-dropzone-icon">🎙️</div>
+                  <div class="ev-dropzone-title" id="dropzoneText">DROP AAC / AUDIO FILE</div>
+                  <div class="ev-dropzone-hint" id="dropzoneHint">Optimized for AAC &amp; 16kHz Council Ingest</div>
+                  <input type="file" id="fileInput" accept="audio/*,.aac,.wav,.mp3,.m4a" style="display: none;">
+                </div>
+              </div>
+
+              <!-- Pipeline Configuration Card -->
+              <div class="ev-card">
+                <div class="ev-card-title">
+                  <span>■ PIPELINE PARAMETERS</span>
+                </div>
+                <div class="ev-control-row">
+                  <label class="ev-checkbox-label">
+                    <input type="checkbox" id="speakerLabelsCheckbox" checked>
+                    <span>Speaker Diarization</span>
+                  </label>
+                  <select class="ev-select" id="diarizerSelect">
+                    <option value="nemo">NeMo TitaNet</option>
+                    <option value="pyannote">PyAnnote 3.x</option>
+                  </select>
+                </div>
+
+                <div class="ev-control-row">
+                  <label class="ev-checkbox-label">
+                    <input type="checkbox" id="voiceEnhancerCheckbox" checked>
+                    <span>GPU Voice Filter</span>
+                  </label>
+                  <select class="ev-select" id="vocalBoostSelect">
+                    <option value="adaptive">+15 dB AGC</option>
+                    <option value="standard">+10 dB</option>
+                    <option value="high">+18 dB</option>
+                    <option value="max">+22 dB</option>
+                  </select>
+                </div>
+
+                <div class="ev-control-row">
+                  <label class="ev-checkbox-label">
+                    <input type="checkbox" id="ambiguityCheckbox" checked>
+                    <span>Ambiguity Resolver</span>
+                  </label>
+                </div>
+
+                <div class="ev-control-row">
+                  <label class="ev-checkbox-label">
+                    <input type="checkbox" id="councilCheckbox" checked>
+                    <span>Supreme Council</span>
+                  </label>
+                  <select class="ev-select" id="councilModeSelect">
+                    <option value="sequential">3-Sequential</option>
+                    <option value="concurrent">Concurrent</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Active Council Roster Card -->
+              <div class="ev-card" id="councilRosterBar">
+                <div class="ev-card-title">
+                  <span>■ ACTIVE COUNCIL ROSTER</span>
+                  <button type="button" class="ev-btn" id="btnGoToModels" style="padding: 2px 8px; font-size: 10px;">CONFIG</button>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 6px; font-size: 11px;">
+                  <div style="color: var(--ev-orange);" id="pillLeadJustice">[P1] Canary-Qwen-2.5B</div>
+                  <div style="color: var(--ev-cyan);" id="pillCrossExaminer">[P2] Whisper-Large-v3</div>
+                  <div style="color: var(--ev-green-bright);" id="pillAnchor">[P3A] Conformer-CTC</div>
+                  <div style="color: #ff9955;" id="pillTransducer">[P3B] Parakeet-TDT</div>
+                </div>
+              </div>
+
+              <!-- Execution Trigger & Progress Card -->
+              <div class="ev-card" id="progressCard">
+                <div class="ev-card-title">
+                  <span>■ ARBITRATION CONTROL</span>
+                  <span id="progressPercentage" style="color: var(--ev-green-bright);">0%</span>
+                </div>
+                <div style="margin-bottom: 10px;">
+                  <button class="ev-btn ev-btn-primary" id="btnStart" disabled>[ EXECUTE : TRANSCRIBE ]</button>
+                </div>
+                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                  <button class="ev-btn" id="btnPause" style="flex: 1;">PAUSE</button>
+                  <button class="ev-btn" id="btnResume" style="flex: 1; display: none;">RESUME</button>
+                  <button class="ev-btn ev-btn-danger" id="btnStop" style="flex: 1;">HALT</button>
+                </div>
+                <div style="font-size: 11px; color: var(--ev-text-muted); margin-bottom: 6px;" id="progressStatus">STANDBY</div>
+                <div style="background: #06090e; height: 8px; border: 1px solid #202c3a; overflow: hidden;">
+                  <div id="progressFill" style="height: 100%; width: 0%; background: var(--ev-orange); transition: width 0.2s;"></div>
+                </div>
+              </div>
+            </aside>
+
+            <!-- CENTER COLUMN: Pure 4:3 CRT Display Screen (Evangelion MAGI Triad Core) -->
+            <main class="ev-column-center-4-3 crt-screen-curved">
+              <div class="ev-crt-frame-4-3">
+                <canvas id="magiCanvas"></canvas>
+              </div>
+            </main>
+
+            <!-- RIGHT COLUMN: Dual-Track Audio Studio & DSP Telemetry -->
+            <aside class="ev-column-right">
+              <!-- Dual-Track Audio Studio Card -->
+              <div class="ev-card" id="playerCard">
+                <div class="ev-card-title">
+                  <span>■ DUAL-TRACK STUDIO</span>
+                  <span class="player-time" id="playerTime" style="color: var(--ev-green-bright); font-size: 11px;">00:00 / 00:00</span>
+                </div>
+
+                <!-- A/B Audition & Crossfader -->
+                <div style="display: flex; gap: 4px; margin-bottom: 10px;">
+                  <button class="ev-btn btn-ab active" id="btnABOriginal" style="flex: 1; padding: 4px 6px; font-size: 10px;">ORIG</button>
+                  <button class="ev-btn btn-ab" id="btnABMix" style="flex: 1; padding: 4px 6px; font-size: 10px;">MIX</button>
+                  <button class="ev-btn btn-ab" id="btnABModel" style="flex: 1; padding: 4px 6px; font-size: 10px;">MODEL</button>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                  <span style="font-size: 10px; color: var(--ev-text-muted);">A</span>
+                  <input type="range" class="crossfader" id="audioCrossfader" min="0" max="100" value="0" style="flex: 1; accent-color: var(--ev-orange);">
+                  <span style="font-size: 10px; color: var(--ev-text-muted);">B</span>
+                </div>
+
+                <!-- Track 1: Original Audio -->
+                <div style="margin-bottom: 8px;">
+                  <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--ev-text-muted); margin-bottom: 3px;">
+                    <span>ORIGINAL AUDIO</span>
+                    <div>
+                      <button class="ev-btn" id="soloOrig" style="padding: 1px 5px; font-size: 9px;">S</button>
+                      <button class="ev-btn" id="muteOrig" style="padding: 1px 5px; font-size: 9px;">M</button>
+                      <input type="range" id="volOrig" min="0" max="1" step="0.05" value="1" style="width: 50px; accent-color: var(--ev-orange);">
+                    </div>
+                  </div>
+                  <div id="waveformOrig" style="height: 48px; background: #040608; border: 1px solid #141c24;"></div>
+                </div>
+
+                <!-- Track 2: Model Ingested Audio -->
+                <div style="margin-bottom: 10px;">
+                  <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--ev-text-muted); margin-bottom: 3px;">
+                    <span>MODEL INGEST (16kHz)</span>
+                    <div>
+                      <button class="ev-btn" id="soloModel" style="padding: 1px 5px; font-size: 9px;">S</button>
+                      <button class="ev-btn" id="muteModel" style="padding: 1px 5px; font-size: 9px;">M</button>
+                      <input type="range" id="volModel" min="0" max="1" step="0.05" value="0" style="width: 50px; accent-color: var(--ev-orange);">
+                    </div>
+                  </div>
+                  <div id="waveformModel" style="height: 48px; background: #040608; border: 1px solid #141c24;"></div>
+                </div>
+
+                <!-- Player Transport -->
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <button class="ev-btn" id="btnPlayPause" style="flex: 1.5; font-weight: 900;">▶ PLAY</button>
+                  <button class="ev-btn" id="btnBack5" style="flex: 1;">-5s</button>
+                  <button class="ev-btn" id="btnFwd5" style="flex: 1;">+5s</button>
+                  <select class="ev-select" id="playbackSpeed" style="flex: 1;">
+                    <option value="1.0">1.0x</option>
+                    <option value="1.25">1.25x</option>
+                    <option value="0.75">0.75x</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- 48 kHz Vector DSP Oscilloscope -->
+              <div class="ev-card">
+                <div class="ev-card-title">
+                  <span>■ VECTOR DSP OSCILLOSCOPE</span>
+                  <span style="color: var(--ev-green-bright); font-size: 10px;">48 kHz FFT</span>
+                </div>
+                <canvas id="sgiOscilloscopeCanvas" width="320" height="90" style="width: 100%; height: 90px; background: #020406; border: 1px solid #121c24; display: block;"></canvas>
+              </div>
+
+              <!-- Council Diagnostics -->
+              <div class="ev-card">
+                <div class="ev-card-title">
+                  <span>■ COUNCIL DIAGNOSTICS</span>
+                  <span style="color: var(--ev-orange); font-size: 10px;">STANDBY</span>
+                </div>
+                <div style="font-size: 11px; line-height: 1.6; color: var(--ev-text-muted);">
+                  <div>• Whisper Large-v3: <span style="color: var(--ev-green-bright);">Nominal (2.4 GB)</span></div>
+                  <div>• Canary-Qwen-2.5B: <span style="color: var(--ev-green-bright);">Nominal (2.1 GB)</span></div>
+                  <div>• Audex-2B Adjudicator: <span style="color: var(--ev-orange);">Standby</span></div>
+                </div>
+              </div>
+
+              <!-- MAGI Kernel Terminal Stream -->
+              <div class="ev-card">
+                <div class="ev-card-title">
+                  <span>■ KERNEL LOG STREAM</span>
+                </div>
+                <div class="ev-terminal-box" id="sgiTerminalBody">
+                  <div>[MAGI KERNEL] Initialized. Ready for audio session...</div>
+                </div>
+              </div>
+            </aside>
+
+          </div>
+        </div>
+
+    <!-- TAB 2: TRANSCRIPT & EDITOR PANE -->
+    <div class="tab-pane" id="paneTranscript">
+      <div class="studio-workspace-layout">
+        <!-- Left Sidebar: Speaker Hub & Quick Filters -->
+        <aside class="speaker-sidebar" id="speakerSidebar">
+          <div class="speaker-sidebar-header">
+            <div class="speaker-sidebar-title">
+              <span>👥 Speakers</span>
+              <span class="speaker-count-badge" id="speakerCountBadge">0</span>
+            </div>
+            <button class="btn-sidebar-action" id="btnRenameModal" title="Batch rename speaker aliases">✏️ Aliases</button>
+          </div>
+
+          <div class="speaker-search-wrapper">
+            <input type="text" class="speaker-search-input" id="speakerSearchInput" placeholder="Filter speakers by name...">
+          </div>
+
+          <div class="sidebar-filter-group">
+            <div class="sidebar-filter-pill active" data-filter="ALL" id="pillFilterAll">
+              <span>All Chunks</span>
+              <span class="filter-count-chip" id="filterCountAll">0</span>
+            </div>
+            <div class="sidebar-filter-pill filter-review" data-filter="REVIEW" id="pillFilterReview" style="display: none;">
+              <span>⚠️ Needs Review</span>
+              <span class="filter-count-chip chip-review" id="filterCountReview">0</span>
+            </div>
+            <div class="sidebar-filter-pill filter-disputed" data-filter="DISPUTED" id="pillFilterDisputed" style="display: none;">
+              <span>⚖️ Disputed</span>
+              <span class="filter-count-chip chip-disputed" id="filterCountDisputed">0</span>
+            </div>
+          </div>
+
+          <div class="speaker-list-compact" id="speakerListCompact">
+            <!-- Dynamically populated speaker cards with talk-time stats -->
+          </div>
+        </aside>
+
+        <!-- Right Main Panel: Transcript Feed & Workspace -->
+        <section class="transcript-workspace" id="transcriptWorkspace">
+          <div class="transcript-toolbar">
+            <div class="transcript-search-box">
+              <span class="search-icon">🔍</span>
+              <input type="text" class="text-input" id="searchInput" placeholder="Search spoken text across all chunks...">
+            </div>
+            <div class="transcript-actions">
+              <span class="editor-tip" title="Click text to edit inline. Press Ctrl+Enter to save and advance.">💡 Tip: Ctrl+Enter saves</span>
+              <button class="btn-primary" id="btnExportTxt">📥 Export .TXT</button>
+            </div>
+          </div>
+
+          <div class="transcript-feed" id="transcriptFeed">
+            <div class="empty-state-notice">
+              <div style="font-size: 36px; margin-bottom: 8px;">🎙️</div>
+              <div style="font-weight: 600;">No transcript segments yet</div>
+              <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                Upload an audio file in the <strong>Studio & Ingest</strong> tab to begin transcription.
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Persistent Floating Play/Pause Audio Player Dock -->
+      <div class="floating-player-dock" id="floatingPlayer">
+        <div class="floating-player-content">
+          <button class="btn-floating-play" id="btnFloatingPlayPause" title="Play / Pause Audio">▶</button>
+          <div class="floating-time-info">
+            <span class="floating-time" id="floatingTime">00:00 / 00:00</span>
+            <div class="floating-snippet-box">
+              <span class="floating-spk" id="floatingSpeaker">Speaker --</span>
+              <span class="floating-snippet" id="floatingSnippet">Ready to audition</span>
+            </div>
+          </div>
+          <div class="floating-controls">
+            <button class="btn-floating-mini" id="btnFloatingBack5" title="Rewind 5 seconds">↺ 5s</button>
+            <button class="btn-floating-mini" id="btnFloatingFwd5" title="Forward 5 seconds">↻ 5s</button>
+            <select class="select-input select-floating" id="floatingPlaybackSpeed">
+              <option value="1.0">1.0x</option>
+              <option value="1.25">1.25x</option>
+              <option value="1.5">1.5x</option>
+              <option value="0.75">0.75x</option>
+            </select>
+            <button class="btn-floating-jump" id="btnFloatingJump" title="Scroll transcript to current playhead">🎯 Jump</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: HISTORY & SESSIONS PANE -->
+    <div class="tab-pane" id="paneHistory">
+      <div class="history-container">
+        <!-- History Header & Filter Bar -->
+        <div class="history-header-card">
+          <div class="history-header-info">
+            <div class="history-title-group">
+              <span class="history-badge">📜 SESSION ARCHIVE</span>
+              <h2 class="history-heading">Persistent Transcription History</h2>
+            </div>
+            <p class="history-subheading">
+              Browse, search, and reload previous transcription sessions. Audio waveforms, speaker diarization, and Supreme Council deliberation logs are preserved.
+            </p>
+          </div>
+
+          <div class="history-actions-bar">
+            <div class="history-search-box">
+              <span class="history-search-icon">🔍</span>
+              <input type="text" id="historySearchInput" class="history-search-input" placeholder="Search sessions by filename, speaker, or keyword..." />
+              <button class="btn-clear-search" id="btnHistoryClearSearch" title="Clear search" style="display: none;">✕</button>
+            </div>
+            <button class="btn-history-action" id="btnHistoryRefresh" title="Refresh session history">
+              🔄 Refresh
+            </button>
+          </div>
+        </div>
+
+        <!-- History KPI Summary Cards -->
+        <div class="history-kpi-grid">
+          <div class="history-kpi-card">
+            <div class="history-kpi-icon">📁</div>
+            <div class="history-kpi-body">
+              <span class="history-kpi-val" id="historyKpiSessions">0</span>
+              <span class="history-kpi-label">Recorded Sessions</span>
+            </div>
+          </div>
+
+          <div class="history-kpi-card">
+            <div class="history-kpi-icon">⏱️</div>
+            <div class="history-kpi-body">
+              <span class="history-kpi-val" id="historyKpiHours">0.0h</span>
+              <span class="history-kpi-label">Audio Processed</span>
+            </div>
+          </div>
+
+          <div class="history-kpi-card">
+            <div class="history-kpi-icon">⚡</div>
+            <div class="history-kpi-body">
+              <span class="history-kpi-val" id="historyKpiRtfx">0.0x</span>
+              <span class="history-kpi-label">Average Real-Time FX</span>
+            </div>
+          </div>
+
+          <div class="history-kpi-card">
+            <div class="history-kpi-icon">📝</div>
+            <div class="history-kpi-body">
+              <span class="history-kpi-val" id="historyKpiWords">0</span>
+              <span class="history-kpi-label">Words Transcribed</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sessions List Container -->
+        <div class="history-sessions-wrapper">
+          <div class="history-list-header">
+            <span class="history-list-title">All Historical Sessions</span>
+            <span class="history-list-count" id="historyMatchCount">Showing 0 sessions</span>
+          </div>
+          <div class="history-sessions-list" id="historySessionsList">
+            <!-- Rendered dynamically by app.js -->
+            <div class="history-empty-state" id="historyEmptyState">
+              <div class="history-empty-icon">🌲</div>
+              <div class="history-empty-title">No Transcription Sessions Yet</div>
+              <p class="history-empty-text">
+                Transcribe an audio recording in the Studio to automatically save your session with full waveform sync, speaker diarization, and multi-format exports.
+              </p>
+              <button class="btn-primary" id="btnHistoryGoToStudio">🎙️ Go to Studio & Ingest</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: MODELS & CHECKPOINTS PANE -->
+    <div class="tab-pane" id="paneModels">
+      <!-- 1. Active Council Pipeline Roster -->
+      <div class="model-manager-card">
+        <div class="model-card-header">
+          <div class="model-card-title-group">
+            <span class="model-badge">⚖️ ACTIVE COUNCIL ROSTER</span>
+            <span class="model-card-subtitle">Configure which models deliberate in the 5-stage Supreme Council pipeline (Canary, Whisper, Conformer, Parakeet, Audex)</span>
+          </div>
+          <button class="btn-primary btn-save-roster" id="btnSaveRoster">💾 Save Active Pipeline Roster</button>
+        </div>
+
+        <div class="roster-grid">
+          <!-- Pass 1 -->
+          <div class="roster-field">
+            <label for="rosterSelectCanary" class="roster-label">
+              <span class="roster-stage-tag stage-lead">Pass 1</span>
+              <span>Lead Justice (Speech-LLM):</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectCanary"></select>
+            <div class="roster-hint">NVIDIA Speech-LLM providing overarching conversational context & acoustic reasoning.</div>
+          </div>
+
+          <!-- Pass 2 -->
+          <div class="roster-field">
+            <label for="rosterSelectWhisper" class="roster-label">
+              <span class="roster-stage-tag stage-cross">Pass 2</span>
+              <span>Cross-Examiner (Autoregressive):</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectWhisper"></select>
+            <div class="roster-hint">Autoregressive Whisper cross-examiner for phonetic precision & phrase boundary validation.</div>
+          </div>
+
+          <!-- Pass 3A -->
+          <div class="roster-field">
+            <label for="rosterSelectConformer" class="roster-label">
+              <span class="roster-stage-tag stage-ctc">Pass 3A</span>
+              <span>Acoustic Anchor (Dense CTC):</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectConformer"></select>
+            <div class="roster-hint">Non-autoregressive Conformer CTC model. Overrules speech-LLM hallucinations.</div>
+          </div>
+
+          <!-- Pass 3B -->
+          <div class="roster-field">
+            <label for="rosterSelectParakeet" class="roster-label">
+              <span class="roster-stage-tag stage-tdt">Pass 3B</span>
+              <span>Transducer (RNN-T / TDT):</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectParakeet"></select>
+            <div class="roster-hint">Token-and-Duration Transducer for joint acoustic-linguistic cross-examination.</div>
+          </div>
+
+          <!-- Diarizer -->
+          <div class="roster-field">
+            <label for="rosterSelectDiarizer" class="roster-label">
+              <span class="roster-stage-tag stage-diar">Diarizer</span>
+              <span>Speaker Diarization Engine:</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectDiarizer">
+              <option value="nemo">NeMo TitaNet-Large (1D Depthwise CNN Embeddings)</option>
+              <option value="pyannote">PyAnnote Audio 3.1 (Neural End-to-End)</option>
+            </select>
+            <div class="roster-hint">Clusters speech segments into distinct speaker voices.</div>
+          </div>
+
+          <!-- Vocal Boost -->
+          <div class="roster-field">
+            <label for="rosterSelectBoost" class="roster-label">
+              <span class="roster-stage-tag stage-boost">Enhancer</span>
+              <span>GPU Vocal Amplifier Boost Level:</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectBoost">
+              <option value="adaptive">🔊 Adaptive AGC (+15 dB Headroom - Recommended)</option>
+              <option value="standard">🔈 Standard (+10 dB Headroom)</option>
+              <option value="high">📢 High Boost (+18 dB Headroom)</option>
+              <option value="max">⚡ Max Headroom (+22 dB Boost)</option>
+            </select>
+            <div class="roster-hint">Frame-gated dynamic amplifier with soft-knee tanh peak limiting.</div>
+          </div>
+
+          <!-- Stage 5: Audex Supreme Adjudicator -->
+          <div class="roster-field">
+            <label for="rosterSelectAudex" class="roster-label">
+              <span class="roster-stage-tag stage-lead" style="background:#4338ca;">Stage 5</span>
+              <span>Supreme Audio Adjudicator:</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectAudex">
+              <option value="disabled">Disabled (Default Consensus Deliberation)</option>
+              <option value="nvidia/Nemotron-Labs-Audex-2B">Nemotron-Labs-Audex-2B (&lt;think&gt; Audio Deliberator)</option>
+            </select>
+            <div class="roster-hint">NVIDIA dense audio-language model with chain-of-thought &lt;think&gt; reasoning on disputed chunks.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PyAnnote Audio 3.1 Setup & Verification Card -->
+      <div class="model-manager-card" id="pyannoteSetupCard">
+        <div class="model-card-header">
+          <div class="model-card-title-group">
+            <span class="model-badge">🎙️ PYANNOTE AUDIO 3.1 SETUP & TOKEN VERIFIER</span>
+            <span class="model-card-subtitle">Connect Hugging Face Token to unlock neural speaker diarization</span>
+          </div>
+          <div class="pyannote-status-pill" id="pyannoteStatusPill">Checking Status...</div>
+        </div>
+
+        <div class="pyannote-guide-box">
+          <div class="pyannote-guide-step">
+            <strong>Step 1:</strong> Log in to Hugging Face and accept the user agreements for both gated models:
+            <div class="pyannote-links">
+              <a href="https://huggingface.co/pyannote/speaker-diarization-3.1" target="_blank" rel="noreferrer" class="pyannote-link">🔗 1. pyannote/speaker-diarization-3.1 (Click to Accept)</a>
+              <a href="https://huggingface.co/pyannote/segmentation-3.0" target="_blank" rel="noreferrer" class="pyannote-link">🔗 2. pyannote/segmentation-3.0 (Click to Accept)</a>
+            </div>
+          </div>
+          <div class="pyannote-guide-step">
+            <strong>Step 2:</strong> Generate a User Access Token (Read permission) at <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noreferrer" class="pyannote-link">huggingface.co/settings/tokens</a>.
+          </div>
+        </div>
+
+        <div class="install-form-row" style="margin-top: 14px;">
+          <div class="install-input-group" style="flex: 1;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label class="install-label" for="hfTokenInput" style="margin-bottom: 0;">Hugging Face Access Token (HF_TOKEN):</label>
+              <span id="hfTokenPersistBadge" style="font-size: 0.72rem; color: #10b981; font-weight: 500; display: none;">💾 Saved in settings.json</span>
+            </div>
+            <div class="token-input-wrap">
+              <input type="password" class="text-input" id="hfTokenInput" placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+              <button type="button" class="btn-toggle-token" id="btnToggleTokenVisibility" title="Show/Hide Token">👁️</button>
+            </div>
+          </div>
+          <div style="display: flex; align-items: flex-end; gap: 8px;">
+            <button class="btn-primary" id="btnVerifyHfToken">🔍 Test &amp; Save Token</button>
+            <button class="btn-telemetry" id="btnClearHfToken" title="Clear saved token from configuration" style="display: none;">🗑️ Clear</button>
+          </div>
+        </div>
+        <div class="pyannote-feedback" id="pyannoteFeedbackText"></div>
+      </div>
+
+      <!-- 2. Install / Download Model Checkpoint -->
+      <div class="model-manager-card">
+        <div class="model-card-header">
+          <div class="model-card-title-group">
+            <span class="model-badge">⬇️ INSTALL NEW MODEL / CHECKPOINT</span>
+            <span class="model-card-subtitle">Download official or custom Hugging Face / NeMo models directly into local cache</span>
+          </div>
+        </div>
+
+        <div class="install-form-row">
+          <div class="install-input-group" style="flex: 1;">
+            <label class="install-label" for="customModelId">Hugging Face Repo ID or NeMo Model Name:</label>
+            <input type="text" class="text-input" id="customModelId" placeholder="e.g. openai/whisper-large-v3-turbo or nvidia/parakeet-ctc-1.1b">
+          </div>
+          <div class="install-input-group" style="width: 180px;">
+            <label class="install-label" for="customModelFramework">Framework:</label>
+            <select class="select-input" id="customModelFramework">
+              <option value="huggingface">Hugging Face Hub</option>
+              <option value="nemo">NVIDIA NeMo</option>
+            </select>
+          </div>
+          <div class="install-input-group" style="width: 200px;">
+            <label class="install-label" for="customModelRole">Architecture Role:</label>
+            <select class="select-input" id="customModelRole">
+              <option value="whisper">Pass 2: Whisper</option>
+              <option value="conformer">Pass 3A: CTC Anchor</option>
+              <option value="parakeet">Pass 3B: Transducer</option>
+              <option value="speech_llm">Pass 1: Speech-LLM</option>
+              <option value="diarizer">Diarizer</option>
+            </select>
+          </div>
+          <button class="btn-primary btn-install-action" id="btnInstallCustomModel">⬇️ Download Model</button>
+        </div>
+
+        <!-- Download Status Box -->
+        <div class="download-progress-box" id="downloadProgressBox" style="display: none;">
+          <div class="download-progress-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="download-status-indicator" id="downloadStatusIndicator">⏳</span>
+              <div class="download-progress-title" id="downloadProgressTitle">Downloading Checkpoint...</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="download-telemetry-badge" id="downloadProgressSpeed" title="Real-time download throughput" style="display: none;"></span>
+              <span class="download-telemetry-badge" id="downloadProgressEta" title="Estimated remaining time" style="display: none;"></span>
+              <span class="download-progress-pct" id="downloadProgressPct">0%</span>
+              <button type="button" class="btn-cancel-download" id="btnCancelDownload" title="Cancel active download">✕ Cancel</button>
+            </div>
+          </div>
+          <div class="download-progress-track">
+            <div class="download-progress-fill" id="downloadProgressFill"></div>
+          </div>
+          <div class="download-progress-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 11px;">
+            <div class="download-progress-msg" id="downloadProgressMsg">Contacting registry...</div>
+            <div class="download-progress-bytes" id="downloadProgressBytes" style="font-family: monospace; color: var(--text-muted);"></div>
+          </div>
+
+          <!-- Sequential Queue List -->
+          <div class="download-queue-box" id="downloadQueueContainer" style="display: none; margin-top: 10px; padding-top: 8px; border-top: 1px dashed rgba(255, 255, 255, 0.1);">
+            <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 6px;">
+              🕒 Queued for Sequential Download:
+            </div>
+            <div class="download-queue-chips" id="downloadQueueChips" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+          </div>
+        </div>
+
+        <!-- Curated 1-Click Install Presets -->
+        <div class="presets-section-title">⚡ Curated 1-Click Model Presets</div>
+        <div class="presets-grid" id="presetsGrid"></div>
+      </div>
+
+      <!-- 3. Installed Checkpoints Manager -->
+      <div class="model-manager-card">
+        <div class="model-card-header">
+          <div class="model-card-title-group">
+            <span class="model-badge">💾 INSTALLED CHECKPOINTS & DISK FOOTPRINT</span>
+            <span class="model-card-subtitle">Inspect local weights and delete checkpoints to immediately reclaim disk space</span>
+          </div>
+          <div class="checkpoint-summary-badge" id="checkpointTotalDisk">Total: -- GB</div>
+        </div>
+
+        <div class="checkpoints-table-container">
+          <table class="checkpoints-table">
+            <thead>
+              <tr>
+                <th>Model Name & Identifier</th>
+                <th>Role in Pipeline</th>
+                <th style="width: 120px;">Framework</th>
+                <th style="width: 100px;">Disk Size</th>
+                <th style="width: 140px;">Last Modified</th>
+                <th style="width: 140px;">Roster Status</th>
+                <th style="width: 110px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="checkpointsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: TELEMETRY & LOGS PANE -->
+    <div class="tab-pane" id="paneTelemetry">
+      <div class="telemetry-card" id="telemetryCard">
+        <div class="telemetry-header">
+          <div class="telemetry-tabs">
+            <button class="tab-btn active" id="tabBtnTrace">📈 Memory Trace</button>
+            <button class="tab-btn" id="tabBtnLogs">📜 Live Execution Logs</button>
+            <button class="tab-btn" id="tabBtnDeepMem">🔍 Deep Memory & Processes</button>
+            <button class="tab-btn" id="tabBtnSupervisor">🛡️ Subsystem Supervisor & Control</button>
+            <span class="pulse-indicator" id="telemetryPulse" title="Live telemetry active">● Live</span>
+          </div>
+
+          <div class="telemetry-controls">
+            <div class="interval-selector" title="Telemetry sampling cadence">
+              <span class="interval-label">⏱ Cadence:</span>
+              <div class="interval-btn-group" id="cadenceBtnGroup">
+                <button class="btn-interval active" data-interval="2">2s</button>
+                <button class="btn-interval" data-interval="5">5s</button>
+                <button class="btn-interval" data-interval="10">10s</button>
+              </div>
+            </div>
+
+            <div class="telemetry-actions">
+              <button class="btn-telemetry" id="btnDropPageCacheNav" title="Purge Linux page cache (evict cached model checkpoints & audio buffers from RAM)" style="color: #60a5fa; border-color: #60a5fa; font-weight: 600;">⚡ Purge Page Cache</button>
+              <button class="btn-telemetry" id="btnCopyMemoryAudit" title="Copy full system memory trace and process list to clipboard" style="color: #38bdf8; border-color: #38bdf8; font-weight: 600;">📋 Copy Memory &amp; Procs</button>
+              <button class="btn-telemetry" id="btnClearMemTelemetry" title="Flush VRAM & trim glibc memory">🧹 Clear Cache</button>
+              <button class="btn-telemetry" id="btnExportTraceCsv" title="Export Memory Trace as CSV">📥 Trace CSV</button>
+              <button class="btn-telemetry" id="btnExportLogsCsv" title="Export Execution Logs as CSV">📥 Logs CSV</button>
+              <button class="btn-telemetry" id="btnExportLogsTxt" title="Export Execution Logs as TXT">📥 Logs TXT</button>
+              <button class="btn-telemetry btn-telemetry-clear" id="btnClearTelemetry" title="Clear telemetry buffer">🗑️ Clear</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="telemetry-tab-pane active" id="paneTrace">
+          <div class="trace-summary-bar">
+            <div class="trace-chip">
+              <span class="chip-label">Active Task:</span>
+              <span class="chip-val" id="traceActiveTask">System Idle</span>
+            </div>
+            <div class="trace-chip">
+              <span class="chip-label">Stage:</span>
+              <span class="chip-val" id="traceCurrentStage">Ready</span>
+            </div>
+            <div class="trace-chip">
+              <span class="chip-label">Suite RAM (Only):</span>
+              <span class="chip-val" id="traceLiveAppRam" style="color: #10b981;">-- GB</span>
+            </div>
+            <div class="trace-chip">
+              <span class="chip-label">RAM w/o Suite:</span>
+              <span class="chip-val" id="traceLiveWithoutSuiteRam" style="color: #38bdf8;">-- GB</span>
+            </div>
+            <div class="trace-chip">
+              <span class="chip-label">Total System RAM:</span>
+              <span class="chip-val" id="traceLiveRam">-- / -- GB</span>
+            </div>
+            <div class="trace-chip">
+              <span class="chip-label">GPU VRAM:</span>
+              <span class="chip-val" id="traceLiveVram">-- / -- GB</span>
+            </div>
+            <div class="trace-chip">
+              <span class="chip-label">Peak VRAM / RAM:</span>
+              <span class="chip-val" id="tracePeakMem">-- / -- GB</span>
+            </div>
+          </div>
+
+          <!-- Dual Live Dedicated Visual Memory Graphs -->
+          <div class="dual-trace-graphs-grid">
+            <!-- Graph 1: GPU VRAM Timeline -->
+            <div class="trace-graph-card">
+              <div class="trace-graph-header">
+                <span class="trace-graph-title">🎮 GPU VRAM Timeline (Live)</span>
+                <div class="trace-graph-legend">
+                  <span class="legend-item"><span class="legend-dot" style="background:#a855f7;"></span> Allocated</span>
+                  <span class="legend-item"><span class="legend-dot" style="background:#38bdf8;"></span> Reserved</span>
+                  <span class="legend-item"><span class="legend-dot" style="background:#ef4444; border-radius: 0; width: 10px; height: 2px;"></span> 5.5G Ceiling</span>
+                </div>
+              </div>
+              <div class="trace-graph-canvas-wrap">
+                <canvas id="vramTraceCanvas" height="150"></canvas>
+              </div>
+            </div>
+
+            <!-- Graph 2: Host & Process RAM Timeline -->
+            <div class="trace-graph-card">
+              <div class="trace-graph-header">
+                <span class="trace-graph-title">🧠 Host &amp; Process RAM Timeline (Live)</span>
+                <div class="trace-graph-legend">
+                  <span class="legend-item"><span class="legend-dot" style="background:#10b981;"></span> Suite RAM Only</span>
+                  <span class="legend-item"><span class="legend-dot" style="background:#38bdf8;"></span> RAM w/o Suite</span>
+                  <span class="legend-item"><span class="legend-dot" style="background:#f59e0b;"></span> Total System RAM</span>
+                </div>
+              </div>
+              <div class="trace-graph-canvas-wrap">
+                <canvas id="ramTraceCanvas" height="150"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="trace-table-container" id="traceTableContainer">
+            <table class="trace-table">
+              <thead>
+                <tr>
+                  <th style="width: 80px;">Time</th>
+                  <th style="width: 75px;">Elapsed</th>
+                  <th>Task / Audio File</th>
+                  <th>Pipeline Stage</th>
+                  <th style="width: 95px;">Suite RAM</th>
+                  <th style="width: 95px;">w/o Suite</th>
+                  <th style="width: 140px;">Total Sys RAM</th>
+                  <th style="width: 140px;">GPU VRAM</th>
+                  <th style="width: 95px;">Status</th>
+                </tr>
+              </thead>
+              <tbody id="traceTableBody"></tbody>
+            </table>
+          </div>
+          <div class="telemetry-footer">
+            <label class="autoscroll-label">
+              <input type="checkbox" id="traceAutoScroll" checked>
+              <span>Auto-scroll to latest trace</span>
+            </label>
+            <span class="telemetry-count" id="traceCountText">0 trace samples recorded</span>
+          </div>
+        </div>
+
+        <div class="telemetry-tab-pane" id="paneLogs">
+          <div class="log-filter-bar">
+            <div class="log-filters" id="logLevelFilters">
+              <button class="log-filter-btn active" data-level="ALL">All Events</button>
+              <button class="log-filter-btn" data-level="STAGE">Stages</button>
+              <button class="log-filter-btn" data-level="CHUNK">Chunks</button>
+              <button class="log-filter-btn" data-level="MEM">Memory</button>
+              <button class="log-filter-btn" data-level="ERROR">Errors</button>
+            </div>
+            <div class="log-search-box">
+              <input type="text" class="log-search-input" id="logSearchInput" placeholder="Search log entries...">
+            </div>
+          </div>
+
+          <div class="terminal-container" id="terminalContainer">
+            <div class="terminal-body" id="terminalBody"></div>
+          </div>
+          <div class="telemetry-footer">
+            <label class="autoscroll-label">
+              <input type="checkbox" id="logsAutoScroll" checked>
+              <span>Auto-scroll to latest log</span>
+            </label>
+            <span class="telemetry-count" id="logCountText">0 log entries</span>
+          </div>
+        </div>
+
+        <!-- SUB-TAB 3: DEEP MEMORY & PROCESS TRACE -->
+        <div class="telemetry-tab-pane" id="paneDeepMem">
+          <!-- Deep Memory Cards -->
+          <div class="deep-mem-grid">
+            <div class="deep-mem-card">
+              <div class="deep-card-title">🖥️ Suite Process Memory (RSS / Heap)</div>
+              <div class="deep-stat-row">
+                <span>Resident RAM (RSS):</span>
+                <span class="deep-val" id="deepRssVal">-- MB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Virtual Size (VMS):</span>
+                <span class="deep-val" id="deepVmsVal">-- MB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Shared Libraries:</span>
+                <span class="deep-val" id="deepSharedVal">-- MB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Process Heap Data:</span>
+                <span class="deep-val" id="deepDataVal">-- MB</span>
+              </div>
+            </div>
+
+            <div class="deep-mem-card">
+              <div class="deep-card-title">🎮 GPU VRAM Distribution</div>
+              <div class="deep-stat-row">
+                <span>Device:</span>
+                <span class="deep-val" id="deepGpuDevice" style="font-size: 11px;">--</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>PyTorch Active Tensors:</span>
+                <span class="deep-val" id="deepGpuAlloc" style="color: #a855f7;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>PyTorch Reserved Cache:</span>
+                <span class="deep-val" id="deepGpuReserved" style="color: #38bdf8;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>OS / Compositor VRAM:</span>
+                <span class="deep-val" id="deepGpuExternal" style="color: #f59e0b;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Free Hardware Headroom:</span>
+                <span class="deep-val" id="deepGpuFree" style="color: #10b981;">-- GB</span>
+              </div>
+            </div>
+
+            <div class="deep-mem-card">
+              <div class="deep-card-title">🧠 Host Operating System RAM</div>
+              <div class="deep-stat-row">
+                <span>Total Physical RAM:</span>
+                <span class="deep-val" id="deepSysTotal">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Total Used RAM (OS + Apps):</span>
+                <span class="deep-val" id="deepSysUsed" style="color: #f59e0b;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>↳ Suite Memory Only (App RSS):</span>
+                <span class="deep-val" id="deepSysAppRss" style="color: #10b981;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>↳ RAM Without Suite (OS &amp; Apps):</span>
+                <span class="deep-val" id="deepSysWithoutSuite" style="color: #38bdf8;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>↳ Kernel Zswap &amp; Shared:</span>
+                <span class="deep-val" id="deepSysKernelZswap" style="color: #a78bfa;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>↳ Inactive Page Cache (Disk I/O):</span>
+                <span class="deep-val" id="deepSysCached" style="color: #60a5fa;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Available / Free RAM:</span>
+                <span class="deep-val" id="deepSysFree" style="color: #34d399;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Host RAM Utilization:</span>
+                <span class="deep-val" id="deepSysPct">-- %</span>
+              </div>
+              <button class="btn-telemetry" id="btnDropPageCacheCard" title="Evict cached model files and filesystem buffers from RAM" style="margin-top: 10px; width: 100%; border-color: #60a5fa; color: #60a5fa; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">⚡ Purge OS Page Cache</button>
+            </div>
+          </div>
+
+          <!-- Top System Processes Table -->
+          <div class="deep-proc-section">
+            <div class="deep-proc-header">
+              <div>
+                <div class="deep-proc-title">⚡ Top Memory-Consuming Processes &amp; Audit (Live Machine Inspection)</div>
+                <div id="deepProcSummary" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 3px;">Aggregating system process tree...</div>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button class="btn-telemetry" id="btnCopyProcessesMem" title="Copy entire process list and memory stats to clipboard" style="background: var(--surface-card); border-color: #38bdf8; color: #38bdf8; font-weight: 600;">📋 Copy All Processes &amp; RAM Info</button>
+                <button class="btn-telemetry" id="btnRefreshDeepMem" title="Poll active processes from psutil">🔄 Refresh Processes</button>
+              </div>
+            </div>
+            <div class="trace-table-container">
+              <table class="trace-table">
+                <thead>
+                  <tr>
+                    <th style="width: 80px;">PID</th>
+                    <th>Process Name</th>
+                    <th style="width: 140px;">User</th>
+                    <th style="width: 120px;">RAM (MB)</th>
+                    <th style="width: 120px;">RAM (GB)</th>
+                    <th style="width: 120px;">% Host RAM</th>
+                  </tr>
+                </thead>
+                <tbody id="deepProcessesBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUBTAB 4: SUBSYSTEM SUPERVISOR & PREDICTIVE GOVERNOR -->
+        <div class="telemetry-tab-pane" id="paneSupervisor">
+          <!-- Section A: Predictive Governor & Emergency Actions -->
+          <div class="supervisor-governor-card">
+            <div class="gov-header">
+              <div class="gov-title-group">
+                <span class="gov-badge">⚡ PREDICTIVE EMERGENCY GOVERNOR</span>
+                <span class="gov-subtitle">Continuous tensor allocation velocity monitoring and pre-emptive OOM guardrails</span>
+              </div>
+              <div class="gov-status-pill" id="govStatusPill">NORMAL</div>
+            </div>
+
+            <div class="gov-controls-grid">
+              <div class="gov-control-item">
+                <div class="gov-control-label">
+                  <span>VRAM Safety Ceiling:</span>
+                  <span class="gov-control-val" id="govCeilingVal">5.5 GB</span>
+                </div>
+                <input type="range" class="gov-slider" id="govCeilingSlider" min="3.5" max="7.5" step="0.1" value="5.5">
+                <div class="gov-control-hint">Auto-flushes cache & throttles batches if VRAM breaches or approaches this ceiling.</div>
+              </div>
+
+              <div class="gov-control-item">
+                <div class="gov-control-label">
+                  <span>Predictive Velocity:</span>
+                  <span class="gov-control-val" id="govVelocityVal">0.0 MB/s</span>
+                </div>
+                <div class="gov-control-label" style="margin-top: 6px;">
+                  <span>5s Projected VRAM:</span>
+                  <span class="gov-control-val" id="govProjectedVal">-- GB</span>
+                </div>
+                <div class="gov-control-hint">Growth rate calculated over 60-second sliding window.</div>
+              </div>
+
+              <div class="gov-actions-group">
+                <button class="btn-emergency-abort" id="btnSupervisorEmergencyAbort" title="Cancel active transcription task immediately and reset hardware state">
+                  🚨 Emergency Abort
+                </button>
+                <button class="btn-supervisor-eject-all" id="btnSupervisorEjectAll" title="Force unload all models from GPU & trim glibc memory heap">
+                  ⚡ Force Unload All Models
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section B: Internal Subsystem Process Fleet -->
+          <div class="supervisor-subsystems-section">
+            <div class="deep-proc-header">
+              <div class="deep-proc-title">🧩 Internal Pipeline Subsystems & Memory Footprints</div>
+              <span class="subsystems-hint">Monitors each component of Transcript Suite with individual model eject controls</span>
+            </div>
+            <div class="subsystems-grid" id="subsystemsGrid">
+              <!-- Dynamically populated subsystem cards -->
+            </div>
+          </div>
+
+          <!-- Section C: Advanced Storage Breakdown & Granular Purge -->
+          <div class="supervisor-storage-section">
+            <div class="deep-proc-header">
+              <div class="deep-proc-title">💾 Advanced Storage Footprint & Granular Purge</div>
+              <div class="storage-header-total">
+                <span>Total Managed Storage:</span>
+                <span class="storage-total-val" id="storageTotalManagedVal">-- GB</span>
+              </div>
+            </div>
+            <div class="storage-targets-grid" id="storageTargetsGrid">
+              <!-- Dynamically populated storage targets -->
+            </div>
+          </div>
+
+          <!-- Section D: Supervisor Audit Event Journal -->
+          <div class="supervisor-journal-section">
+            <div class="deep-proc-header">
+              <div class="deep-proc-title">📜 Supervisor Audit Event Journal</div>
+              <div class="journal-actions">
+                <div class="journal-filter-group" id="journalFilterGroup">
+                  <button class="journal-filter-btn active" data-severity="ALL">All</button>
+                  <button class="journal-filter-btn" data-severity="EMERGENCY">🚨 Emergency</button>
+                  <button class="journal-filter-btn" data-severity="WARNING">⚠️ Warning</button>
+                  <button class="journal-filter-btn" data-severity="INFO">ℹ️ Info</button>
+                </div>
+                <input type="text" class="journal-search-input" id="journalSearchInput" placeholder="Filter journal...">
+                <button class="btn-telemetry" id="btnExportJournalCsv" title="Export audit journal as CSV">📥 CSV</button>
+                <button class="btn-telemetry" id="btnExportJournalJson" title="Export audit journal as JSON">📥 JSON</button>
+                <button class="btn-telemetry btn-telemetry-clear" id="btnClearJournal" title="Clear journal history">🗑️ Clear</button>
+              </div>
+            </div>
+            <div class="trace-table-container">
+              <table class="trace-table">
+                <thead>
+                  <tr>
+                    <th style="width: 140px;">Timestamp</th>
+                    <th style="width: 100px;">Severity</th>
+                    <th style="width: 150px;">Subsystem</th>
+                    <th style="width: 190px;">Event Type</th>
+                    <th>Message & Audit Details</th>
+                  </tr>
+                </thead>
+                <tbody id="journalTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: SETTINGS PANE (Far Right) -->
+    <div class="tab-pane" id="paneSettings">
+        <!-- CARD 0: INTERFACE PARADIGM & WORKSPACE ENGINE (v2) -->
+        <div class="model-card" id="settingParadigmCard" style="grid-column: 1 / -1; border-color: #3b82f6; box-shadow: 0 0 20px rgba(59,130,246,0.15);">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title" style="color: #60a5fa; font-size: 16px;">🎨 Interface Paradigm &amp; Workspace Engine (v2)</div>
+              <div class="model-card-arch">Switch between radically distinct operational paradigms. All paradigms share the exact same underlying 3-model audio consensus engine, speaker diarization, and telemetry.</div>
+            </div>
+            <span class="status-badge-active" style="background: rgba(59,130,246,0.2); border-color: #3b82f6; color: #93c5fd;">v2 Reactive Engine</span>
+          </div>
+
+          <div class="paradigm-selector-grid">
+            <!-- Option 1: Hybrid Studio -->
+            <div class="paradigm-option-card active" data-paradigm="hybrid" onclick="window.paradigmEngine.switchParadigm('hybrid')">
+              <div class="paradigm-opt-hdr">
+                <span class="paradigm-opt-title">🎛️ Hybrid Studio</span>
+                <span class="paradigm-opt-badge">Default</span>
+              </div>
+              <div class="paradigm-opt-desc">Modern dark graphite high-density studio workbench with dual telemetry, multi-track waveform scrubber, and inspection tabs.</div>
+            </div>
+
+            <!-- Option 2: Windows 95 & Winamp Pro -->
+            <div class="paradigm-option-card" data-paradigm="win95_winamp" onclick="window.paradigmEngine.switchParadigm('win95_winamp')">
+              <div class="paradigm-opt-hdr">
+                <span class="paradigm-opt-title">⚡ Windows 95 &amp; Winamp Pro</span>
+                <span class="paradigm-opt-badge">1997 Desktop</span>
+              </div>
+              <div class="paradigm-opt-desc">Classic Windows 95 desktop environment with start menu, desktop icons, document chrome, and docked authentic Winamp 2.x player with spectrum analyzer and EQ sliders.</div>
+            </div>
+
+            <!-- Option 3: Silicon Graphics IRIX & NERV MAGI 1995 -->
+            <div class="paradigm-option-card" data-paradigm="sgi_irix" onclick="window.paradigmEngine.switchParadigm('sgi_irix')">
+              <div class="paradigm-opt-hdr">
+                <span class="paradigm-opt-title">🔮 SGI IRIX &amp; NERV MAGI 1995</span>
+                <span class="paradigm-opt-badge">Unix Workstation</span>
+              </div>
+              <div class="paradigm-opt-desc">Silicon Graphics Indigo2 workstation with SGI toolchest, 3D vector FFT oscilloscope, and the NERV MAGI tri-computer council decision matrix.</div>
+            </div>
+
+            <!-- Option 4: Spatial Node Canvas -->
+            <div class="paradigm-option-card" data-paradigm="spatial_canvas" onclick="window.paradigmEngine.switchParadigm('spatial_canvas')">
+              <div class="paradigm-opt-hdr">
+                <span class="paradigm-opt-title">🕸️ Spatial Node Canvas</span>
+                <span class="paradigm-opt-badge">Infinite 2D Graph</span>
+              </div>
+              <div class="paradigm-opt-desc">Infinite 2D pan/zoom node-graph visualizer with dynamic SVG bezier signal cables connecting audio source, 3-juror nodes, and interactive utterance clusters.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 1: PERSISTENT STORAGE & PATHS -->
+        <div class="model-card" style="grid-column: 1 / -1;">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title">📁 Persistent Storage &amp; Directory Routing</div>
+              <div class="model-card-arch">Directs all model checkpoints, temporary extractions, uploads, and outputs to dedicated disk storage.</div>
+            </div>
+            <span class="status-badge-active" id="settingsDiskStatusBadge">NVMe Connected</span>
+          </div>
+
+          <div style="margin-top: 14px;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">
+              PRIMARY STORAGE ROOT DIRECTORY (Default: <code>/mnt/d/transcript_suite_data</code>)
+            </label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="settingBaseDirInput" class="text-input" style="flex: 1; font-family: monospace; font-size: 13px;" placeholder="/mnt/d/transcript_suite_data">
+              <button class="btn-primary" id="btnSaveStoragePath" style="white-space: nowrap;">💾 Apply Storage Root</button>
+            </div>
+          </div>
+
+          <!-- Live Disk Gauge -->
+          <div style="margin-top: 16px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
+              <span><strong>Selected Partition Disk Space:</strong> <span id="settingDiskFreeText" style="color: #34d399; font-weight: 600;">-- GB Available</span></span>
+              <span id="settingDiskTotalText" style="color: var(--text-muted);">Total: -- GB (--% used)</span>
+            </div>
+            <div style="background: rgba(255,255,255,0.08); height: 8px; border-radius: 4px; overflow: hidden;">
+              <div id="settingDiskBar" style="width: 0%; height: 100%; background: var(--accent-light); transition: width 0.3s ease;"></div>
+            </div>
+          </div>
+
+          <!-- Subdirectories Breakdown -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 14px;">
+            <div style="padding: 10px; background: rgba(0,0,0,0.15); border-radius: 6px; font-size: 11px;">
+              <span style="color: var(--accent-light); font-weight: 600;">🧠 Model Hubs:</span>
+              <div style="color: var(--text-muted); font-family: monospace; margin-top: 3px;" id="settingSubdirModels">models/ (hf, nemo, torch)</div>
+            </div>
+            <div style="padding: 10px; background: rgba(0,0,0,0.15); border-radius: 6px; font-size: 11px;">
+              <span style="color: #60a5fa; font-weight: 600;">⚡ Scratch / Temp:</span>
+              <div style="color: var(--text-muted); font-family: monospace; margin-top: 3px;" id="settingSubdirTmp">tmp/ (replaces /tmp tmpfs)</div>
+            </div>
+            <div style="padding: 10px; background: rgba(0,0,0,0.15); border-radius: 6px; font-size: 11px;">
+              <span style="color: #34d399; font-weight: 600;">📥 Ingest Audio:</span>
+              <div style="color: var(--text-muted); font-family: monospace; margin-top: 3px;" id="settingSubdirUploads">uploads/ (original &amp; 16kHz)</div>
+            </div>
+            <div style="padding: 10px; background: rgba(0,0,0,0.15); border-radius: 6px; font-size: 11px;">
+              <span style="color: #f59e0b; font-weight: 600;">📤 Artifacts:</span>
+              <div style="color: var(--text-muted); font-family: monospace; margin-top: 3px;" id="settingSubdirOutputs">outputs/ (transcripts &amp; json)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 2: MODEL PURGE & MAINTENANCE -->
+        <div class="model-card">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title">🧹 Clean Slate &amp; Model Purge</div>
+              <div class="model-card-arch">Wipe cached checkpoints and scratch buffers to force fresh downloads into persistent storage.</div>
+            </div>
+          </div>
+          <p style="font-size: 12px; color: var(--text-muted); margin-top: 10px; line-height: 1.5;">
+            Purges all local model weights in both legacy cache and the new storage root. When you run your next transcription, clean fresh copies will be downloaded directly into <code>/mnt/d/transcript_suite_data/models</code>.
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
+            <button class="btn-telemetry" id="btnPurgeAllModelsSettings" style="background: rgba(239, 68, 68, 0.12); border: 1px solid #ef4444; color: #f87171; font-weight: 600; padding: 10px 14px; text-align: center; justify-content: center; cursor: pointer;">
+              🗑️ Purge All Existing Models (Clean Slate)
+            </button>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn-telemetry" id="btnPurgeScratchSettings" style="flex: 1; border-color: #60a5fa; color: #60a5fa; justify-content: center;">
+                ⚡ Purge Scratch Temp
+              </button>
+              <button class="btn-telemetry" id="btnDropPageCacheSettingsTab" style="flex: 1; border-color: #34d399; color: #34d399; justify-content: center;">
+                ⚡ Purge OS Page Cache
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 3: HUGGING FACE AUTHENTICATION -->
+        <div class="model-card">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title">🔑 Hugging Face Authentication</div>
+              <div class="model-card-arch">Authentication for PyAnnote Audio 3.1 &amp; gated models.</div>
+            </div>
+            <span class="status-badge" id="settingHfBadge">Checking...</span>
+          </div>
+          <div style="margin-top: 12px;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">
+              User Access Token (read permission)
+            </label>
+            <div style="display: flex; gap: 8px;">
+              <input type="password" id="settingHfTokenInput" class="text-input" style="flex: 1; font-family: monospace; font-size: 12px;" placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxxx">
+              <button class="btn-secondary" id="btnToggleSettingHfToken">👁️</button>
+              <button class="btn-primary" id="btnSaveSettingHfToken">Verify &amp; Save</button>
+              <button class="btn-secondary" id="btnClearSettingHfToken" title="Clear saved token">🗑️</button>
+            </div>
+            <div id="settingHfFeedback" style="font-size: 11px; margin-top: 8px; color: var(--text-muted);">
+              Saved persistently in settings.json.
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 4: PIPELINE & INFERENCE DEFAULTS -->
+        <div class="model-card" style="grid-column: 1 / -1;">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title">⚙️ Pipeline &amp; Hardware Preferences</div>
+              <div class="model-card-arch">Set default precision, diarizer engine, vocal limiter level, and governor safety thresholds.</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Default Speaker Diarizer</label>
+              <select id="settingDefaultDiarizer" class="select-input" style="width: 100%;">
+                <option value="pyannote">PyAnnote Audio 3.1 (State-of-the-art neural diarization)</option>
+                <option value="nemo">NeMo TitaNet Large (Offline, open-weights)</option>
+              </select>
+            </div>
+
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Vocal Boost &amp; Limiter Level</label>
+              <select id="settingVocalBoost" class="select-input" style="width: 100%;">
+                <option value="adaptive">Adaptive Soft-Knee (Recommended)</option>
+                <option value="standard">Standard Gating</option>
+                <option value="high">High Vocal Boost (+6dB)</option>
+                <option value="max">Maximum Vocal Boost (+12dB)</option>
+              </select>
+            </div>
+
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">
+                Predictive Governor Ceiling: <span id="settingGovCeilingVal" style="color: var(--accent-light);">5.5 GB</span>
+              </label>
+              <input type="range" id="settingGovCeilingSlider" min="4.0" max="7.5" step="0.1" value="5.5" style="width: 100%;">
+            </div>
+
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Stage 5 Audex-2B Adjudication</label>
+              <select id="settingEnableAudex" class="select-input" style="width: 100%;">
+                <option value="true">Enabled (Adjudicate disputes with acoustic reasoning)</option>
+                <option value="false">Disabled (Sequential consensus only)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="margin-top: 18px; display: flex; justify-content: flex-end;">
+            <button class="btn-primary" id="btnSavePipelinePrefs" style="padding: 10px 20px;">💾 Save All Pipeline Preferences</button>
+          </div>
+        </div>
+
+      </div>
+  </main>
+    </div> <!-- /#shell-hybrid -->
+
+    <!-- =====================================================================
+         PARADIGM 2: WINDOWS 95 & WINAMP PRO (1997 DESKTOP)
+         ===================================================================== -->
+    <div id="shell-win95" class="paradigm-shell">
+      <div class="w95-desktop-workspace">
+        <!-- Desktop Shortcuts -->
+        <div class="w95-icons-col">
+          <div class="w95-d-icon" id="w95IconMyAudio" onclick="document.getElementById('fileInput').click()">
+            <div class="w95-icon-box">📁</div>
+            <span>My Audio</span>
+          </div>
+          <div class="w95-d-icon" id="w95IconCouncil" onclick="window.paradigmEngine.openSettings()">
+            <div class="w95-icon-box">⚖️</div>
+            <span>Council</span>
+          </div>
+          <div class="w95-d-icon" id="w95IconControlPanel">
+            <div class="w95-icon-box">⚙️</div>
+            <span>Settings</span>
+          </div>
+          <div class="w95-d-icon" id="w95IconRecycleBin" onclick="if(window.confirm('Clear active audio session?')) location.reload();">
+            <div class="w95-icon-box">🗑️</div>
+            <span>Recycle</span>
+          </div>
+        </div>
+
+        <!-- Main Windows 95 Document Window -->
+        <div class="w95-window">
+          <div class="w95-titlebar">
+            <div class="w95-title-left">
+              <span>🎙️</span>
+              <span id="w95WindowFileName">Earnings_Call_Q4.wav - Transcript Suite 95</span>
+            </div>
+            <div class="w95-win-ctrls">
+              <button class="w95-btn-ctrl" title="Minimize">_</button>
+              <button class="w95-btn-ctrl" title="Maximize">□</button>
+              <button class="w95-btn-ctrl" title="Close" onclick="window.paradigmEngine.switchParadigm('hybrid')">✕</button>
+            </div>
+          </div>
+          <div class="w95-menubar">
+            <span onclick="document.getElementById('fileInput').click()"><u>F</u>ile</span>
+            <span><u>E</u>dit</span>
+            <span onclick="window.paradigmEngine.openSettings()"><u>J</u>urors</span>
+            <span onclick="window.paradigmEngine.openSettings()"><u>S</u>ettings</span>
+            <span><u>H</u>elp</span>
+          </div>
+          <div class="w95-toolbar">
+            <button class="w95-toolbtn" onclick="document.getElementById('fileInput').click()">📂 Open</button>
+            <button class="w95-toolbtn" onclick="const b = document.getElementById('btnExportTxt'); if(b) b.click();">💾 Export</button>
+            <span style="border-left: 1px solid #888; height: 16px; margin: 0 4px;"></span>
+            <button class="w95-toolbtn" onclick="window.paradigmEngine.openSettings()">⚙️ Control Panel</button>
+            <button class="w95-toolbtn" onclick="window.paradigmEngine.switchParadigm('hybrid')">🎛️ Hybrid View</button>
+          </div>
+          <div class="w95-body">
+            <!-- Transcript Editor Paper -->
+            <div class="w95-editor-frame" id="w95EditorContent">
+              <div style="color: #666; font-style: italic;">No audio loaded. Drop a file or click File -> Open...</div>
+            </div>
+
+            <!-- Docked Winamp 2.x Pro Player Station -->
+            <div class="w95-winamp-dock">
+              <div class="wa-chassis-hdr">
+                <span id="waTrackTitle">1. Audio_Session.wav</span>
+                <span style="color:#00ffcc;">WINAMP PRO</span>
+              </div>
+              <div class="wa-lcd-panel">
+                <div class="wa-lcd-top">
+                  <div class="wa-timer-digit" id="waTimerDisplay">00:00</div>
+                  <div class="wa-rate-info">320kbps 48kHz</div>
+                </div>
+                <div class="wa-eq-visualizer" id="waEqBarsContainer">
+                  <div class="wa-eq-bar" style="height: 20%;"></div>
+                  <div class="wa-eq-bar" style="height: 45%;"></div>
+                  <div class="wa-eq-bar" style="height: 70%;"></div>
+                  <div class="wa-eq-bar" style="height: 85%;"></div>
+                  <div class="wa-eq-bar" style="height: 95%;"></div>
+                  <div class="wa-eq-bar" style="height: 60%;"></div>
+                  <div class="wa-eq-bar" style="height: 75%;"></div>
+                  <div class="wa-eq-bar" style="height: 40%;"></div>
+                  <div class="wa-eq-bar" style="height: 80%;"></div>
+                  <div class="wa-eq-bar" style="height: 30%;"></div>
+                </div>
+                <input type="range" class="wa-scrub-slider" id="waScrubSlider" min="0" max="100" value="0">
+              </div>
+
+              <!-- Winamp Transport Buttons -->
+              <div class="wa-transport-row">
+                <button class="wa-btn" id="waBtnPrev" title="Previous">|◄</button>
+                <button class="wa-btn" id="waBtnPlay" title="Play">►</button>
+                <button class="wa-btn" id="waBtnPause" title="Pause">❚❚</button>
+                <button class="wa-btn" id="waBtnStop" title="Stop">■</button>
+                <button class="wa-btn" id="waBtnNext" title="Next">►|</button>
+                <button class="wa-btn" id="waBtnEject" title="Open File">⏏</button>
+              </div>
+
+              <!-- Graphic Equalizer Rack -->
+              <div class="wa-equalizer-rack">
+                <div class="wa-eq-labels">
+                  <span>PRE</span><span>60</span><span>170</span><span>310</span><span>600</span><span>1K</span><span>3K</span><span>6K</span><span>12K</span><span>16K</span>
+                </div>
+                <div class="wa-eq-sliders-row">
+                  <input type="range" class="wa-vert-slider" min="0" max="100" value="70">
+                  <input type="range" class="wa-vert-slider" min="0" max="100" value="60">
+                  <input type="range" class="wa-vert-slider" min="0" max="100" value="50">
+                  <input type="range" class="wa-vert-slider" min="0" max="100" value="65">
+                  <input type="range" class="wa-vert-slider" min="0" max="100" value="75">
+                  <input type="range" class="wa-vert-slider" min="0" max="100" value="85">
+                  <input type="range" class="wa-vert-slider" min="0" max="100" value="80">
+                  <input type="range" class="wa-vert-slider" min="0" max="100" value="70">
+                  <input type="range" class="wa-vert-slider" min="0" max="100" value="60">
+                  <input type="range" class="wa-vert-slider" min="0" max="100" value="50">
+                </div>
+              </div>
+
+              <!-- Winamp Playlist Deck -->
+              <div class="wa-playlist-dock" id="waPlaylistItems">
+                <div class="wa-pl-item active"><span>1. Audio Session Stream</span><span>00:00</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Windows 95 Taskbar -->
+      <div class="w95-taskbar">
+        <button class="w95-start-btn" id="w95StartBtn">
+          <span class="w95-start-logo">❖</span>
+          <span>Start</span>
+        </button>
+        <div class="w95-task-items">
+          <div class="w95-task-pill">🎙️ Transcript Suite 95</div>
+          <div class="w95-task-pill">⚡ Winamp Pro</div>
+        </div>
+        <div class="w95-systray">
+          <span>🔊</span>
+          <span id="w95TrayClock">12:00 PM</span>
+        </div>
+      </div>
+
+      <!-- Start Menu Popup -->
+      <div class="w95-start-menu" id="w95StartMenu">
+        <div class="w95-sm-banner">TRANSCRIPT 95</div>
+        <div class="w95-sm-items">
+          <div class="w95-sm-item" onclick="document.getElementById('fileInput').click()">📁 Open Audio File...</div>
+          <div class="w95-sm-item" onclick="window.paradigmEngine.openSettings()">⚙️ Settings &amp; Paradigm...</div>
+          <div class="w95-sm-item" onclick="window.paradigmEngine.switchParadigm('hybrid')">🎛️ Hybrid Studio Mode</div>
+          <div class="w95-sm-item" onclick="window.paradigmEngine.switchParadigm('sgi_irix')">🔮 SGI IRIX 1995 Mode</div>
+          <div class="w95-sm-item" onclick="window.paradigmEngine.switchParadigm('spatial_canvas')">🕸️ Spatial Canvas Mode</div>
+          <div class="w95-sm-item" onclick="const b = document.getElementById('btnExportTxt'); if(b) b.click();">💾 Export Transcript</div>
+        </div>
+      </div>
+
+      <!-- Windows 95 Native Control Panel Window Modal -->
+      <div class="w95-modal-window" id="w95ControlPanelModal" style="display: none;">
+        <div class="w95-titlebar">
+          <div class="w95-title-left">
+            <span>⚙️</span>
+            <span>Control Panel - Speech &amp; Hardware System</span>
+          </div>
+          <div class="w95-win-ctrls">
+            <button class="w95-btn-ctrl" onclick="window.paradigmEngine.closeWin95ControlPanel()">✕</button>
+          </div>
+        </div>
+        <div class="w95-cp-body">
+          <div class="w95-cp-tabs">
+            <button class="w95-cp-tab active" onclick="window.paradigmEngine.switchWin95CpTab('tabGeneral', this)">General</button>
+            <button class="w95-cp-tab" onclick="window.paradigmEngine.switchWin95CpTab('tabCouncil', this)">Council</button>
+            <button class="w95-cp-tab" onclick="window.paradigmEngine.switchWin95CpTab('tabTheme', this)">Appearance</button>
+            <button class="w95-cp-tab" onclick="window.paradigmEngine.switchWin95CpTab('tabStorage', this)">Storage</button>
+          </div>
+          <div class="w95-cp-content">
+            <!-- TAB 1: GENERAL -->
+            <div class="w95-cp-pane active" id="w95CpTabGeneral">
+              <fieldset class="w95-fieldset">
+                <legend>Speech Audio Pipeline</legend>
+                <div class="w95-field-row">
+                  <label>Primary Diarizer:</label>
+                  <select id="w95DiarizerSelect" class="w95-select" onchange="const el=document.getElementById('settingDefaultDiarizer'); if(el){el.value=this.value; el.dispatchEvent(new Event('change'));}">
+                    <option value="pyannote">PyAnnote 3.1 (Neural Diarization)</option>
+                    <option value="nemo">NeMo TitaNet Large (Local)</option>
+                  </select>
+                </div>
+                <div class="w95-field-row">
+                  <label>Vocal Limiter:</label>
+                  <select id="w95VocalBoostSelect" class="w95-select" onchange="const el=document.getElementById('settingVocalBoost'); if(el){el.value=this.value; el.dispatchEvent(new Event('change'));}">
+                    <option value="adaptive">Adaptive Soft-Knee (+15dB)</option>
+                    <option value="standard">Standard Leveling</option>
+                    <option value="high">High Boost (+6dB)</option>
+                    <option value="max">Maximum Boost (+12dB)</option>
+                  </select>
+                </div>
+                <div class="w95-field-row">
+                  <label>Audex Adjudicator:</label>
+                  <select id="w95AudexSelect" class="w95-select" onchange="const el=document.getElementById('settingEnableAudex'); if(el){el.value=this.value; el.dispatchEvent(new Event('change'));}">
+                    <option value="true">Enabled (Stage 5 Neural Reasoner)</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </div>
+              </fieldset>
+            </div>
+
+            <!-- TAB 2: COUNCIL -->
+            <div class="w95-cp-pane" id="w95CpTabCouncil">
+              <fieldset class="w95-fieldset">
+                <legend>Supreme Council Jurors</legend>
+                <div style="margin-bottom:6px; color:#333;">Active consensus roster (3-stage sequential deliberation):</div>
+                <div class="w95-roster-list">
+                  <div>• Juror 1: NVIDIA Canary-Qwen 2.5B (Acoustic ASR)</div>
+                  <div>• Juror 2: OpenAI Whisper Large-v3 (Multi-lingual)</div>
+                  <div>• Juror 3: NeMo Conformer / Parakeet 1.1B (Fast TDT)</div>
+                  <div>• Adjudicator: Nemotron-Labs-Audex-2B (Acoustic Arbiter)</div>
+                </div>
+              </fieldset>
+            </div>
+
+            <!-- TAB 3: THEME -->
+            <div class="w95-cp-pane" id="w95CpTabTheme">
+              <fieldset class="w95-fieldset">
+                <legend>Desktop &amp; Operating Environment</legend>
+                <div class="w95-field-row">
+                  <label>Interface Paradigm:</label>
+                  <select class="w95-select" onchange="window.paradigmEngine.switchParadigm(this.value)">
+                    <option value="win95_winamp" selected>Windows 95 &amp; Winamp Pro</option>
+                    <option value="hybrid">Hybrid Studio (DAW)</option>
+                    <option value="sgi_irix">SGI IRIX &amp; NERV MAGI</option>
+                    <option value="spatial_canvas">Spatial 2D Node Canvas</option>
+                  </select>
+                </div>
+                <div class="w95-field-row">
+                  <label>System Color Scheme:</label>
+                  <select class="w95-select" onchange="const ts=document.getElementById('themeSelect'); if(ts){ts.value=this.value; ts.dispatchEvent(new Event('change'));}">
+                    <option value="foggy-woodland">🌲 Foggy Woodland</option>
+                    <option value="forest-sage">🌿 Forest Sage</option>
+                    <option value="nordic-slate">⛰️ Nordic Slate</option>
+                    <option value="warm-umber">☕ Warm Umber</option>
+                  </select>
+                </div>
+              </fieldset>
+            </div>
+
+            <!-- TAB 4: STORAGE -->
+            <div class="w95-cp-pane" id="w95CpTabStorage">
+              <fieldset class="w95-fieldset">
+                <legend>Disk Storage Allocation</legend>
+                <div class="w95-field-row">
+                  <label>Root Storage:</label>
+                  <input type="text" class="w95-input" value="/mnt/d/transcript_suite_data" readonly style="width: 220px;" />
+                </div>
+                <div style="margin-top:8px; display:flex; gap:8px;">
+                  <button class="w95-btn" onclick="const b=document.getElementById('btnPurgeModels'); if(b) b.click();">Purge Cache</button>
+                  <button class="w95-btn" onclick="const b=document.getElementById('btnClearNotifHistory'); if(b) b.click();">Clear Logs</button>
+                </div>
+              </fieldset>
+            </div>
+          </div>
+          <div class="w95-cp-actions">
+            <button class="w95-btn default" onclick="const b=document.getElementById('btnSavePipelinePrefs'); if(b) b.click(); window.paradigmEngine.closeWin95ControlPanel();">OK</button>
+            <button class="w95-btn" onclick="window.paradigmEngine.closeWin95ControlPanel()">Cancel</button>
+            <button class="w95-btn" onclick="const b=document.getElementById('btnSavePipelinePrefs'); if(b) b.click();">Apply</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =====================================================================
+         PARADIGM 3: SILICON GRAPHICS IRIX & NERV MAGI 1995
+         ===================================================================== -->
+    <div id="shell-irix" class="paradigm-shell">
+      <header class="irix-top-header" id="sgiTopHeader">
+        <div class="sgi-header-normal" id="sgiHeaderNormal">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <span style="color:#00ff88; font-weight:800;">■</span>
+            <span>Silicon Graphics IRIX 6.2 // MAGI COUNCIL AUDIO KERNEL</span>
+          </div>
+          <div id="sgiSessionTitle">SESSION: Q4_EARNINGS.SGI</div>
+          <div id="sgiTimecodeDisplay" style="font-family:monospace; color:#00ff88;">T+ 00:00 / 00:00</div>
+        </div>
+        <div class="sgi-header-emergency" id="sgiHeaderEmergency" style="display:none;">
+          <div class="hazard-stripe-bar">
+            <span class="hazard-kanji-title">非常事態</span>
+          </div>
+          <div class="hazard-emergency-row">
+            <div class="hazard-emergency-text">EMERGENCY &nbsp;&nbsp;&nbsp;&nbsp; EMERGENCY &nbsp;&nbsp;&nbsp;&nbsp; EMERGENCY &nbsp;&nbsp;&nbsp;&nbsp; EMERGENCY &nbsp;&nbsp;&nbsp;&nbsp; EMERGENCY</div>
+          </div>
+          <div class="hazard-stripe-bar">
+            <span class="hazard-kanji-title">非常事態</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="irix-body">
+        <!-- Left: Toolchest & Telemetry -->
+        <div class="irix-window">
+          <div class="irix-w-title">
+            <span>SGI TOOLCHEST</span>
+            <span style="color:#00ff88;">6.2</span>
+          </div>
+          
+          <div class="irix-toolchest-menu">
+            <div style="font-size:10px; font-weight:800; color:#ec7420; margin-bottom:4px; letter-spacing:0.5px; padding: 2px 6px;">MAGI HUD:</div>
+            <button class="irix-tc-btn active-view" id="btnMagiViewTriad">MAGI-01 TRIAD CORE ▸</button>
+            <button class="irix-tc-btn" id="btnToggleSubtitles" onclick="window.paradigmEngine.toggleSubtitles()">AI SUBTITLES: <span id="subtitlesToggleState" style="color:#00ff88;">ON</span> ▸</button>
+            <div style="border-top: 1px solid #2e4352; margin: 4px 0;"></div>
+            <button class="irix-tc-btn" id="sgiBtnUpload" onclick="document.getElementById('fileInput').click()">INGEST AUDIO FILE ▸</button>
+            <button class="irix-tc-btn" onclick="if(window.wavesurferOrig) window.wavesurferOrig.playPause()">PLAY / PAUSE AUDIO ▸</button>
+            <button class="irix-tc-btn" id="sgiBtnSettings" onclick="window.paradigmEngine.openSgiSettings()">SYSTEM PREFERENCES ▸</button>
+            <button class="irix-tc-btn" onclick="window.paradigmEngine.switchParadigm('hybrid')">HYBRID STUDIO WORKBENCH ▸</button>
+            <button class="irix-tc-btn" onclick="window.paradigmEngine.switchParadigm('win95_winamp')">WINDOWS 95 &amp; WINAMP ▸</button>
+            <button class="irix-tc-btn" onclick="window.paradigmEngine.switchParadigm('spatial_canvas')">SPATIAL NODE CANVAS ▸</button>
+          </div>
+<div style="padding:12px; margin-top:auto; border-top:1px solid #2e4352; font-size:10.5px; color:#88a2b5; font-family:monospace;">
+            <div>HARDWARE: SGI Indigo2 R10000</div>
+            <div>DSP: Octane Vector Co-Processor</div>
+            <div>STATUS: JUROR DAEMON RUNNING</div>
+          </div>
+        </div>
+
+        
+        <!-- Center: MAGI Tactical Defense Network (Recreated from EoE & NGE references) -->
+        <div class="irix-window" style="flex: 2.3; min-width: 580px;">
+          <div class="irix-w-title">
+            <span id="magiHeaderTitle">MAGI SYSTEM // TRIAD CORE</span>
+            <span style="color:#ec7420;" id="magiNetworkStatus">MAGI-01 ONLINE</span>
+          </div>
+          <div style="padding: 10px; display: flex; flex-direction: column; flex: 1; overflow: hidden; position: relative; background: #000000;">
+            
+            <!-- =================================================================
+                 AUTHENTIC MAGI-01 TRIAD CORE (MATCHING REFERENCE media_1789366811552.png)
+                 ================================================================= -->
+            <div id="magiViewTriad" class="magi-view-container active" style="display:flex; flex:1; overflow:hidden;">
+              <div class="triad-monitor-frame">
+                <div class="triad-inner-frame">
+                  <div class="corner-bracket cb-tl"></div>
+                  <div class="corner-bracket cb-tr"></div>
+                  <div class="corner-bracket cb-bl"></div>
+                  <div class="corner-bracket cb-br"></div>
+
+                  <svg class="triad-stage-svg" viewBox="0 0 880 500" preserveAspectRatio="xMidYMid meet">
+                    <defs>
+                      <clipPath id="clipBalthasar">
+                        <polygon points="317,25 563,25 563,205 533,235 347,235 317,205" />
+                      </clipPath>
+                      <clipPath id="clipCasper">
+                        <polygon points="151,260 318,260 396,338 396,470 151,470" />
+                      </clipPath>
+                      <clipPath id="clipMelchior">
+                        <polygon points="562,260 729,260 729,470 484,470 484,338" />
+                      </clipPath>
+                    </defs>
+
+                    <!-- LEFT SECTION: 提訴 & Telemetry -->
+                    <line class="bar-green" x1="20" y1="30" x2="317" y2="30" />
+                    <text class="text-kanji" x="168" y="96">提訴</text>
+                    <line class="bar-green" x1="20" y1="108" x2="317" y2="108" />
+
+                    <!-- Telemetry block -->
+                    <text class="text-telemetry-hdr" x="45" y="146">CODE : <tspan id="triadOpCode">378</tspan></text>
+                    <text class="text-telemetry-item" x="75" y="174">FILE : MAGI_SYS</text>
+                    <text class="text-telemetry-item" x="75" y="198">EXTENTION : 2024</text>
+                    <text class="text-telemetry-item" x="75" y="222">EX_MODE : <tspan id="triadExMode" fill="#60f0a0">OFF</tspan></text>
+                    <text class="text-telemetry-item" x="75" y="246">PRIORITY : <tspan id="triadPriority">AAA</tspan></text>
+
+                    <!-- RIGHT SECTION: 決議 & Status Badge -->
+                    <line class="bar-green" x1="563" y1="30" x2="860" y2="30" />
+                    <text class="text-kanji" x="711" y="96">決議</text>
+                    <line class="bar-green" x1="563" y1="108" x2="860" y2="108" />
+
+                    <!-- Dynamic Status Badge under 決議 (Off by default; Emergency/Recovery/Deliberating) -->
+                    <g id="triadDeliberatingBadge" class="triad-deliberating-badge">
+                      <rect id="triadBadgeRect" class="badge-status-rect" x="635" y="124" width="150" height="46" rx="2" />
+                      <text id="triadBadgeText" class="badge-status-text" x="710" y="156">審議中</text>
+                    </g>
+
+                    <!-- THICK DIAGONAL CONDUITS (From cut midpoints) -->
+                    <!-- Conduit from Casper cut midpoint to Balthasar cut midpoint -->
+                    <line class="conduit-thick-orange" x1="357" y1="299" x2="332" y2="220" />
+
+                    <!-- Conduit from Melchior cut midpoint to Balthasar cut midpoint -->
+                    <line class="conduit-thick-orange" x1="523" y1="299" x2="548" y2="220" />
+
+                    <!-- THICK HORIZONTAL CONDUIT between Casper & Melchior -->
+                    <line class="conduit-thick-orange" x1="396" y1="380" x2="484" y2="380" />
+
+                    <!-- CENTER: BALTHASAR·2 (Core 2: 246x210, Compact 30px cuts) -->
+                    <g class="triad-svg-unit" id="triadUnitBalthasar">
+                      <polygon class="unit-poly" points="317,25 563,25 563,205 533,235 347,235 317,205" />
+                      <!-- 16x16 Pixel Mosaic Layer -->
+                      <g id="mosaicBalthasar" class="mosaic-layer" clip-path="url(#clipBalthasar)"></g>
+                      <text class="unit-title" x="440" y="175">BALTHASAR·2</text>
+                      <text class="unit-sub" id="triadBalthasarVote" x="440" y="198">Whisper Large • 98.4%</text>
+                    </g>
+
+                    <!-- MAGI Hub Text below Balthasar (No rectangle around MAGI) -->
+                    <g class="triad-svg-hub" id="triadHub">
+                      <text class="hub-magi" x="440" y="315">MAGI</text>
+                    </g>
+
+                    <!-- BOTTOM-LEFT: CASPER·3 (Core 3: 245x210, Long 78px cut) -->
+                    <g class="triad-svg-unit" id="triadUnitCasper">
+                      <polygon class="unit-poly" points="151,260 318,260 396,338 396,470 151,470" />
+                      <!-- 16x16 Pixel Mosaic Layer -->
+                      <g id="mosaicCasper" class="mosaic-layer" clip-path="url(#clipCasper)"></g>
+                      <text class="unit-title" x="273" y="420">CASPER·3</text>
+                      <text class="unit-sub" id="triadCasperVote" x="273" y="442">Conformer • 94.7%</text>
+                    </g>
+
+                    <!-- BOTTOM-RIGHT: MELCHIOR·1 (Core 1: 245x210, Long 78px cut) -->
+                    <g class="triad-svg-unit" id="triadUnitMelchior">
+                      <polygon class="unit-poly" points="562,260 729,260 729,470 484,470 484,338" />
+                      <!-- 16x16 Pixel Mosaic Layer -->
+                      <g id="mosaicMelchior" class="mosaic-layer" clip-path="url(#clipMelchior)"></g>
+                      <text class="unit-title" x="607" y="420">MELCHIOR·1</text>
+                      <text class="unit-sub" id="triadMelchiorVote" x="607" y="442">Canary-Qwen • 98.2%</text>
+                    </g>
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <!-- Terminal Output Stream at Bottom -->
+            <div class="irix-terminal-output" id="sgiTerminalBody" style="height: 62px; min-height: 62px; margin-top: 8px;">
+              <div>[MAGI KERNEL] Initialized. Ready for audio session...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: 3D Vector FFT Oscilloscope -->
+        <div class="irix-window">
+          <div class="irix-w-title">
+            <span>VECTOR DSP OSCILLOSCOPE</span>
+            <span style="color:#00ff88;">48 kHz FFT</span>
+          </div>
+          <div class="irix-vector-dsp">
+            <canvas id="sgiOscilloscopeCanvas" width="340" height="150" style="width:100%; height:100%;"></canvas>
+          </div>
+          <div style="padding:14px; display:flex; flex-direction:column; gap:8px; font-size:11px; font-family:monospace;">
+            <div style="font-weight:700; color:#00ff88;">COUNCIL DIAGNOSTICS:</div>
+            <div>• Whisper Large-v3: Nominal (2.4 GB)</div>
+            <div>• Canary-Qwen-2.5B: Nominal (2.1 GB)</div>
+            <div>• Audex-2B Adjudicator: Standby</div>
+            <div style="margin-top:12px; padding:8px; background:#090e12; border:1px solid #2e4352;">
+              <span style="color:#eab308;">AUDEX ARBITRATION:</span><br>
+              Acoustic plurality verified on disputed phonemes.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Evangelion Hacker Terminal Modal for Stage 7 -->
+      <div id="sgiHackerTerminalModal" class="sgi-hacker-modal" style="display:none;">
+        <div class="sgi-hacker-window">
+          <div class="sgi-hacker-titlebar">
+            <span>MAGI SYSTEM KERNEL // SECURITY INTRUSION PURGE</span>
+            <span style="color:#a80808; font-weight:900;">[LEVEL-AAA EMERGENCY]</span>
+          </div>
+          <div class="sgi-hacker-body" id="sgiHackerTerminalStream">
+            <div class="hacker-line highlight">[ALERT] UNIDENTIFIED PATTERN BLOOD-TYPE: ORANGE</div>
+            <div class="hacker-line">[MAGI_KERNEL] INITIALIZING PURGE PROTOCOL 666...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =====================================================================
+         PARADIGM 4: SPATIAL NODE CANVAS (INFINITE 2D GRAPH)
+         ===================================================================== -->
+    <div id="shell-canvas" class="paradigm-shell">
+      <div class="canvas-viewport" id="canvasViewport">
+        <div class="canvas-plane" id="canvasPlane">
+          <!-- Dynamic SVG Bezier Connecting Cables -->
+          <svg class="canvas-svg-layer" id="canvasSvgLayer"></svg>
+
+          <!-- Core Node 1: Master Audio Ingest Node -->
+          <div class="canvas-node-card" id="canvasNodeAudio" style="left: 60px; top: 120px; width: 250px;">
+            <div class="node-hdr">
+              <span class="node-title">🎙️ Audio Engine Ingest</span>
+              <span style="color:#10b981;">SOURCE</span>
+            </div>
+            <div style="font-size: 11.5px; color: #94a3b8;">
+              <div id="canvasAudioFileName" style="font-weight:700; color:#fff; margin-bottom:4px;">Audio_Session.wav</div>
+              <div>48 kHz • 16-bit Mono</div>
+            </div>
+            <div style="display:flex; gap:6px; margin-top:6px;">
+              <button class="btn-primary btn-sm" onclick="if(window.wavesurferOrig) window.wavesurferOrig.playPause()" style="flex:1;">▶ / ❚❚</button>
+              <button class="btn-secondary btn-sm" onclick="document.getElementById('fileInput').click()">📂 Ingest</button>
+            </div>
+          </div>
+
+          <!-- Core Node 2: Juror Whisper Node -->
+          <div class="canvas-node-card" id="canvasNodeWhisper" style="left: 360px; top: 40px; width: 220px;">
+            <div class="node-hdr">
+              <span class="node-title">🤖 Juror 1: Whisper</span>
+              <span style="color:#10b981;">98%</span>
+            </div>
+            <div style="font-size: 11px; color: #cbd5e1;">OpenAI Whisper Large-v3</div>
+            <div style="height:4px; background:#1e293b; border-radius:2px; overflow:hidden; margin-top:4px;">
+              <div style="width:98%; height:100%; background:#10b981;"></div>
+            </div>
+          </div>
+
+          <!-- Core Node 3: Juror Canary Node -->
+          <div class="canvas-node-card" id="canvasNodeCanary" style="left: 360px; top: 150px; width: 220px;">
+            <div class="node-hdr">
+              <span class="node-title">🤖 Juror 2: Canary</span>
+              <span style="color:#f59e0b;">89%</span>
+            </div>
+            <div style="font-size: 11px; color: #cbd5e1;">NVIDIA Canary-Qwen 2.5B</div>
+            <div style="height:4px; background:#1e293b; border-radius:2px; overflow:hidden; margin-top:4px;">
+              <div style="width:89%; height:100%; background:#f59e0b;"></div>
+            </div>
+          </div>
+
+          <!-- Core Node 4: Juror Nova Node -->
+          <div class="canvas-node-card" id="canvasNodeNova" style="left: 360px; top: 260px; width: 220px;">
+            <div class="node-hdr">
+              <span class="node-title">🤖 Juror 3: Nova</span>
+              <span style="color:#10b981;">95%</span>
+            </div>
+            <div style="font-size: 11px; color: #cbd5e1;">Deepgram Nova-2 Architecture</div>
+            <div style="height:4px; background:#1e293b; border-radius:2px; overflow:hidden; margin-top:4px;">
+              <div style="width:95%; height:100%; background:#10b981;"></div>
+            </div>
+          </div>
+
+          <!-- Core Node 5: Consensus Verdict Hub Node -->
+          <div class="canvas-node-card" id="canvasNodeVerdict" style="left: 640px; top: 130px; width: 240px; border-color:#10b981;">
+            <div class="node-hdr">
+              <span class="node-title">⚖️ Consensus Hub</span>
+              <span style="color:#10b981; font-weight:800;">VERDICT</span>
+            </div>
+            <div style="font-size: 11.5px; color: #94a3b8;">
+              <div>Plurality Ratio: <strong style="color:#10b981;">2-1 Ratified</strong></div>
+              <div>Audex Confidence: <strong>96.2%</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Floating Canvas HUD Toolbar -->
+      <div class="canvas-hud-toolbar">
+        <button class="canvas-hud-btn" id="canvasBtnZoomIn" title="Zoom In">🔍 +</button>
+        <button class="canvas-hud-btn" id="canvasBtnZoomOut" title="Zoom Out">🔍 −</button>
+        <button class="canvas-hud-btn" id="canvasBtnReset" title="Reset View">🎯 Reset</button>
+        <span style="border-left: 1px solid rgba(255,255,255,0.15); height: 16px;"></span>
+        <button class="canvas-hud-btn" onclick="document.getElementById('fileInput').click()">📂 Ingest Audio</button>
+        <button class="canvas-hud-btn primary" id="canvasBtnSettings">⚙️ Settings Hub</button>
+      </div>
+    </div>
+  </div> <!-- /#paradigm-wrapper -->
+
+  <div class="modal-overlay" id="renameModal">
+    <div class="modal-content">
+      <div class="modal-title">Rename Speaker Aliases</div>
+      <div class="modal-inputs" id="aliasInputsContainer"></div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button class="btn-secondary" id="btnCancelRename">Cancel</button>
+        <button class="btn-primary" id="btnSaveAliases">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification History Drawer -->
+  <div class="notif-drawer-overlay" id="notifDrawerOverlay"></div>
+  <div class="notif-drawer" id="notifDrawer">
+    <div class="notif-drawer-header">
+      <div class="notif-drawer-title">
+        <span>🔔 Notification & Alert Center</span>
+        <span class="notif-drawer-count" id="drawerNotifCount">0 events</span>
+      </div>
+      <div class="notif-drawer-controls">
+        <button class="btn-secondary btn-sm" id="btnClearNotifHistory">Clear All</button>
+        <button class="btn-close-drawer" id="btnCloseNotifDrawer">✕</button>
+      </div>
+    </div>
+    <div class="notif-drawer-list" id="notifDrawerList">
+      <div class="notif-empty">No notifications yet.</div>
+    </div>
+  </div>
+
+  <script src="/static/paradigm_engine.js?v=2.0"></script>
+  <script src="/static/app.js?v=2.2"></script>
+  <script type="module">
+    import { MagiDisplay } from "/static/magi_display.js";
+    window.magiDisplay = new MagiDisplay("magiCanvas");
+
+    // Global CRT Master Toggle
+    window.toggleCRT = function(force) {
+      const isCurrentlyDisabled = document.body.classList.contains("crt-disabled");
+      const enable = (typeof force === "boolean") ? force : isCurrentlyDisabled;
+      if (enable) {
+        document.body.classList.remove("crt-disabled");
+        localStorage.setItem("transcript_suite_crt", "1");
+        if (window.magiDisplay) window.magiDisplay.setCRTActive(true);
+        const btn = document.getElementById("btnCrtToggle");
+        if (btn) {
+          btn.classList.remove("off");
+          btn.innerHTML = "⚡ CRT SHADER: ON";
+        }
+      } else {
+        document.body.classList.add("crt-disabled");
+        localStorage.setItem("transcript_suite_crt", "0");
+        if (window.magiDisplay) window.magiDisplay.setCRTActive(false);
+        const btn = document.getElementById("btnCrtToggle");
+        if (btn) {
+          btn.classList.add("off");
+          btn.innerHTML = "⚡ CRT SHADER: OFF";
+        }
+      }
+    };
+
+    // Restore saved CRT preference
+    const savedCRT = localStorage.getItem("transcript_suite_crt");
+    if (savedCRT === "0") {
+      window.toggleCRT(false);
+    } else {
+      window.toggleCRT(true);
+    }
+  </script>
+</body>
+</html>

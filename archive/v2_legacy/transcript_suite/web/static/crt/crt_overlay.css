@@ -1,0 +1,68 @@
+/* ==========================================================================
+   FULL-SCREEN CRT MONITOR OVERLAY & RETRO PHOSPHOR EFFECTS
+   Applies authentic 90s SGI / NERV CRT monitor visual artifacts across the entire viewport.
+   ========================================================================== */
+
+.crt-global-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 99990;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+  /* Scanlines + Aperture Grille RGB Subpixel Mask */
+  background: 
+    linear-gradient(rgba(10, 10, 10, 0) 50%, rgba(0, 0, 0, 0.32) 50%),
+    linear-gradient(90deg, rgba(255, 40, 0, 0.035), rgba(0, 255, 60, 0.02), rgba(0, 100, 255, 0.035));
+  background-size: 100% 3px, 3px 100%;
+  /* CRT Tube Vignette & Edge Roll-off */
+  box-shadow: 
+    inset 0 0 80px rgba(0, 0, 0, 0.85),
+    inset 0 0 160px rgba(0, 0, 0, 0.65),
+    inset 0 0 20px rgba(0, 0, 0, 0.95);
+  animation: crtPhosphorPulse 0.12s infinite;
+}
+
+@keyframes crtPhosphorPulse {
+  0% { opacity: 0.96; }
+  50% { opacity: 1.0; }
+  100% { opacity: 0.97; }
+}
+
+/* Master CRT Disable State */
+body.crt-disabled .crt-global-overlay,
+body.crt-disabled #crtcanvas {
+  display: none !important;
+  opacity: 0 !important;
+}
+
+body.crt-disabled canvas#magiCanvas {
+  opacity: 1 !important;
+}
+
+/* Phosphor Bloom & Terminal Chromatic Glow for Text in CRT Mode */
+body:not(.crt-disabled) .ev-glow-amber {
+  text-shadow: 0 0 4px rgba(236, 116, 32, 0.7), 0 0 8px rgba(236, 116, 32, 0.4);
+}
+
+body:not(.crt-disabled) .ev-glow-green {
+  text-shadow: 0 0 4px rgba(64, 152, 32, 0.8), 0 0 8px rgba(96, 240, 160, 0.4);
+}
+
+body:not(.crt-disabled) .ev-glow-red {
+  text-shadow: 0 0 5px rgba(255, 26, 26, 0.8), 0 0 10px rgba(255, 26, 26, 0.5);
+}
+
+body:not(.crt-disabled) .ev-glow-cyan {
+  text-shadow: 0 0 4px rgba(80, 144, 200, 0.8), 0 0 8px rgba(80, 144, 200, 0.4);
+}
+
+/* Subtle CRT Barrel Curvature on main screen container */
+.crt-screen-curved {
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+}

@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transcript Suite | 9 Aesthetics: Confirmed Modern & 90s Retrospective</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2310b981%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polygon points=%2211 5 6 9 2 9 2 15 6 15 11 19 11 5%22/><path d=%22M15.54 8.46a5 5 0 0 1 0 7.07%22/><path d=%22M19.07 4.93a10 10 0 0 1 0 14.14%22/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Geist+Mono:wght@400;500;600;700&family=Geist:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Orbitron:wght@600;800;900&family=Press+Start+2P&family=Space+Grotesk:wght@500;700&family=VT323&display=swap" rel="stylesheet">
+  <style>
+    /* ==========================================================================
+       GLOBAL RESET & TOP WORKBENCH CONTROLLER
+       ========================================================================== */
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    html, body {
+      height: 100vh;
+      overflow: hidden;
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      background: #000000;
+      color: #ededed;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+
+    .svg-icon {
+      width: 14px; height: 14px; stroke-width: 1.8; stroke: currentColor; fill: none;
+      stroke-linecap: round; stroke-linejoin: round; display: inline-block; vertical-align: middle; flex-shrink: 0;
+    }
+
+    /* TOP MASTER PROTOTYPE BAR */
+    .master-workbench-bar {
+      height: 52px;
+      background: #08090d;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      flex-shrink: 0;
+      z-index: 10000;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.7);
+    }
+    .brand-cluster { display: flex; align-items: center; gap: 10px; }
+    .brand-icon-box {
+      width: 30px; height: 30px; border-radius: 6px; background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35); display: flex; align-items: center; justify-content: center;
+      color: #10b981;
+    }
+    .brand-title { font-weight: 700; font-size: 13.5px; display: flex; align-items: center; gap: 6px; }
+    .pill-ver {
+      font-family: monospace; font-size: 9.5px; font-weight: 700; padding: 2px 7px;
+      background: #13161f; border: 1px solid rgba(255,255,255,0.12); color: #10b981; border-radius: 9999px;
+    }
+
+    /* PARADIGM SELECTOR GROUP */
+    .paradigm-selector {
+      display: flex; align-items: center; background: #0f1116; border: 1px solid rgba(255,255,255,0.1);
+      padding: 3px; border-radius: 8px; gap: 2px;
+    }
+    .sec-label { font-size: 10px; font-weight: 700; color: #5a6070; text-transform: uppercase; margin: 0 6px; }
+    .paradigm-btn {
+      background: transparent; border: none; color: #8a8f98; padding: 4px 8px; font-size: 11px;
+      font-weight: 600; border-radius: 5px; cursor: pointer; display: flex; align-items: center; gap: 5px;
+      transition: all 0.16s ease;
+    }
+    .paradigm-btn:hover { color: #ffffff; background: rgba(255,255,255,0.06); }
+    .paradigm-btn.active {
+      background: #10b981; color: #000000; font-weight: 700; box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+    }
+    .paradigm-btn.retro-btn.active {
+      background: #f59e0b; color: #000; box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+    }
+
+    /* TRANSCRIPT MODE TOGGLE */
+    .tmode-selector {
+      display: flex; align-items: center; background: #0f1116; border: 1px solid rgba(255,255,255,0.1);
+      padding: 3px; border-radius: 8px; gap: 2px;
+    }
+    .tmode-btn {
+      background: transparent; border: none; color: #8a8f98; padding: 4px 10px; font-size: 11px;
+      font-weight: 600; border-radius: 5px; cursor: pointer;
+    }
+    .tmode-btn.active { background: rgba(255,255,255,0.12); color: #ffffff; }
+
+    /* VIEW BASES */
+    .prototype-view {
+      display: none;
+      width: 100vw;
+      height: calc(100vh - 52px);
+      overflow: hidden;
+      position: relative;
+    }
+    .prototype-view.active { display: flex; }
+
+    /* ==========================================================================
+       1. HYBRID STUDIO (CONFIRMED KEEPER)
+       ========================================================================== */
+    #view-hybrid { background: #07080b; flex-direction: column; }
+    .hyb-header-telemetry {
+      height: 44px; background: #0e1015; border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 20px; flex-shrink: 0; font-size: 12px;
+    }
+    .hyb-main-body { flex: 1; display: flex; overflow: hidden; }
+    .hyb-left-nav {
+      width: 220px; background: #0a0c10; border-right: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 12px; display: flex; flex-direction: column; gap: 6px; flex-shrink: 0;
+    }
+    .hyb-stage-center { flex: 1; display: flex; flex-direction: column; overflow-y: auto; padding: 28px 48px; align-items: center; }
+    .hyb-right-panel {
+      width: 280px; background: #0a0c10; border-left: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 18px; display: flex; flex-direction: column; gap: 16px; flex-shrink: 0;
+    }
+    .hyb-bottom-nle-deck {
+      height: 124px; background: #0c0e12; border-top: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex; flex-direction: column; flex-shrink: 0; padding: 8px 16px;
+    }
+
+    /* ==========================================================================
+       2. BLOOMBERG TERMINAL (CONFIRMED KEEPER)
+       ========================================================================== */
+    #view-bloomberg {
+      background: #020304; color: #ff9900; font-family: "JetBrains Mono", monospace; font-size: 11px; flex-direction: column;
+    }
+    .bbg-top-ticker {
+      height: 32px; background: #07090d; border-bottom: 1px solid #201600;
+      display: flex; align-items: center; padding: 0 12px; font-size: 11px; font-weight: 700; gap: 20px;
+      overflow-x: auto; color: #ffaa00; text-shadow: 0 0 6px rgba(255, 170, 0, 0.35); flex-shrink: 0;
+    }
+    .bbg-grid-body { flex: 1; display: grid; grid-template-columns: 280px 1fr 340px; overflow: hidden; }
+    .bbg-col { border-right: 1px solid #1f1700; display: flex; flex-direction: column; overflow: hidden; background: #040507; }
+    .bbg-panel-hdr {
+      height: 26px; background: #140e00; border-bottom: 1px solid #332200; padding: 0 10px;
+      display: flex; align-items: center; justify-content: space-between; font-weight: 700; color: #ffbb33;
+    }
+    .bbg-transcript-stream { flex: 1; overflow-y: auto; padding: 16px; line-height: 1.7; }
+    .bbg-seg-line { margin-bottom: 12px; display: flex; gap: 12px; }
+    .bbg-code-gutter { color: #805500; width: 140px; flex-shrink: 0; }
+    .bbg-dispute-box { background: #331f00; border: 1px solid #ff9900; color: #ffea00; padding: 1px 5px; font-weight: 700; }
+
+    /* ==========================================================================
+       3. EDITORIAL CRAFT (CONFIRMED KEEPER)
+       ========================================================================== */
+    #view-editorial {
+      background: #141210; color: #ede5da; flex-direction: row; font-family: "Newsreader", Georgia, serif;
+    }
+    .edt-toc-rail {
+      width: 260px; background: #1b1815; border-right: 1px solid #2a2520; padding: 24px 20px;
+      display: flex; flex-direction: column; gap: 20px; font-family: "Inter", sans-serif; font-size: 12px; flex-shrink: 0;
+    }
+    .edt-reading-stage { flex: 1; overflow-y: auto; padding: 48px 80px; display: flex; justify-content: center; }
+    .edt-article-column { width: 100%; max-width: 680px; display: flex; flex-direction: column; gap: 24px; }
+    .edt-marginalia-rail {
+      width: 300px; background: #181512; border-left: 1px solid #2a2520; padding: 24px 20px;
+      display: flex; flex-direction: column; gap: 16px; font-family: "Inter", sans-serif; font-size: 11.5px; flex-shrink: 0;
+    }
+    .edt-comment-card {
+      background: #221d18; border: 1px solid #362e26; border-radius: 6px; padding: 12px;
+      display: flex; flex-direction: column; gap: 6px; color: #dfd5c8; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    /* ==========================================================================
+       4. SPATIAL CANVAS / FIGMA (CONFIRMED KEEPER)
+       ========================================================================== */
+    #view-canvas {
+      background: #111216; flex-direction: column;
+      background-image: radial-gradient(circle, #2b2f3a 1.2px, transparent 1.2px); background-size: 28px 28px;
+    }
+    .cnv-toolbar-float {
+      position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: #1e212b;
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 999px; padding: 4px 16px;
+      display: flex; align-items: center; gap: 14px; box-shadow: 0 12px 30px rgba(0,0,0,0.5); z-index: 500;
+      font-size: 11.5px; color: #d0d4dc;
+    }
+    .cnv-canvas-stage { flex: 1; position: relative; overflow: hidden; }
+    .cnv-node-card {
+      position: absolute; width: 280px; background: #191c26; border: 1.5px solid #2d3345;
+      border-radius: 10px; padding: 14px; box-shadow: 0 16px 36px rgba(0,0,0,0.6); display: flex; flex-direction: column; gap: 8px;
+    }
+    .cnv-decision-node {
+      position: absolute; width: 320px; background: #241a15; border: 1.5px solid #f59e0b;
+      border-radius: 10px; padding: 14px; box-shadow: 0 16px 36px rgba(0,0,0,0.6); color: #fef3c7;
+    }
+
+    /* ==========================================================================
+       5. WINDOWS 95 & WINAMP PRO (CONFIRMED 90'S KEEPER)
+       ========================================================================== */
+    #view-win95 {
+      background: #008080; flex-direction: column; font-family: "MS Sans Serif", Tahoma, sans-serif;
+      font-size: 11px; color: #000; padding: 12px; position: relative;
+    }
+    .w95-desktop-grid { flex: 1; display: flex; gap: 16px; overflow: hidden; position: relative; }
+    .w95-desktop-icons { width: 70px; display: flex; flex-direction: column; gap: 20px; align-items: center; flex-shrink: 0; }
+    .w95-d-icon { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #fff; font-size: 11px; text-shadow: 1px 1px 1px #000; cursor: pointer; }
+    .w95-icon-box { width: 32px; height: 32px; background: #c0c0c0; border: 2px outset #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #000; }
+    .w95-window { flex: 1; background: #c0c0c0; border: 2px outset #ffffff; box-shadow: 2px 2px 0px #000000; display: flex; flex-direction: column; max-width: 900px; }
+    .w95-titlebar {
+      height: 22px; background: linear-gradient(90deg, #000080, #1084d0); color: #ffffff; font-weight: 700;
+      display: flex; align-items: center; justify-content: space-between; padding: 0 4px;
+    }
+    .w95-btn-ctrl { width: 16px; height: 14px; background: #c0c0c0; border: 1.5px outset #fff; font-size: 9px; font-weight: 700; cursor: pointer; }
+    .w95-menubar { height: 22px; background: #c0c0c0; border-bottom: 1px solid #808080; display: flex; align-items: center; padding: 0 6px; gap: 12px; font-size: 11px; }
+    .w95-toolbar { height: 28px; background: #c0c0c0; border-bottom: 2px groove #fff; display: flex; align-items: center; padding: 0 6px; gap: 6px; }
+    .w95-toolbtn { background: #c0c0c0; border: 1.5px outset #fff; padding: 2px 8px; font-size: 11px; cursor: pointer; }
+    .w95-body { flex: 1; display: flex; padding: 6px; gap: 6px; overflow: hidden; }
+    .w95-text-editor { flex: 1; background: #ffffff; border: 2px inset #ffffff; padding: 12px; overflow-y: auto; font-size: 12px; line-height: 1.6; color: #000; }
+    .w95-dispute-hl { background: #ffff00; color: #000; border: 1px dotted #808000; padding: 0 2px; font-weight: 700; }
+    .w95-winamp-dock { width: 275px; background: #191919; border: 2px outset #555; padding: 6px; display: flex; flex-direction: column; gap: 6px; color: #00ff00; font-family: "VT323", monospace; }
+    .wa-lcd-display { background: #000; border: 2px inset #333; padding: 4px; height: 42px; display: flex; align-items: center; justify-content: space-between; font-size: 22px; color: #00ff00; }
+    .wa-eq-visualizer { height: 54px; background: #050505; border: 1px inset #222; display: flex; align-items: flex-end; justify-content: space-between; padding: 2px; }
+    .wa-eq-bar { width: 14px; background: linear-gradient(0deg, #00ff00 60%, #ffff00 85%, #ff0000 100%); }
+    .w95-taskbar { position: absolute; bottom: 0; left: 0; right: 0; height: 30px; background: #c0c0c0; border-top: 2px outset #fff; display: flex; align-items: center; justify-content: space-between; padding: 2px 4px; z-index: 1000; }
+    .w95-start-btn { height: 24px; background: #c0c0c0; border: 2px outset #fff; display: flex; align-items: center; gap: 6px; padding: 0 8px; font-weight: 700; cursor: pointer; }
+
+    /* ==========================================================================
+       6. SGI IRIX & NERV MAGI 1995 (CONFIRMED 90'S KEEPER)
+       ========================================================================== */
+    #view-irix { background: #141f26; color: #d6e2e8; font-family: "Space Grotesk", sans-serif; flex-direction: column; }
+    .irix-top-header { height: 36px; background: #1c2c36; border-bottom: 2px solid #3b5364; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; font-size: 12px; font-weight: 700; color: #a4c2d6; }
+    .irix-body { flex: 1; display: grid; grid-template-columns: 240px 1fr 340px; padding: 10px; gap: 10px; overflow: hidden; }
+    .irix-window { background: #1a2730; border: 3px solid #2e4352; box-shadow: inset 1px 1px 0 #4a6a82, 3px 3px 0 #080c10; display: flex; flex-direction: column; overflow: hidden; }
+    .irix-w-title { height: 24px; background: #2d4554; border-bottom: 2px solid #141f26; color: #ffffff; font-weight: 700; font-size: 11px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; }
+    .magi-panel-banner { background: #2a1005; border: 2px solid #ff5500; padding: 8px 12px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; font-family: "Orbitron", monospace; }
+    .magi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+    .magi-box { background: #0d151c; border: 2px solid #2e4352; padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-family: "Orbitron", monospace; font-size: 10px; text-align: center; }
+    .magi-box.agree { border-color: #00ff88; color: #00ff88; text-shadow: 0 0 6px rgba(0,255,136,0.5); }
+    .magi-box.dissent { border-color: #ff3300; color: #ff3300; text-shadow: 0 0 6px rgba(255,51,0,0.5); }
+
+    /* ==========================================================================
+       7. 90's AESTHETIC 3: BeOS (1995) MULTIMEDIA OPERATING SYSTEM
+       Sunshine Yellow Asymmetric Title Tab, Deskbar, Ribbed Bevels
+       ========================================================================== */
+    #view-beos {
+      background: #336699; /* Classic BeOS Blue Desktop */
+      flex-direction: column;
+      padding: 16px;
+      font-family: "Inter", sans-serif;
+      font-size: 12px;
+      color: #000;
+      position: relative;
+    }
+    .beos-deskbar-floating {
+      position: absolute; top: 16px; right: 16px; width: 140px; background: #dcdcdc;
+      border: 2px outset #fff; box-shadow: 2px 2px 5px rgba(0,0,0,0.4); display: flex; flex-direction: column; z-index: 500;
+    }
+    .beos-deskbar-hdr {
+      height: 24px; background: #c4c4c4; border-bottom: 1px solid #888; display: flex; align-items: center;
+      padding: 0 6px; font-weight: 800; font-size: 11px; gap: 4px;
+    }
+    .beos-logo-b { color: #0033cc; } .beos-logo-e { color: #cc0000; }
+    .beos-deskbar-item { padding: 4px 8px; border-bottom: 1px solid #bbb; font-size: 11px; cursor: pointer; }
+    .beos-deskbar-item:hover { background: #336699; color: #fff; }
+
+    /* BeOS Yellow Tabbed Window */
+    .beos-window-wrap { width: 880px; display: flex; flex-direction: column; margin-top: 10px; }
+    .beos-tab-title {
+      align-self: flex-start;
+      height: 22px;
+      background: #fcd116; /* Authentic BeOS Yellow */
+      border: 1.5px solid #000000;
+      border-bottom: none;
+      border-top-left-radius: 4px;
+      border-top-right-radius: 4px;
+      padding: 2px 14px;
+      font-weight: 700;
+      font-size: 11.5px;
+      color: #000000;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .beos-window-frame {
+      background: #d8d8d8;
+      border: 2px solid #000000;
+      box-shadow: 3px 3px 10px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .beos-win-menu {
+      height: 24px; background: #c8c8c8; border-bottom: 1px solid #999; display: flex; align-items: center;
+      padding: 0 10px; gap: 14px; font-size: 11.5px; font-weight: 500;
+    }
+    .beos-doc-body {
+      padding: 16px; background: #ffffff; border: 2px inset #ffffff; margin: 8px; min-height: 260px; overflow-y: auto;
+      font-size: 12.5px; line-height: 1.65; color: #000;
+    }
+
+    /* ==========================================================================
+       8. 90's AESTHETIC 4: NETSCAPE NAVIGATOR 3.0 & WEB 1.0 (1996)
+       Tiled Granite Table, Gold Spinning Compass, Marquee, Hit Counter Odometer
+       ========================================================================== */
+    #view-netscape {
+      background: #c0c0c0;
+      flex-direction: column;
+      font-family: "Times New Roman", Times, serif;
+      color: #000;
+    }
+    .ns-browser-top {
+      background: #c0c0c0; border-bottom: 2px groove #fff; display: flex; flex-direction: column; flex-shrink: 0;
+    }
+    .ns-win-title {
+      height: 20px; background: #000080; color: #fff; display: flex; align-items: center; justify-content: space-between;
+      padding: 0 6px; font-family: sans-serif; font-size: 10px; font-weight: 700;
+    }
+    .ns-menu {
+      height: 20px; display: flex; align-items: center; padding: 0 6px; gap: 10px; font-family: sans-serif; font-size: 10.5px;
+    }
+    .ns-btn-row {
+      display: flex; align-items: center; padding: 4px 6px; gap: 4px; border-top: 1px solid #808080;
+    }
+    .ns-btn {
+      background: #c0c0c0; border: 2px outset #fff; padding: 3px 8px; font-family: sans-serif; font-size: 10px;
+      font-weight: 700; cursor: pointer;
+    }
+    .ns-btn:active { border: 2px inset #fff; }
+    .ns-compass-box {
+      width: 38px; height: 38px; background: #000; border: 2px inset #fff; margin-left: auto;
+      display: flex; align-items: center; justify-content: center; color: #ffcc00; font-size: 20px;
+      animation: pulseCompass 2s infinite ease-in-out;
+    }
+    @keyframes pulseCompass { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+    .ns-location-row {
+      display: flex; align-items: center; padding: 3px 6px; gap: 8px; font-family: sans-serif; font-size: 11px;
+      border-top: 1px solid #808080;
+    }
+    .ns-loc-input { flex: 1; background: #fff; border: 2px inset #fff; padding: 2px 6px; font-family: monospace; font-size: 11px; }
+
+    /* Web 1.0 Page Body */
+    .ns-page-viewport {
+      flex: 1; overflow-y: auto; padding: 20px; background: #d0d0d0;
+    }
+    .web10-table {
+      width: 100%; max-width: 920px; margin: 0 auto; background: #ffffff; border: 3px outset #808080;
+      border-collapse: separate; border-spacing: 4px; padding: 8px;
+    }
+    .web10-hdr-cell {
+      background: #000080; color: #ffff00; font-family: sans-serif; font-size: 18px; font-weight: 700; padding: 8px; text-align: center;
+    }
+    .web10-nav-col {
+      width: 180px; vertical-align: top; background: #e0e0e0; border: 2px inset #fff; padding: 10px; font-family: sans-serif; font-size: 11px;
+    }
+    .web10-content-col {
+      vertical-align: top; padding: 16px; border: 2px inset #fff; font-size: 13.5px; line-height: 1.6;
+    }
+    .web10-dispute-alert {
+      background: #ffff99; border: 2px dashed #ff0000; padding: 8px; margin: 10px 0; font-family: sans-serif; font-size: 11.5px;
+    }
+    .web10-hit-counter {
+      display: inline-flex; background: #000; border: 2px inset #fff; padding: 2px 6px; font-family: monospace; font-size: 13px; color: #00ff00; font-weight: 700;
+    }
+
+    /* ==========================================================================
+       9. 90's AESTHETIC 5: PLAYSTATION 1 BIOS & CD PLAYER (1994)
+       Cosmic Gradient Void, 3D Memory Card Slots, SoundScope Visualizer
+       ========================================================================== */
+    #view-ps1 {
+      background: radial-gradient(circle at 50% 40%, #1a1b40 0%, #060714 100%);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-family: "Space Grotesk", sans-serif;
+      padding: 24px;
+    }
+    .ps1-chassis {
+      width: 960px;
+      height: 600px;
+      background: rgba(14, 16, 38, 0.85);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 16px;
+      box-shadow: 0 30px 90px rgba(0,0,0,0.85);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .ps1-header {
+      height: 54px; background: rgba(255,255,255,0.04); border-bottom: 1px solid rgba(255,255,255,0.12);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 24px;
+    }
+    .ps1-logo { font-size: 18px; font-weight: 800; letter-spacing: 0.05em; color: #fff; }
+    .ps1-body { flex: 1; display: grid; grid-template-columns: 320px 1fr; overflow: hidden; }
+
+    /* Floating 3D Memory Card Slots */
+    .ps1-mem-col {
+      border-right: 1px solid rgba(255,255,255,0.1); padding: 20px; display: flex; flex-direction: column; gap: 14px;
+    }
+    .ps1-memcard {
+      background: #252844; border: 2px solid #4a5078; border-radius: 8px; padding: 12px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 6px;
+    }
+    .ps1-memcard.active { border-color: #00ffcc; box-shadow: 0 0 16px rgba(0,255,204,0.4); }
+
+    /* SoundScope Player Stage */
+    .ps1-player-stage {
+      padding: 24px; display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .ps1-disc-center {
+      height: 180px; border-radius: 12px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1);
+      display: flex; align-items: center; justify-content: space-around; padding: 20px;
+    }
+    .ps1-spinning-cd {
+      width: 120px; height: 120px; border-radius: 999px;
+      background: radial-gradient(circle, #333 15%, #aaa 25%, #666 40%, #bbb 60%, #444 80%);
+      border: 3px solid #888; box-shadow: 0 0 20px rgba(255,255,255,0.2);
+      display: flex; align-items: center; justify-content: center; animation: spinDisc 6s linear infinite;
+    }
+    @keyframes spinDisc { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    .ps1-btn-badge {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #a5b4fc; font-weight: 600;
+    }
+    .ps1-ctrl-symbol {
+      width: 18px; height: 18px; border-radius: 999px; border: 1.5px solid currentColor;
+      display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800;
+    }
+
+    /* ==========================================================================
+       PRESENTATION DUAL-MODE CLASSES (CONTINUOUS vs TACTILE)
+       ========================================================================== */
+    .mode-continuous .transcript-row-card {
+      background: transparent !important; border: none !important; box-shadow: none !important; padding: 8px 0 !important;
+    }
+    .mode-tactile .transcript-row-card {
+      background: rgba(255, 255, 255, 0.05) !important;
+      border: 1px solid rgba(255, 255, 255, 0.12) !important;
+      border-radius: 8px !important;
+      padding: 14px !important;
+      margin-bottom: 10px !important;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3) !important;
+    }
+  </style>
+</head>
+<body class="mode-continuous">
+
+  <!-- ==========================================================================
+       TOP PROTOTYPE WORKBENCH CONTROLLER (9 AESTHETIC PARADIGMS)
+       ========================================================================== -->
+  <header class="master-workbench-bar">
+    <div class="brand-cluster">
+      <div class="brand-icon-box">
+        <svg class="svg-icon" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+      </div>
+      <div class="brand-title">
+        <span>Transcript Suite</span>
+        <span class="pill-ver">9 Paradigms</span>
+      </div>
+    </div>
+
+    <!-- 9 PARADIGMS: 4 CONFIRMED + 5 ICONIC 90S ENGINES -->
+    <div class="paradigm-selector">
+      <span class="sec-label">Confirmed:</span>
+      <button class="paradigm-btn" onclick="switchParadigm('hybrid')" id="btn-hybrid">
+        Hybrid Studio
+      </button>
+      <button class="paradigm-btn" onclick="switchParadigm('bloomberg')" id="btn-bloomberg">
+        Bloomberg
+      </button>
+      <button class="paradigm-btn" onclick="switchParadigm('editorial')" id="btn-editorial">
+        Editorial
+      </button>
+      <button class="paradigm-btn" onclick="switchParadigm('canvas')" id="btn-canvas">
+        Spatial Canvas
+      </button>
+
+      <span class="sec-label" style="color: #f59e0b; margin-left: 6px;">★ 90's Focus:</span>
+      <button class="paradigm-btn retro-btn" onclick="switchParadigm('win95')" id="btn-win95">
+        Win95 & WinAmp
+      </button>
+      <button class="paradigm-btn retro-btn" onclick="switchParadigm('irix')" id="btn-irix">
+        SGI / MAGI 1995
+      </button>
+      <button class="paradigm-btn retro-btn active" onclick="switchParadigm('beos')" id="btn-beos">
+        BeOS 1995
+      </button>
+      <button class="paradigm-btn retro-btn" onclick="switchParadigm('netscape')" id="btn-netscape">
+        Netscape 3.0
+      </button>
+      <button class="paradigm-btn retro-btn" onclick="switchParadigm('ps1')" id="btn-ps1">
+        PlayStation 1
+      </button>
+    </div>
+
+    <!-- TRANSCRIPT PRESENTATION MODE -->
+    <div class="tmode-selector">
+      <button class="tmode-btn active" onclick="setTranscriptMode('continuous')" id="mode-continuous-btn">
+        Continuous
+      </button>
+      <button class="tmode-btn" onclick="setTranscriptMode('tactile')" id="mode-tactile-btn">
+        Tactile
+      </button>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       1. HYBRID STUDIO (CONFIRMED KEEPER)
+       ========================================================================== -->
+  <main class="prototype-view" id="view-hybrid">
+    <header class="hyb-header-telemetry">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <span style="font-weight: 700; color: #10b981;">HYBRID STUDIO</span>
+        <span style="color: #475569;">|</span>
+        <span style="font-family: monospace; color: #fff;">00:04.280 / 14:20.000</span>
+        <span style="color: #475569;">|</span>
+        <span style="font-size: 11px; color: #10b981; font-weight: 600;">SMPTE 01:00:04:18</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 10px; color: #94a3b8; font-family: monospace;">L/R PEAK</span>
+          <div style="width: 60px; height: 6px; background: #151820; border-radius: 2px; overflow: hidden; display: flex;">
+            <div style="width: 78%; background: linear-gradient(90deg, #10b981 70%, #ef4444 100%);"></div>
+          </div>
+          <span style="font-family: monospace; font-size: 10px; color: #10b981;">-6.2 dBFS</span>
+        </div>
+        <button style="background: #1e2430; border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px;">⌘K Command</button>
+      </div>
+    </header>
+    <div class="hyb-main-body">
+      <aside class="hyb-left-nav">
+        <div style="font-size: 10px; font-weight: 700; color: #475569; letter-spacing: 0.08em; margin-bottom: 4px;">WORKSPACE</div>
+        <div style="padding: 7px 10px; border-radius: 6px; background: rgba(16,185,129,0.12); color: #10b981; font-weight: 600; font-size: 12px;">Q4 Earnings Call</div>
+      </aside>
+      <div class="hyb-stage-center">
+        <div style="width: 100%; max-width: 800px; display: flex; flex-direction: column; gap: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 14px;">
+            <h2 style="font-size: 20px; font-weight: 700; color: #fff;">Earnings Call Q4 2026 Editorial Master</h2>
+            <button style="background: #10b981; color: #000; border: none; padding: 6px 14px; border-radius: 6px; font-weight: 700; font-size: 11.5px;">Finalize & Sign</button>
+          </div>
+          <div class="transcript-row-card">
+            <div style="font-size: 11px; color: #10b981; font-weight: 700;">ARTHUR M. (CEO) • 00:00.000</div>
+            <div style="font-size: 14px; line-height: 1.6; color: #e2e8f0;">Good morning everyone and welcome to our fourth quarter financial earnings conference call.</div>
+          </div>
+          <div class="transcript-row-card" style="border-left: 2px solid #f59e0b; padding-left: 12px;">
+            <div style="font-size: 11px; color: #f59e0b; font-weight: 700;">ELENA V. (CFO) • 00:04.280 • 2/3 JUROR SPLIT</div>
+            <div style="font-size: 14px; line-height: 1.6; color: #e2e8f0;">In our enterprise segment, we anticipate a slight <strong style="color: #f59e0b;">uptick</strong> in recurring margins through next quarter.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ==========================================================================
+       2. BLOOMBERG TERMINAL (CONFIRMED KEEPER)
+       ========================================================================== -->
+  <main class="prototype-view" id="view-bloomberg">
+    <div class="bbg-top-ticker">
+      <div>AUDIO_SNR: 28.4dB ▲</div><div>RTFX_VEL: 6.8x ▲</div><div>WHISPER_L3: 98.2% ▲</div><div>CANARY_1B: 94.1% ▼</div>
+    </div>
+    <div class="bbg-grid-body">
+      <div class="bbg-col">
+        <div class="bbg-panel-hdr"><span>&lt;FEED: ACTIVE_JOBS&gt;</span></div>
+        <div style="padding: 10px; color: #00ff66;">• EARNINGS_CALL_Q4.WAV [ACTIVE]</div>
+      </div>
+      <div class="bbg-col">
+        <div class="bbg-panel-hdr"><span>&lt;TERMINAL: CONSENSUS_STREAM&gt;</span></div>
+        <div class="bbg-transcript-stream">
+          <div class="bbg-seg-line transcript-row-card">
+            <div class="bbg-code-gutter">[00:00.000][AM_01]</div>
+            <div style="color: #ffcc66;">Good morning everyone and welcome to our fourth quarter financial earnings conference call.</div>
+          </div>
+          <div class="bbg-seg-line transcript-row-card">
+            <div class="bbg-code-gutter">[00:04.280][EV_02]</div>
+            <div style="color: #ffcc66;">In our enterprise segment, we anticipate a slight <span class="bbg-dispute-box">&lt;DISPUTE: UPTICK [2] vs UPTURN [1]&gt;</span> in recurring margins.</div>
+          </div>
+        </div>
+      </div>
+      <div class="bbg-col" style="border-right: none;">
+        <div class="bbg-panel-hdr"><span>&lt;JUROR_VOTE_ENGINE&gt;</span></div>
+        <div style="padding: 12px; color: #ffaa00;">
+          <div>WHISPER: "UPTICK" [CONF: 0.98]</div>
+          <div>CANARY: "UPTURN" [CONF: 0.89]</div>
+          <div>NOVA-2: "UPTICK" [CONF: 0.94]</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ==========================================================================
+       3. EDITORIAL CRAFT (CONFIRMED KEEPER)
+       ========================================================================== -->
+  <main class="prototype-view" id="view-editorial">
+    <aside class="edt-toc-rail">
+      <div style="font-family: 'Cinzel', serif; font-size: 14px; color: #c4a47c; font-weight: 700;">The Transcript Review</div>
+      <div style="color: #a69b8f;">• Arthur M., Chief Executive</div>
+    </aside>
+    <div class="edt-reading-stage">
+      <article class="edt-article-column">
+        <h1 style="font-size: 32px; font-style: italic; color: #faf5ee;">A Retrospective on Capital Discipline and Cloud Scale</h1>
+        <div class="transcript-row-card">
+          <p style="font-size: 17px; line-height: 1.75; color: #dfd5c8; text-indent: 2em;">
+            Good morning everyone and welcome to our fourth quarter financial earnings conference call.
+          </p>
+        </div>
+      </article>
+    </div>
+    <aside class="edt-marginalia-rail">
+      <div class="edt-comment-card">
+        <div style="color: #c4a47c; font-weight: 600;">Phoneme Ambiguity (00:07.450)</div>
+        <div style="font-size: 11px;">Whisper transcribed "uptick" while Canary transcribed "upturn". Council voted 2-1 for uptick.</div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ==========================================================================
+       4. SPATIAL CANVAS (CONFIRMED KEEPER)
+       ========================================================================== -->
+  <main class="prototype-view" id="view-canvas">
+    <div class="cnv-toolbar-float">
+      <button style="background: #3b82f6; border: none; color: #fff; padding: 4px 8px; border-radius: 4px; font-weight: 600;">Select (V)</button>
+      <span>Connector (W)</span>
+    </div>
+    <div class="cnv-canvas-stage">
+      <div class="cnv-node-card transcript-row-card" style="left: 100px; top: 120px;">
+        <div style="font-weight: 700; color: #60a5fa; font-size: 10px;">NODE #1 • ARTHUR M.</div>
+        <div style="font-size: 12px; color: #cbd5e1;">"Good morning everyone and welcome..."</div>
+      </div>
+      <div class="cnv-decision-node transcript-row-card" style="left: 500px; top: 190px;">
+        <div style="font-weight: 700; font-size: 10px; color: #fde68a;">BRANCH DECISION #2 • ELENA V.</div>
+        <div style="font-size: 12px; margin-top: 4px;">"...we anticipate a slight <strong style="color: #fbbf24;">[uptick vs upturn]</strong>..."</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ==========================================================================
+       5. WINDOWS 95 & WINAMP PRO (CONFIRMED 90'S KEEPER)
+       ========================================================================== -->
+  <main class="prototype-view" id="view-win95">
+    <div class="w95-desktop-grid">
+      <div class="w95-desktop-icons">
+        <div class="w95-d-icon"><div class="w95-icon-box">📁</div><span>My Audio</span></div>
+        <div class="w95-d-icon"><div class="w95-icon-box">⚖</div><span>Council</span></div>
+      </div>
+      <div class="w95-window">
+        <div class="w95-titlebar">
+          <div>🎙 Earnings_Call_Q4.wav - Transcript Suite 95</div>
+          <div class="w95-win-ctrls"><button class="w95-btn-ctrl">_</button><button class="w95-btn-ctrl">□</button><button class="w95-btn-ctrl">✕</button></div>
+        </div>
+        <div class="w95-menubar"><span><u>F</u>ile</span><span><u>E</u>dit</span><span><u>J</u>urors</span><span><u>H</u>elp</span></div>
+        <div class="w95-body">
+          <div class="w95-text-editor">
+            <div class="transcript-row-card"><strong>[00:00.000] Arthur M.:</strong> Good morning everyone and welcome to our fourth quarter financial earnings conference call.</div>
+            <div class="transcript-row-card" style="margin-top: 8px;"><strong>[00:04.280] Elena V.:</strong> In our enterprise segment, we anticipate a slight <span class="w95-dispute-hl">uptick [?]</span> in recurring margins through next quarter.</div>
+          </div>
+          <div class="w95-winamp-dock">
+            <div class="wa-lcd-display"><span>00:04</span><span style="font-size: 14px;">48k 24b</span></div>
+            <div class="wa-eq-visualizer">
+              <div class="wa-eq-bar" style="height: 40%;"></div><div class="wa-eq-bar" style="height: 70%;"></div>
+              <div class="wa-eq-bar" style="height: 90%;"></div><div class="wa-eq-bar" style="height: 50%;"></div>
+            </div>
+            <div style="font-size: 12px; color: #00ff00;">JUROR CONSENSUS: 94.8%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="w95-taskbar">
+      <button class="w95-start-btn"><span style="color: #ff0000; font-weight: 900;">❖</span> Start</button>
+      <div style="border: 2px inset #fff; padding: 2px 6px;">12:03 PM</div>
+    </div>
+  </main>
+
+  <!-- ==========================================================================
+       6. SGI IRIX & NERV MAGI 1995 (CONFIRMED 90'S KEEPER)
+       ========================================================================== -->
+  <main class="prototype-view" id="view-irix">
+    <header class="irix-top-header">
+      <div>■ Silicon Graphics IRIX 6.2 // MAGI COUNCIL AUDIO KERNEL</div>
+      <div>SESSION: Q4_EARNINGS.SGI</div>
+    </header>
+    <div class="irix-body">
+      <div class="irix-window">
+        <div class="irix-w-title"><span>SGI TOOLCHEST</span></div>
+        <div style="padding: 10px; font-size: 11px;">▸ MAGI Council<br>▸ DSP Octane FFT</div>
+      </div>
+      <div class="irix-window">
+        <div class="irix-w-title"><span>MAGI DECISION ENGINE</span></div>
+        <div style="padding: 16px;">
+          <div class="magi-panel-banner"><div>STATUS: DELIBERATION RATIFIED</div><div style="color: #00ff88;">MAJORITY 2-1 OK</div></div>
+          <div class="magi-grid">
+            <div class="magi-box agree"><div>MAGI-1 // MELCHIOR</div><div style="font-weight: 800;">"UPTICK"</div></div>
+            <div class="magi-box dissent"><div>MAGI-2 // BALTHASAR</div><div style="font-weight: 800;">"UPTURN"</div></div>
+            <div class="magi-box agree"><div>MAGI-3 // CASPER</div><div style="font-weight: 800;">"UPTICK"</div></div>
+          </div>
+          <div style="background: #0d151c; border: 2px solid #2e4352; padding: 12px; font-family: monospace; font-size: 12px;">
+            [00:04.280] ELENA_V: In our enterprise segment, we anticipate a slight <strong style="background: #ff5500; color: #000; padding: 1px 4px;">UPTICK</strong> in recurring margins.
+          </div>
+        </div>
+      </div>
+      <div class="irix-window">
+        <div class="irix-w-title"><span>VECTOR DSP</span></div>
+        <div style="height: 120px; background: #05080c; display: flex; align-items: center; justify-content: center; color: #00ff88; font-family: monospace;">
+          [ 3D Vector Wireframe FFT Oscilloscope ]
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ==========================================================================
+       7. 90's AESTHETIC 3: BeOS (1995) MULTIMEDIA OS
+       ========================================================================== -->
+  <main class="prototype-view active" id="view-beos">
+    <!-- BeOS Deskbar Floating in Top-Right -->
+    <div class="beos-deskbar-floating">
+      <div class="beos-deskbar-hdr">
+        <span class="beos-logo-b">B</span><span class="beos-logo-e">e</span>
+        <span>Deskbar</span>
+      </div>
+      <div class="beos-deskbar-item">Applications ▸</div>
+      <div class="beos-deskbar-item">Council Media ▸</div>
+      <div class="beos-deskbar-item">12:03 PM [48kHz]</div>
+    </div>
+
+    <!-- BeOS Main Window with iconic Sunshine Yellow Asymmetric Title Tab -->
+    <div class="beos-window-wrap">
+      <div class="beos-tab-title">
+        <span style="font-size: 12px;">★</span>
+        <span>Earnings_Call_Q4.wav — BeOS Audio Studio</span>
+      </div>
+      <div class="beos-window-frame">
+        <div class="beos-win-menu">
+          <span>File</span><span>Edit</span><span>Multi-Thread Jurors</span><span>DSP Tracker</span><span>Help</span>
+        </div>
+
+        <div style="padding: 10px 14px; background: #c8c8c8; border-bottom: 1px solid #999; display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button style="background: #d8d8d8; border: 1.5px outset #fff; padding: 2px 10px; font-weight: 700; cursor: pointer;">▶ Play</button>
+            <button style="background: #d8d8d8; border: 1.5px outset #fff; padding: 2px 10px; cursor: pointer;">❚❚ Pause</button>
+            <span style="font-family: monospace; font-size: 11px;">00:04.280 / 14:20.000</span>
+          </div>
+          <div style="font-size: 11px; font-weight: 700; color: #0033cc;">
+            BeOS Multi-Threaded Engine: 4 Core Juror Threads Nominal
+          </div>
+        </div>
+
+        <div class="beos-doc-body">
+          <div class="transcript-row-card" style="margin-bottom: 14px;">
+            <div style="font-weight: 700; color: #0033cc; margin-bottom: 2px;">Arthur M. (CEO) — 00:00.000 ➔ 00:04.280</div>
+            <div>Good morning everyone and welcome to our fourth quarter financial earnings conference call. Today we are reviewing our annual performance and operating margins across all key cloud platforms.</div>
+          </div>
+
+          <div class="transcript-row-card" style="margin-bottom: 14px; border-left: 3px solid #fcd116; padding-left: 10px;">
+            <div style="font-weight: 700; color: #cc6600; margin-bottom: 2px;">Elena V. (CFO) — 00:04.280 ➔ 00:10.150 • Dispute: 2-1 Plurality</div>
+            <div>Thank you Arthur. As outlined in our regulatory filing, our revenue expanded by fourteen percent year over year. In our enterprise segment, we anticipate a slight
+              <span style="background: #fcd116; border: 1px solid #000; padding: 1px 4px; font-weight: 700;">uptick [?]</span>
+              in recurring margins through next quarter.
+            </div>
+          </div>
+
+          <div class="transcript-row-card">
+            <div style="font-weight: 700; color: #0033cc; margin-bottom: 2px;">Elena V. — 00:10.150 ➔ 00:15.820</div>
+            <div>Capital expenditures remained disciplined at twenty-four million dollars, reflecting our strategic realignment towards high-throughput inference silicon.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ==========================================================================
+       8. 90's AESTHETIC 4: NETSCAPE NAVIGATOR 3.0 & WEB 1.0 (1996)
+       ========================================================================== -->
+  <main class="prototype-view" id="view-netscape">
+    <!-- Netscape Browser Top Chrome -->
+    <div class="ns-browser-top">
+      <div class="ns-win-title">
+        <span>Netscape - [Transcript Suite Council Proceedings 1996]</span>
+        <div style="display: flex; gap: 2px;">
+          <button style="width: 14px; height: 12px; font-size: 8px;">_</button>
+          <button style="width: 14px; height: 12px; font-size: 8px;">□</button>
+          <button style="width: 14px; height: 12px; font-size: 8px;">✕</button>
+        </div>
+      </div>
+      <div class="ns-menu">
+        <span>File</span><span>Edit</span><span>View</span><span>Go</span><span>Bookmarks</span><span>Options</span><span>Directory</span><span>Window</span><span>Help</span>
+      </div>
+      <div class="ns-btn-row">
+        <button class="ns-btn">Back ◄</button>
+        <button class="ns-btn">Forward ►</button>
+        <button class="ns-btn">Home 🏠</button>
+        <button class="ns-btn">Reload 🔄</button>
+        <button class="ns-btn">Images 🖼</button>
+        <button class="ns-btn">Open 📂</button>
+        <button class="ns-btn">Print 🖨</button>
+        <button class="ns-btn">Find 🔍</button>
+        <button class="ns-btn">Stop 🛑</button>
+
+        <!-- Netscape Gold Compass Box -->
+        <div class="ns-compass-box" title="Netscape 3.0 Gold Compass">
+          <span>🧭</span>
+        </div>
+      </div>
+      <div class="ns-location-row">
+        <span>Location:</span>
+        <input type="text" class="ns-loc-input" value="http://www.transcript-suite.org/q4_earnings_1996.html" readonly>
+      </div>
+    </div>
+
+    <!-- Web 1.0 Document Page Viewport -->
+    <div class="ns-page-viewport">
+      <table class="web10-table">
+        <tr>
+          <td colspan="2" class="web10-hdr-cell">
+            *** TRANSCRIPT SUITE 1996: EXECUTIVE PROCEEDINGS ***
+          </td>
+        </tr>
+        <tr>
+          <!-- Left Navigation Column -->
+          <td class="web10-nav-col">
+            <strong>SITE INDEX:</strong><br><br>
+            <a href="#" style="color: #0000ff;">• Audio Stream</a><br>
+            <a href="#" style="color: #0000ff;">• Council Jurors</a><br>
+            <a href="#" style="color: #0000ff;">• Voting Ledger</a><br>
+            <a href="#" style="color: #0000ff;">• Sign Guestbook</a><br><br>
+            <hr>
+            <div style="font-size: 10px; margin-top: 8px; color: #555;">
+              Best viewed with Netscape Navigator 3.0 at 800x600 resolution.
+            </div>
+          </td>
+
+          <!-- Main Content Column -->
+          <td class="web10-content-col">
+            <h2 style="font-size: 20px; color: #800000; margin-bottom: 6px;">Q4 Financial Earnings Conference Call</h2>
+            <div style="font-size: 11px; font-style: italic; margin-bottom: 12px;">Transcribed via 3-Model Ensemble Engine • October 1996</div>
+
+            <div class="transcript-row-card">
+              <p>
+                <strong>Arthur M. (Chief Executive Officer):</strong><br>
+                Good morning everyone and welcome to our fourth quarter financial earnings conference call. Today we are reviewing our annual performance and operating margins across all key cloud platforms.
+              </p>
+            </div>
+
+            <div class="web10-dispute-alert">
+              <strong>[!] ATTENTION JURORS: DISPUTE DETECTED IN AUDIO STREAM</strong><br>
+              Audio Timestamp: 00:04.280<br>
+              Whisper Juror: <em>"uptick"</em> | Canary Juror: <em>"upturn"</em> | Nova Juror: <em>"uptick"</em><br>
+              Current Status: <strong>RATIFIED BY 2-1 PLURALITY</strong>
+            </div>
+
+            <div class="transcript-row-card">
+              <p>
+                <strong>Elena V. (Chief Financial Officer):</strong><br>
+                Thank you Arthur. As outlined in our regulatory filing, our revenue expanded by fourteen percent year over year. In our enterprise segment, we anticipate a slight
+                <span style="background: #ffff00; font-weight: 700; border: 1px dotted #ff0000;">uptick</span>
+                in recurring margins through next quarter.
+              </p>
+            </div>
+
+            <hr style="margin: 20px 0;">
+
+            <div style="text-align: center; font-family: sans-serif; font-size: 11px;">
+              YOU ARE VISITOR NUMBER:<br>
+              <div class="web10-hit-counter">0 0 4 8 2 9 1</div>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </div>
+  </main>
+
+  <!-- ==========================================================================
+       9. 90's AESTHETIC 5: PLAYSTATION 1 BIOS & CD PLAYER (1994)
+       ========================================================================== -->
+  <main class="prototype-view" id="view-ps1">
+    <div class="ps1-chassis">
+      <header class="ps1-header">
+        <div class="ps1-logo">SONY PlayStation Audio CD Player</div>
+        <div style="font-family: monospace; font-size: 12px; color: #a5b4fc;">SYSTEM VERSION 1.1 // 1994 SCEI</div>
+      </header>
+
+      <div class="ps1-body">
+        <!-- Memory Card Juror Slots on Left -->
+        <div class="ps1-mem-col">
+          <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #a5b4fc;">MEMORY CARD 1 // JURORS</div>
+
+          <div class="ps1-memcard active">
+            <div style="display: flex; justify-content: space-between; font-size: 11px;">
+              <span style="color: #00ffcc; font-weight: 700;">BLOCK 01: WHISPER-V3</span>
+              <span style="color: #a5b4fc;">SAVE OK</span>
+            </div>
+            <div style="font-size: 12px; font-weight: 700; color: #fff;">VOTE: "UPTICK" [98%]</div>
+          </div>
+
+          <div class="ps1-memcard">
+            <div style="display: flex; justify-content: space-between; font-size: 11px;">
+              <span style="color: #f59e0b; font-weight: 700;">BLOCK 02: CANARY-1B</span>
+              <span style="color: #a5b4fc;">DISSENT</span>
+            </div>
+            <div style="font-size: 12px; font-weight: 700; color: #fff;">VOTE: "UPTURN" [89%]</div>
+          </div>
+
+          <div class="ps1-memcard active">
+            <div style="display: flex; justify-content: space-between; font-size: 11px;">
+              <span style="color: #00ffcc; font-weight: 700;">BLOCK 03: NOVA-2</span>
+              <span style="color: #a5b4fc;">SAVE OK</span>
+            </div>
+            <div style="font-size: 12px; font-weight: 700; color: #fff;">VOTE: "UPTICK" [94%]</div>
+          </div>
+        </div>
+
+        <!-- SoundScope CD Audio Stage on Right -->
+        <div class="ps1-player-stage">
+          <div class="ps1-disc-center">
+            <div class="ps1-spinning-cd">
+              <div style="width: 24px; height: 24px; border-radius: 999px; background: #000; border: 2px solid #888;"></div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <div style="font-size: 22px; font-weight: 800; color: #fff;">TRACK 02 / 14</div>
+              <div style="font-family: monospace; font-size: 14px; color: #00ffcc;">00:04.280 [48 kHz Stereo]</div>
+              <div style="font-size: 12px; color: #a5b4fc;">Consensus: "slight uptick in margins"</div>
+            </div>
+          </div>
+
+          <div style="background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); padding: 14px; font-size: 13px; line-height: 1.6;">
+            <div class="transcript-row-card">
+              <span style="color: #00ffcc; font-weight: 700;">Arthur M. (00:00):</span> Good morning everyone and welcome to our fourth quarter financial earnings conference call.
+            </div>
+            <div class="transcript-row-card" style="margin-top: 8px;">
+              <span style="color: #f59e0b; font-weight: 700;">Elena V. (00:04):</span> In our enterprise segment, we anticipate a slight <strong style="color: #00ffcc;">uptick</strong> in recurring margins through next quarter.
+            </div>
+          </div>
+
+          <!-- Controller Shortcuts -->
+          <div style="display: flex; justify-content: space-around; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1);">
+            <div class="ps1-btn-badge"><span class="ps1-ctrl-symbol" style="color: #38bdf8;">✖</span> Play Audio</div>
+            <div class="ps1-btn-badge"><span class="ps1-ctrl-symbol" style="color: #f43f5e;">●</span> Confirm Consensus</div>
+            <div class="ps1-btn-badge"><span class="ps1-ctrl-symbol" style="color: #4ade80;">▲</span> SoundScope FX</div>
+            <div class="ps1-btn-badge"><span class="ps1-ctrl-symbol" style="color: #e879f9;">■</span> Stop / Pause</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ==========================================================================
+       INTERACTIVE CONTROLLER SCRIPT
+       ========================================================================== -->
+  <script>
+    function switchParadigm(id) {
+      document.querySelectorAll(".prototype-view").forEach(v => v.classList.remove("active"));
+      document.querySelectorAll(".paradigm-btn").forEach(b => b.classList.remove("active"));
+
+      const targetView = document.getElementById("view-" + id);
+      const targetBtn = document.getElementById("btn-" + id);
+
+      if (targetView) targetView.classList.add("active");
+      if (targetBtn) targetBtn.classList.add("active");
+
+      const url = new URL(window.location);
+      url.searchParams.set("tone", id);
+      window.history.replaceState({}, "", url);
+    }
+
+    function setTranscriptMode(mode) {
+      document.body.classList.remove("mode-continuous", "mode-tactile");
+      document.body.classList.add("mode-" + mode);
+
+      document.getElementById("mode-continuous-btn").classList.toggle("active", mode === "continuous");
+      document.getElementById("mode-tactile-btn").classList.toggle("active", mode === "tactile");
+
+      const url = new URL(window.location);
+      url.searchParams.set("mode", mode);
+      window.history.replaceState({}, "", url);
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const initialTone = params.get("tone") || "beos";
+    const initialMode = params.get("mode") || "continuous";
+    switchParadigm(initialTone);
+    setTranscriptMode(initialMode);
+  </script>
+</body>
+</html>

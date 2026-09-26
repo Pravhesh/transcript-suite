@@ -8,7 +8,5 @@ build/
 data/
 *.wav
 *.aac
-*.mp4
-*.m4v
 *.txt
 !README.md

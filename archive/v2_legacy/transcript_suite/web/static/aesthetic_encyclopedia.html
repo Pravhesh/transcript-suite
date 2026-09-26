@@ -1,0 +1,2983 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transcript Suite | 103 Aesthetic Expansions & Studio</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2310b981%22 stroke-width=%222%22><polygon points=%2211 5 6 9 2 9 2 15 6 15 11 19 11 5%22/><path d=%22M15.54 8.46a5 5 0 0 1 0 7.07%22/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Cinzel+Decorative:wght@700&family=Geist+Mono:wght@400;600;800&family=Geist:wght@300;400;600;700&family=Inter:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600;800&family=Lora:ital,wght@0,400;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=Orbitron:wght@500;700;900&family=Press+Start+2P&family=Space+Grotesk:wght@400;600;700&family=UnifrakturMaguntia&family=VT323&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    html, body {
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      background: #08090c;
+      color: #ededed;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* TOP CONTROLLER BAR */
+    .catalog-top-bar {
+      height: 52px;
+      background: #0c0d12;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      flex-shrink: 0;
+      z-index: 10000;
+      gap: 12px;
+    }
+    .brand-box { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .brand-icon {
+      width: 30px; height: 30px; border-radius: 6px; background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35); display: flex; align-items: center; justify-content: center; color: #10b981;
+    }
+    .brand-title { font-weight: 700; font-size: 13px; color: #fff; }
+    .search-input {
+      width: 170px; background: #151720; border: 1px solid rgba(255,255,255,0.12); border-radius: 6px;
+      color: #fff; padding: 5px 10px; font-size: 11.5px; outline: none;
+    }
+    .search-input:focus { border-color: #10b981; }
+    .theme-dropdown {
+      flex: 1; max-width: 320px; background: #151720; border: 1px solid rgba(255,255,255,0.14);
+      color: #fff; padding: 5px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 600; outline: none; cursor: pointer;
+    }
+    .nav-btn {
+      background: #1e2230; border: 1px solid rgba(255,255,255,0.1); color: #a1a6b4; padding: 4px 10px;
+      border-radius: 5px; font-size: 11px; font-weight: 600; cursor: pointer;
+    }
+    .nav-btn:hover { color: #fff; background: #2b3044; }
+    .mode-pill-btn {
+      background: #1e2230; border: 1px solid rgba(255,255,255,0.1); color: #a1a6b4; padding: 4px 10px;
+      border-radius: 5px; font-size: 11px; font-weight: 600; cursor: pointer;
+    }
+    .mode-pill-btn.active { background: #10b981; color: #000; font-weight: 700; }
+
+    /* MASTER AESTHETIC CANVAS VIEWPORT */
+    .aesthetic-viewport {
+      width: 100vw;
+      height: calc(100vh - 52px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+      transition: background 0.3s ease;
+      background: var(--bg);
+      color: var(--text-color);
+      font-family: var(--font-main);
+    }
+
+    /* SUB-BANNER */
+    .theme-banner-strip {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      flex-shrink: 0;
+      border-bottom: var(--border-spec);
+      background: var(--surface-bg);
+      backdrop-filter: blur(12px);
+      z-index: 100;
+    }
+    .theme-meta-left { display: flex; align-items: center; gap: 12px; }
+    .theme-num-badge {
+      font-family: monospace; font-size: 10px; font-weight: 800; padding: 2px 7px;
+      border-radius: 999px; background: var(--accent); color: #000;
+    }
+    .theme-name-txt { font-weight: 800; font-size: 14px; letter-spacing: 0.02em; }
+    .theme-cat-tag { font-size: 11px; opacity: 0.75; font-weight: 600; }
+    .theme-desc-txt { font-size: 11.5px; opacity: 0.85; font-style: italic; max-width: 520px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* STAGE CONTAINER */
+    .stage-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+      padding: 14px;
+    }
+
+    /* COMMON PANEL CARDS */
+    .card-panel { min-height: 0; min-height: 0;
+      background: var(--surface-bg);
+      border: var(--border-spec);
+      border-radius: var(--radius-val);
+      box-shadow: var(--shadow-val);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+    .card-hdr {
+      height: 34px;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: var(--border-spec);
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+    }
+    .card-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* TRANSCRIPT FORMAT */
+    .spk-item {
+      padding: 8px 10px;
+      border-radius: calc(var(--radius-val) * 0.6);
+      background: rgba(0,0,0,0.12);
+      border: 1px solid rgba(255,255,255,0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .spk-hdr-line { display: flex; justify-content: space-between; font-size: 10.5px; font-weight: 700; color: var(--accent); }
+    .spk-txt { font-size: 12.5px; line-height: 1.5; }
+    .dispute-chip {
+      display: inline-block; background: var(--accent); color: #000; font-weight: 800; font-size: 10.5px;
+      padding: 1px 5px; border-radius: 3px; margin: 0 2px;
+    }
+
+    /* CONTINUOUS vs TACTILE */
+    .mode-continuous .spk-item {
+      background: transparent !important;
+      border: none !important;
+      padding: 5px 0 !important;
+      border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+    }
+    .mode-tactile .spk-item {
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25) !important;
+    }
+
+    /* ARCHETYPE LAYOUTS */
+    .stage-grid { min-height: 0; flex: 1; min-height: 0; flex: 1;
+      display: grid;
+      gap: 14px;
+      height: 100%;
+    }
+    
+    /* 1. VISUAL NOVEL */
+    .layout-visual-novel .stage-grid, .layout-visual_novel .stage-grid { min-height: 0; flex: 1; min-height: 0; flex: 1; grid-template-columns: 240px 1fr 240px; }
+    .vn-dialogue-box {
+      background: var(--surface-bg);
+      border: 2px solid var(--accent);
+      border-radius: 8px;
+      padding: 14px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .vn-nameplate {
+      display: inline-block;
+      align-self: flex-start;
+      background: var(--accent);
+      color: #000;
+      font-weight: 900;
+      font-size: 11px;
+      padding: 2px 10px;
+      border-radius: 4px;
+      letter-spacing: 0.05em;
+    }
+
+    /* 2. ANALOG CONSOLE */
+    .layout-analog-console .stage-grid, .layout-analog_console .stage-grid { min-height: 0; flex: 1; min-height: 0; flex: 1; grid-template-columns: 260px 1fr 260px; }
+    .vu-dial-meter {
+      width: 100%;
+      height: 75px;
+      background: #1a1813;
+      border: 2px solid #5a4b32;
+      border-radius: 4px;
+      padding: 6px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: inset 0 0 10px #000;
+    }
+    .vu-needle {
+      position: absolute; bottom: 0; left: 50%; width: 2px; height: 60px; background: #ff3333;
+      transform-origin: bottom center; transform: rotate(-25deg); animation: needleBounce 1.8s infinite ease-in-out;
+    }
+    @keyframes needleBounce {
+      0% { transform: rotate(-35deg); }
+      30% { transform: rotate(15deg); }
+      50% { transform: rotate(-10deg); }
+      70% { transform: rotate(25deg); }
+      100% { transform: rotate(-35deg); }
+    }
+
+    /* 3. CYBER HUD */
+    .layout-cyber-hud .stage-grid, .layout-cyber_hud .stage-grid { min-height: 0; flex: 1; min-height: 0; flex: 1; grid-template-columns: 240px 1fr 280px; }
+    .radar-sweep-box {
+      width: 110px; height: 110px; border-radius: 50%; border: 1px solid var(--accent);
+      position: relative; margin: 8px auto; overflow: hidden;
+      background: radial-gradient(circle, rgba(0,255,150,0.05) 0%, transparent 70%);
+    }
+    .radar-sweep-arm {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: conic-gradient(from 0deg, transparent 0deg, var(--accent) 45deg, transparent 50deg);
+      opacity: 0.35; animation: radarRotate 3s linear infinite;
+    }
+    @keyframes radarRotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    /* 4. GOTHIC VELVET */
+    .layout-gothic-velvet .stage-grid, .layout-gothic_velvet .stage-grid { min-height: 0; flex: 1; min-height: 0; flex: 1; grid-template-columns: 250px 1fr 250px; }
+    .gothic-arch-card {
+      border-radius: 36px 36px var(--radius-val) var(--radius-val);
+      border: 1px solid var(--accent);
+      box-shadow: 0 0 15px rgba(0,0,0,0.6);
+    }
+
+    /* 5. BURTONESQUE */
+    .layout-burtonesque .stage-grid { min-height: 0; flex: 1; min-height: 0; flex: 1; grid-template-columns: 240px 1fr 240px; }
+    .burton-skew { transform: rotate(-1deg); border: 2px dashed var(--accent); }
+
+    /* 6. AERO LIQUID */
+    .layout-aero-liquid .stage-grid, .layout-aero_liquid .stage-grid { min-height: 0; flex: 1; min-height: 0; flex: 1; grid-template-columns: 240px 1fr 260px; }
+    .aero-orb {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), rgba(0,200,255,0.4) 60%, rgba(0,50,150,0.8));
+      box-shadow: 0 4px 15px rgba(0,180,255,0.5), inset 0 0 10px rgba(255,255,255,0.6);
+    }
+
+    /* 7. STEAMPUNK */
+    .layout-steampunk-machinery .stage-grid, .layout-steampunk_machinery .stage-grid { min-height: 0; flex: 1; min-height: 0; flex: 1; grid-template-columns: 260px 1fr 240px; }
+
+    /* 8. SYNTHWAVE */
+    .layout-synthwave-outrun .stage-grid, .layout-synthwave_outrun .stage-grid { min-height: 0; flex: 1; min-height: 0; flex: 1; grid-template-columns: 240px 1fr 260px; }
+    .synth-sun-hero {
+      height: 95px; background: linear-gradient(180deg, #ff007f 0%, #ffaa00 100%);
+      border-radius: 50px 50px 0 0; position: relative; overflow: hidden; margin-bottom: 6px;
+    }
+    .synth-sun-bars {
+      position: absolute; bottom: 0; left: 0; right: 0; height: 100%;
+      background: repeating-linear-gradient(0deg, #0d0614, #0d0614 3px, transparent 3px, transparent 10px);
+    }
+
+    /* 9. GEOCITIES */
+    .layout-geocities-web1 .stage-grid, .layout-geocities_web1 .stage-grid { min-height: 0; flex: 1; min-height: 0; flex: 1; grid-template-columns: 200px 1fr 220px; }
+    .web1-table {
+      border: 2px outset #ffffff; background: #c0c0c0; color: #000000; padding: 6px; font-family: 'Times New Roman', serif;
+    }
+
+    /* 10. SCHOLASTIC */
+    .layout-scholastic-grimoire .stage-grid, .layout-scholastic_grimoire .stage-grid { min-height: 0; flex: 1; min-height: 0; flex: 1; grid-template-columns: 240px 1fr 240px; }
+
+    /* 11. SOLARPUNK */
+    .layout-solarpunk-botanical .stage-grid, .layout-solarpunk_botanical .stage-grid { min-height: 0; flex: 1; min-height: 0; flex: 1; grid-template-columns: 240px 1fr 260px; }
+
+    /* 12. ARCADE */
+    .layout-arcade-cabinet .stage-grid, .layout-arcade_cabinet .stage-grid { min-height: 0; flex: 1; min-height: 0; flex: 1; grid-template-columns: 220px 1fr 240px; }
+
+    /* 13. TACTILE HARDWARE */
+    .layout-tactile-hardware .stage-grid, .layout-tactile_hardware .stage-grid { min-height: 0; flex: 1; min-height: 0; flex: 1; grid-template-columns: 240px 1fr 260px; }
+
+    /* 14. POMO GRAPHIC */
+    .layout-pomo-graphic .stage-grid, .layout-pomo_graphic .stage-grid { min-height: 0; flex: 1; min-height: 0; flex: 1; grid-template-columns: 240px 1fr 260px; }
+
+    /* 15. AMBIENT LOUNGE */
+    .layout-ambient-lounge .stage-grid, .layout-ambient_lounge .stage-grid { min-height: 0; flex: 1; min-height: 0; flex: 1; grid-template-columns: 260px 1fr 240px; }
+    .vinyl-record {
+      width: 70px; height: 70px; border-radius: 50%;
+      background: radial-gradient(circle, #ff5500 20%, #111 21%, #222 50%, #111 51%, #1e1e1e 95%, #111 100%);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5); animation: spinRecord 4s linear infinite;
+    }
+    @keyframes spinRecord { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    /* 16. COSMIC ETHEREAL */
+    .layout-cosmic-ethereal .stage-grid, .layout-cosmic_ethereal .stage-grid { min-height: 0; flex: 1; min-height: 0; flex: 1; grid-template-columns: 240px 1fr 260px; }
+
+    /* 17. Y2K CYBER */
+    .layout-y2k-cyber .stage-grid, .layout-y2k_cyber .stage-grid { min-height: 0; flex: 1; min-height: 0; flex: 1; grid-template-columns: 240px 1fr 260px; }
+
+    /* BOTTOM AUDIO DECK */
+    .theme-bottom-deck {
+      height: 66px;
+      background: var(--surface-bg);
+      border-top: var(--border-spec);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      flex-shrink: 0;
+      backdrop-filter: blur(16px);
+      z-index: 100;
+    }
+    .deck-play-btn {
+      width: 38px; height: 38px; border-radius: 999px; background: var(--accent); color: #000;
+      border: none; font-weight: 800; font-size: 14px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; box-shadow: 0 0 12px var(--accent);
+    }
+    .wave-bars-holder { display: flex; align-items: center; gap: 3px; height: 26px; }
+    .w-bar { width: 3px; background: rgba(255,255,255,0.2); border-radius: 2px; transition: height 0.1s ease; }
+    .w-bar.active { background: var(--accent); }
+  </style>
+</head>
+<body class="mode-continuous">
+
+  <!-- TOP WORKBENCH CONTROLLER -->
+  <header class="catalog-top-bar">
+    <div class="brand-box">
+      <div class="brand-icon">
+        <svg style="width: 16px; height: 16px; fill: currentColor;" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/></svg>
+      </div>
+      <div>
+        <div class="brand-title">Aesthetic Expansions</div>
+        <div style="font-size: 9.5px; opacity: 0.6; font-family: monospace;">103 Subcultures • Bespoke UI & Vectors</div>
+      </div>
+    </div>
+
+    <!-- THEME DROPDOWN & SEARCH -->
+    <div style="display: flex; align-items: center; gap: 8px; flex: 1; max-width: 600px;">
+      <select class="theme-dropdown" id="themeSelect" onchange="selectTheme(this.value)"></select>
+      <input type="text" class="search-input" id="filterInput" placeholder="Filter 103 aesthetics..." oninput="filterThemes(this.value)">
+    </div>
+
+    <!-- QUICK NAV -->
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <button class="nav-btn" onclick="navPrev()">◄ Prev</button>
+      <button class="nav-btn" onclick="randomTheme()">🎲 Random</button>
+      <button class="nav-btn" onclick="navNext()">Next ►</button>
+    </div>
+
+    <!-- MODE TOGGLE -->
+    <div style="display: flex; align-items: center; gap: 4px;">
+      <button class="mode-pill-btn active" onclick="setMode('continuous')" id="btnContinuous">Continuous</button>
+      <button class="mode-pill-btn" onclick="setMode('tactile')" id="btnTactile">Tactile</button>
+    </div>
+  </header>
+
+  <!-- MASTER VIEWPORT -->
+  <main class="aesthetic-viewport" id="aestheticViewport">
+    <!-- SUB-BANNER -->
+    <div class="theme-banner-strip">
+      <div class="theme-meta-left">
+        <span class="theme-num-badge" id="themeNumBadge">#01</span>
+        <span class="theme-name-txt" id="themeNameTxt">Y3K Futurism</span>
+        <span class="theme-cat-tag" id="themeCatTag">[ Y2K & Millennium ]</span>
+      </div>
+      <div class="theme-desc-txt" id="themeDescTxt">Bioluminescent organic chrome, post-human telemetry, iridescent nano-fluid.</div>
+    </div>
+
+    <!-- DYNAMIC STAGE CONTAINER -->
+    <div class="stage-container" id="stageContainer"></div>
+
+    <!-- BOTTOM AUDIO DECK -->
+    <footer class="theme-bottom-deck" id="audioDeck"></footer>
+  </main>
+
+  <script>
+    const THEMES = {
+  "y3k_futurism": {
+    "index": 1,
+    "slug": "y3k_futurism",
+    "name": "Y3K Futurism",
+    "category": "Y2K & Millennium",
+    "desc": "Bioluminescent organic chrome, post-human telemetry, iridescent nano-fluid.",
+    "bg": "radial-gradient(circle at 50% 30%, #0a1f24 0%, #020608 100%)",
+    "surface": "rgba(6, 40, 48, 0.6)",
+    "border": "1px solid #00ffcc",
+    "radius": "16px",
+    "font": "'Orbitron', sans-serif",
+    "text_color": "#e0ffff",
+    "accent": "#00ffcc",
+    "glow": "0 0 20px rgba(0,255,204,0.4)",
+    "archetype": "y2k_cyber"
+  },
+  "utopian_scholastic": {
+    "index": 2,
+    "slug": "utopian_scholastic",
+    "name": "Utopian Scholastic",
+    "category": "Scholastic & Academia",
+    "desc": "Classical ivory marble, sunlit neoclassical academy, gilded laurel accents, clean civic ideals.",
+    "bg": "linear-gradient(180deg, #f7f5f0 0%, #eae5dc 100%)",
+    "surface": "#ffffff",
+    "border": "1px solid #dcd5c7",
+    "radius": "4px",
+    "font": "'Cinzel', serif",
+    "text_color": "#1f1d1a",
+    "accent": "#b38728",
+    "glow": "0 4px 15px rgba(179,135,40,0.2)",
+    "archetype": "scholastic_grimoire"
+  },
+  "whimsygothic": {
+    "index": 3,
+    "slug": "whimsygothic",
+    "name": "Whimsygothic",
+    "category": "Dark & Gothic",
+    "desc": "90s celestial velvet, midnight indigo, astrological gold suns and crescent moons, Practical Magic mood.",
+    "bg": "radial-gradient(circle, #1a102f 0%, #090514 100%)",
+    "surface": "#140c24",
+    "border": "1px solid #79529cf0",
+    "radius": "8px",
+    "font": "'Cinzel Decorative', 'Lora', serif",
+    "text_color": "#ebdcf9",
+    "accent": "#f5c542",
+    "glow": "0 0 16px rgba(245,197,66,0.3)",
+    "archetype": "gothic_velvet"
+  },
+  "gen_x_soft_club": {
+    "index": 4,
+    "slug": "gen_x_soft_club",
+    "name": "Gen X Soft Club",
+    "category": "Lifestyle & Retro",
+    "desc": "Mid-90s ambient lounge, chillout rooms, frosted seafoam, nylon windbreakers, Cafe del Mar.",
+    "bg": "linear-gradient(135deg, #1b262c 0%, #0f1418 100%)",
+    "surface": "#162026",
+    "border": "1px solid #324752",
+    "radius": "12px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#d1e8e2",
+    "accent": "#10b981",
+    "glow": "0 8px 24px rgba(0,0,0,0.4)",
+    "archetype": "ambient_lounge"
+  },
+  "aggrotech": {
+    "index": 5,
+    "slug": "aggrotech",
+    "name": "Aggrotech",
+    "category": "Music & Subculture",
+    "desc": "Harsh EBM, toxic biohazard neon green, distorted industrial razor wire, combat cybernetics.",
+    "bg": "#050505",
+    "surface": "#0d110d",
+    "border": "2px solid #39ff14",
+    "radius": "2px",
+    "font": "'Orbitron', monospace",
+    "text_color": "#e5ffe5",
+    "accent": "#39ff14",
+    "glow": "0 0 15px rgba(57,255,20,0.6)",
+    "archetype": "y2k_cyber"
+  },
+  "balearic_aesthetic": {
+    "index": 6,
+    "slug": "balearic_aesthetic",
+    "name": "Balearic Aesthetic",
+    "category": "Lifestyle & Retro",
+    "desc": "Ibiza sun-bleached terracotta, Mediterranean azure sea, white linen, golden hour ecstasy.",
+    "bg": "linear-gradient(180deg, #e0f2fe 0%, #fef3c7 60%, #fed7aa 100%)",
+    "surface": "rgba(255, 255, 255, 0.85)",
+    "border": "1px solid rgba(251, 146, 60, 0.3)",
+    "radius": "14px",
+    "font": "'Newsreader', serif",
+    "text_color": "#1c1917",
+    "accent": "#f97316",
+    "glow": "0 10px 25px rgba(249,115,22,0.15)",
+    "archetype": "ambient_lounge"
+  },
+  "black_metal": {
+    "index": 7,
+    "slug": "black_metal",
+    "name": "Black Metal",
+    "category": "Dark & Gothic",
+    "desc": "True Norwegian raw corpse paint, stark monochrome contrast, unreadable barbed wire logo, cold Scandinavian frost.",
+    "bg": "#000000",
+    "surface": "#080808",
+    "border": "1px solid #ffffff",
+    "radius": "0px",
+    "font": "'UnifrakturMaguntia', 'Courier New', monospace",
+    "text_color": "#ffffff",
+    "accent": "#cccccc",
+    "glow": "none",
+    "archetype": "gothic_velvet"
+  },
+  "burtonesque": {
+    "index": 8,
+    "slug": "burtonesque",
+    "name": "Burtonesque",
+    "category": "Dark & Gothic",
+    "desc": "Tim Burton gothic fantasy, spiral gothic hills, black and white pinstripes, crooked Victorian clockwork.",
+    "bg": "radial-gradient(circle, #242226 0%, #0d0c0e 100%)",
+    "surface": "#17151a",
+    "border": "2px dashed #999999",
+    "radius": "6px",
+    "font": "'Cinzel', serif",
+    "text_color": "#f0eef2",
+    "accent": "#c084fc",
+    "glow": "0 0 18px rgba(192,132,252,0.3)",
+    "archetype": "burtonesque"
+  },
+  "cassette_futurism": {
+    "index": 9,
+    "slug": "cassette_futurism",
+    "name": "Cassette Futurism",
+    "category": "Retro Computing",
+    "desc": "Late 70s / 80s analog sci-fi (Alien 1979), glowing amber CRT displays, magnetic tape spools, chunky toggle switches.",
+    "bg": "#111411",
+    "surface": "#191e19",
+    "border": "2px solid #5a735a",
+    "radius": "4px",
+    "font": "'VT323', monospace",
+    "text_color": "#7aff7a",
+    "accent": "#ffaa00",
+    "glow": "0 0 10px rgba(122,255,122,0.4)",
+    "archetype": "analog_console"
+  },
+  "chromecore": {
+    "index": 10,
+    "slug": "chromecore",
+    "name": "Chromecore",
+    "category": "Y2K & Millennium",
+    "desc": "High-gloss liquid mercury, 3D metallic mirror reflection, molten cyber silver, sterile studio reflections.",
+    "bg": "linear-gradient(135deg, #2b2e36 0%, #0d0e12 100%)",
+    "surface": "linear-gradient(180deg, #4b5261 0%, #1c1e24 100%)",
+    "border": "1.5px solid #e2e8f0",
+    "radius": "12px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#ffffff",
+    "accent": "#cbd5e1",
+    "glow": "0 0 25px rgba(255,255,255,0.4)",
+    "archetype": "y2k_cyber"
+  },
+  "cyberdelia": {
+    "index": 11,
+    "slug": "cyberdelia",
+    "name": "Cyberdelia",
+    "category": "Y2K & Millennium",
+    "desc": "1995 Hackers film, neon rave psychedelia, rollerblades, fractal spirals, fluorescent typography.",
+    "bg": "radial-gradient(circle, #2a0845 0%, #6441a5 100%)",
+    "surface": "#1f0c38",
+    "border": "2px solid #ff007f",
+    "radius": "10px",
+    "font": "'Orbitron', sans-serif",
+    "text_color": "#00ffff",
+    "accent": "#ff007f",
+    "glow": "0 0 16px #ff007f",
+    "archetype": "y2k_cyber"
+  },
+  "disco_polo": {
+    "index": 12,
+    "slug": "disco_polo",
+    "name": "Disco Polo",
+    "category": "Music & Subculture",
+    "desc": "Early 90s Central European synth-pop, flashy chrome wordart, magenta and laser violet dance halls.",
+    "bg": "linear-gradient(135deg, #4a00e0 0%, #8e2de2 100%)",
+    "surface": "#26004d",
+    "border": "2px solid #ff00cc",
+    "radius": "14px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#fff",
+    "accent": "#ff00cc",
+    "glow": "0 0 20px #ff00cc",
+    "archetype": "synthwave_outrun"
+  },
+  "dungeonpunk": {
+    "index": 13,
+    "slug": "dungeonpunk",
+    "name": "Dungeonpunk",
+    "category": "Dark & Gothic",
+    "desc": "Fantasy alchemy meets crude industrial machinery, glowing rune crystals, heavy forged iron and soot.",
+    "bg": "#120f0d",
+    "surface": "#1c1815",
+    "border": "2px solid #854d0e",
+    "radius": "4px",
+    "font": "'Cinzel', serif",
+    "text_color": "#e2d9cf",
+    "accent": "#eab308",
+    "glow": "0 0 12px rgba(234,179,8,0.3)",
+    "archetype": "gothic_velvet"
+  },
+  "early_cyber": {
+    "index": 14,
+    "slug": "early_cyber",
+    "name": "Early Cyber",
+    "category": "Retro Computing",
+    "desc": "Late 80s wireframe Gibson cyberspace, green phosphorus vector lines on black grid horizon.",
+    "bg": "#000000",
+    "surface": "#050d05",
+    "border": "1px solid #00ff66",
+    "radius": "0px",
+    "font": "'VT323', monospace",
+    "text_color": "#00ff66",
+    "accent": "#00ff66",
+    "glow": "0 0 8px #00ff66",
+    "archetype": "analog_console"
+  },
+  "electroclash": {
+    "index": 15,
+    "slug": "electroclash",
+    "name": "Electroclash",
+    "category": "Music & Subculture",
+    "desc": "Early 2000s New York/Berlin club scene, high-fashion neon synthesizer sleaze, stark black and hot pink.",
+    "bg": "#0a0a0a",
+    "surface": "#141414",
+    "border": "2px solid #ff0055",
+    "radius": "0px",
+    "font": "'Helvetica Neue', sans-serif",
+    "text_color": "#ffffff",
+    "accent": "#ff0055",
+    "glow": "0 0 14px #ff0055",
+    "archetype": "y2k_cyber"
+  },
+  "factory_pomo": {
+    "index": 16,
+    "slug": "factory_pomo",
+    "name": "Factory Pomo",
+    "category": "Design & UI",
+    "desc": "Late 80s Postmodern industrial design, geometric primary shapes, corrugated sheet metal, safety yellow caution.",
+    "bg": "#22252a",
+    "surface": "#2c3138",
+    "border": "3px solid #eab308",
+    "radius": "0px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#f3f4f6",
+    "accent": "#eab308",
+    "glow": "none",
+    "archetype": "pomo_graphic"
+  },
+  "frasurbane": {
+    "index": 17,
+    "slug": "frasurbane",
+    "name": "Frasurbane",
+    "category": "Lifestyle & Retro",
+    "desc": "Mid-to-late 90s sophisticated urban apartment (Frasier), muted sage green, beige corduroy, jazz and espresso.",
+    "bg": "#242724",
+    "surface": "#2d332d",
+    "border": "1px solid #4a544a",
+    "radius": "6px",
+    "font": "'Lora', Georgia, serif",
+    "text_color": "#e8eae6",
+    "accent": "#8fa38f",
+    "glow": "0 4px 12px rgba(0,0,0,0.3)",
+    "archetype": "ambient_lounge"
+  },
+  "glitch_art": {
+    "index": 18,
+    "slug": "glitch_art",
+    "name": "Glitch Art",
+    "category": "Retro Computing",
+    "desc": "MPEG compression artifacting, datamoshing, RGB channel split, broken sync, CRT scanline errors.",
+    "bg": "#08080a",
+    "surface": "#121217",
+    "border": "1px solid #ff0055",
+    "radius": "0px",
+    "font": "'JetBrains Mono', monospace",
+    "text_color": "#00ffff",
+    "accent": "#ff0055",
+    "glow": "0 0 8px rgba(0,255,255,0.7)",
+    "archetype": "pomo_graphic"
+  },
+  "global_village_coffeehouse": {
+    "index": 19,
+    "slug": "global_village_coffeehouse",
+    "name": "Global Village Coffeehouse",
+    "category": "Lifestyle & Retro",
+    "desc": "1990s world music, earthy swirl motifs, warm roasted ochre, tribal patterns, acoustic coffeehouse.",
+    "bg": "#261811",
+    "surface": "#332219",
+    "border": "2px solid #8c5835",
+    "radius": "10px",
+    "font": "'Newsreader', serif",
+    "text_color": "#eeddcc",
+    "accent": "#d97736",
+    "glow": "0 4px 16px rgba(0,0,0,0.4)",
+    "archetype": "ambient_lounge"
+  },
+  "googie_kitsch": {
+    "index": 20,
+    "slug": "googie_kitsch",
+    "name": "Googie Kitsch",
+    "category": "Design & UI",
+    "desc": "1950s atomic age diner, boomerangs, parabolic arches, pastel turquoise and flamingo pink, Space Age optimism.",
+    "bg": "linear-gradient(135deg, #164e63 0%, #082f49 100%)",
+    "surface": "#0e3b4d",
+    "border": "2px solid #f43f5e",
+    "radius": "24px",
+    "font": "'Space Grotesk', cursive, sans-serif",
+    "text_color": "#fef08a",
+    "accent": "#f43f5e",
+    "glow": "0 0 16px rgba(244,63,94,0.4)",
+    "archetype": "pomo_graphic"
+  },
+  "graffiti_pop": {
+    "index": 21,
+    "slug": "graffiti_pop",
+    "name": "Graffiti Pop",
+    "category": "Design & UI",
+    "desc": "Keith Haring / urban street art, bold black contour lines, vivid primary drip colors, spray can stencils.",
+    "bg": "#18181b",
+    "surface": "#27272a",
+    "border": "3px solid #000",
+    "radius": "12px",
+    "font": "'Impact', sans-serif",
+    "text_color": "#ffffff",
+    "accent": "#facc15",
+    "glow": "0 6px 0 #000000",
+    "archetype": "pomo_graphic"
+  },
+  "hacker_chic": {
+    "index": 22,
+    "slug": "hacker_chic",
+    "name": "Hacker Chic",
+    "category": "Cyberpunk & Tech",
+    "desc": "Hollywood 90s cyber thriller, translucent black goggles, matrix code waterfalls, encrypted terminal headers.",
+    "bg": "#030708",
+    "surface": "#081317",
+    "border": "1px solid #00f0ff",
+    "radius": "2px",
+    "font": "'Geist Mono', monospace",
+    "text_color": "#80f8ff",
+    "accent": "#00f0ff",
+    "glow": "0 0 12px rgba(0,240,255,0.4)",
+    "archetype": "cyber_hud"
+  },
+  "industrial_gothic": {
+    "index": 23,
+    "slug": "industrial_gothic",
+    "name": "Industrial Gothic",
+    "category": "Dark & Gothic",
+    "desc": "Ministry / Nine Inch Nails, rusty bolted iron plates, blood crimson accents, heavy machinery decay.",
+    "bg": "#0f0e0e",
+    "surface": "#1a1818",
+    "border": "2px solid #451a1a",
+    "radius": "2px",
+    "font": "'Orbitron', sans-serif",
+    "text_color": "#d1c7c7",
+    "accent": "#dc2626",
+    "glow": "0 0 10px rgba(220,38,38,0.3)",
+    "archetype": "gothic_velvet"
+  },
+  "low_poly": {
+    "index": 24,
+    "slug": "low_poly",
+    "name": "Low Poly",
+    "category": "Retro Computing",
+    "desc": "Mid-90s early 3D gaming (Virtua Fighter, Star Fox), flat-shaded geometric facets, raw faceted polygons.",
+    "bg": "#1a202c",
+    "surface": "#2d3748",
+    "border": "2px solid #4a5568",
+    "radius": "0px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#edf2f7",
+    "accent": "#63b3ed",
+    "glow": "none",
+    "archetype": "arcade_cabinet"
+  },
+  "metalheart": {
+    "index": 25,
+    "slug": "metalheart",
+    "name": "Metalheart",
+    "category": "Y2K & Millennium",
+    "desc": "Late 90s / early 2000s cyber-organic mechanical art, robotic wire bundles, polished titanium, bio-mech.",
+    "bg": "#111215",
+    "surface": "#1a1c22",
+    "border": "1px solid #718096",
+    "radius": "8px",
+    "font": "'Orbitron', sans-serif",
+    "text_color": "#e2e8f0",
+    "accent": "#a0aec0",
+    "glow": "0 0 14px rgba(160,174,192,0.3)",
+    "archetype": "y2k_cyber"
+  },
+  "neo_pop": {
+    "index": 26,
+    "slug": "neo_pop",
+    "name": "Neo-Pop",
+    "category": "Design & UI",
+    "desc": "Takashi Murakami / Jeff Koons, hyper-saturated bubblegum cartoon smiles, flat glossy vector vinyl.",
+    "bg": "#fff1f2",
+    "surface": "#ffffff",
+    "border": "3px solid #fda4af",
+    "radius": "20px",
+    "font": "'Inter', sans-serif",
+    "text_color": "#881337",
+    "accent": "#f43f5e",
+    "glow": "0 8px 24px rgba(244,63,94,0.15)",
+    "archetype": "pomo_graphic"
+  },
+  "net_art": {
+    "index": 27,
+    "slug": "net_art",
+    "name": "Net.art",
+    "category": "Retro Computing",
+    "desc": "1994 Olia Lialina internet art movement, raw hyperlink text, unstyled forms, dial-up aesthetics, broken images.",
+    "bg": "#bfbfbf",
+    "surface": "#ffffff",
+    "border": "2px inset #ffffff",
+    "radius": "0px",
+    "font": "'Times New Roman', serif",
+    "text_color": "#000000",
+    "accent": "#0000ff",
+    "glow": "none",
+    "archetype": "geocities_web1"
+  },
+  "old_web": {
+    "index": 28,
+    "slug": "old_web",
+    "name": "Old Web",
+    "category": "Retro Computing",
+    "desc": "1997 personal homepage, under construction GIFs, rainbow horizontal rules, guestbook banners.",
+    "bg": "#000033",
+    "surface": "#000066",
+    "border": "2px ridge #ffff00",
+    "radius": "0px",
+    "font": "'Comic Sans MS', sans-serif",
+    "text_color": "#ffff00",
+    "accent": "#00ffff",
+    "glow": "0 0 10px #ffff00",
+    "archetype": "geocities_web1"
+  },
+  "pastel_southwestern": {
+    "index": 29,
+    "slug": "pastel_southwestern",
+    "name": "Pastel Southwestern",
+    "category": "Organic & Folk",
+    "desc": "Late 80s / early 90s Santa Fe style, desert adobe terracotta, dusty turquoise, bleached cow skull chic.",
+    "bg": "#382e2b",
+    "surface": "#4a3c37",
+    "border": "1.5px solid #2dd4bf",
+    "radius": "8px",
+    "font": "'Lora', serif",
+    "text_color": "#f5ebe6",
+    "accent": "#2dd4bf",
+    "glow": "0 4px 14px rgba(0,0,0,0.3)",
+    "archetype": "ambient_lounge"
+  },
+  "pc_98": {
+    "index": 30,
+    "slug": "pc_98",
+    "name": "PC-98",
+    "category": "Retro Computing",
+    "desc": "NEC PC-9801 16-color Japanese computing classic, distinct cyan and magenta pixel dithering, visual novel text box.",
+    "bg": "#000000",
+    "surface": "#000044",
+    "border": "2px solid #00ffff",
+    "radius": "0px",
+    "font": "'Geist Mono', 'VT323', monospace",
+    "text_color": "#ffffff",
+    "accent": "#ff00aa",
+    "glow": "0 0 6px #00ffff",
+    "archetype": "visual_novel"
+  },
+  "pixel_ui": {
+    "index": 31,
+    "slug": "pixel_ui",
+    "name": "Pixel UI",
+    "category": "Retro Computing",
+    "desc": "Clean crisp hand-crafted 16-bit pixel art UI, dithered dropshadows, chunky pixel cursors.",
+    "bg": "#1a1026",
+    "surface": "#281a3d",
+    "border": "2px solid #a855f7",
+    "radius": "0px",
+    "font": "'Press Start 2P', monospace",
+    "text_color": "#f3e8ff",
+    "accent": "#c084fc",
+    "glow": "0 4px 0 #000",
+    "archetype": "arcade_cabinet"
+  },
+  "programmer_art": {
+    "index": 32,
+    "slug": "programmer_art",
+    "name": "Programmer Art",
+    "category": "Retro Computing",
+    "desc": "Pure default UI components, raw debug bounding boxes, magenta collision meshes, 100% utilitarian.",
+    "bg": "#ffffff",
+    "surface": "#f0f0f0",
+    "border": "1px solid #000000",
+    "radius": "0px",
+    "font": "monospace",
+    "text_color": "#000000",
+    "accent": "#ff00ff",
+    "glow": "none",
+    "archetype": "geocities_web1"
+  },
+  "rainforest_chic": {
+    "index": 33,
+    "slug": "rainforest_chic",
+    "name": "Rainforest Chic",
+    "category": "Organic & Folk",
+    "desc": "Mid-90s Rainforest Cafe ecotourism, deep emerald canopy, wet tree bark, tropical frogs and toucan neon.",
+    "bg": "#061a0e",
+    "surface": "#0e2e1a",
+    "border": "1.5px solid #22c55e",
+    "radius": "10px",
+    "font": "'Inter', sans-serif",
+    "text_color": "#dcfce7",
+    "accent": "#22c55e",
+    "glow": "0 4px 16px rgba(34,197,94,0.3)",
+    "archetype": "solarpunk_botanical"
+  },
+  "retro_gamer": {
+    "index": 34,
+    "slug": "retro_gamer",
+    "name": "Retro Gamer",
+    "category": "Retro Computing",
+    "desc": "CRT scanlines, insert coin flashing text, cabinet marquee glow, 8-way joystick arcade feel.",
+    "bg": "#0c0b1e",
+    "surface": "#18163b",
+    "border": "2px solid #f43f5e",
+    "radius": "4px",
+    "font": "'Press Start 2P', monospace",
+    "text_color": "#ffffff",
+    "accent": "#38bdf8",
+    "glow": "0 0 14px #f43f5e",
+    "archetype": "visual_novel"
+  },
+  "sepia_blur": {
+    "index": 35,
+    "slug": "sepia_blur",
+    "name": "Sepia Blur",
+    "category": "Design & UI",
+    "desc": "Atmospheric vintage memory, soft sepia vignette, blurred nostalgic focus, antique daguerreotype warmth.",
+    "bg": "#1f1914",
+    "surface": "#2c241c",
+    "border": "1px solid #524335",
+    "radius": "12px",
+    "font": "'Newsreader', serif",
+    "text_color": "#eaddcf",
+    "accent": "#c29d78",
+    "glow": "0 8px 24px rgba(0,0,0,0.5)",
+    "archetype": "ambient_lounge"
+  },
+  "silicon_dreams": {
+    "index": 36,
+    "slug": "silicon_dreams",
+    "name": "Silicon Dreams",
+    "category": "Retro Computing",
+    "desc": "Early Silicon Valley cleanroom utopianism, sterile beige computer cases, microprocessor die micro-photography.",
+    "bg": "#212529",
+    "surface": "#2b3035",
+    "border": "1px solid #495057",
+    "radius": "6px",
+    "font": "'Geist Mono', monospace",
+    "text_color": "#f8f9fa",
+    "accent": "#0dcaf0",
+    "glow": "0 0 10px rgba(13,202,240,0.25)",
+    "archetype": "analog_console"
+  },
+  "superflat": {
+    "index": 37,
+    "slug": "superflat",
+    "name": "Superflat",
+    "category": "Design & UI",
+    "desc": "Takashi Murakami postmodern Japanese art, razor-sharp vector line art, graphic depthless high-gloss planes.",
+    "bg": "#ffffff",
+    "surface": "#fafafa",
+    "border": "2px solid #000000",
+    "radius": "0px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#111827",
+    "accent": "#3b82f6",
+    "glow": "0 6px 0 #000",
+    "archetype": "pomo_graphic"
+  },
+  "vectorheart": {
+    "index": 38,
+    "slug": "vectorheart",
+    "name": "Vectorheart",
+    "category": "Y2K & Millennium",
+    "desc": "Late 90s Flash vector art, aerodynamic swoop ribbons, floating concentric target circles, glowing cyber hearts.",
+    "bg": "#13091f",
+    "surface": "#221136",
+    "border": "1.5px solid #ec4899",
+    "radius": "16px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#fdf2f8",
+    "accent": "#ec4899",
+    "glow": "0 0 18px rgba(236,72,153,0.4)",
+    "archetype": "y2k_cyber"
+  },
+  "y2k_futurism": {
+    "index": 39,
+    "slug": "y2k_futurism",
+    "name": "Y2K Futurism",
+    "category": "Y2K & Millennium",
+    "desc": "1999 millennium bug cyber-optimism, silver inflatable vinyl jackets, blue LED lens flares, Oakley sunglasses.",
+    "bg": "radial-gradient(circle at 50% 20%, #172554 0%, #030712 100%)",
+    "surface": "rgba(30, 58, 138, 0.4)",
+    "border": "1px solid #60a5fa",
+    "radius": "18px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#eff6ff",
+    "accent": "#38bdf8",
+    "glow": "0 0 20px rgba(56,189,248,0.35)",
+    "archetype": "y2k_cyber"
+  },
+  "zen_x": {
+    "index": 40,
+    "slug": "zen_x",
+    "name": "Zen-X",
+    "category": "Lifestyle & Retro",
+    "desc": "Late 90s minimalist eastern zen meets corporate tech, smooth river pebbles, bamboo screens, calm tea room focus.",
+    "bg": "#1c1c1b",
+    "surface": "#272726",
+    "border": "1px solid #3f3f3e",
+    "radius": "8px",
+    "font": "'Inter', sans-serif",
+    "text_color": "#e7e5e4",
+    "accent": "#a8a29e",
+    "glow": "0 4px 12px rgba(0,0,0,0.3)",
+    "archetype": "ambient_lounge"
+  },
+  "eight_bit": {
+    "index": 41,
+    "slug": "eight_bit",
+    "name": "8-Bit",
+    "category": "Retro Computing",
+    "desc": "NES / Game Boy 8-bit chip music aesthetics, low resolution pixel tiles, high-contrast primary colors.",
+    "bg": "#0f380f",
+    "surface": "#306230",
+    "border": "2px solid #8bac0f",
+    "radius": "0px",
+    "font": "'Press Start 2P', monospace",
+    "text_color": "#9bbc0f",
+    "accent": "#8bac0f",
+    "glow": "none",
+    "archetype": "arcade_cabinet"
+  },
+  "arcadecore": {
+    "index": 42,
+    "slug": "arcadecore",
+    "name": "Arcadecore",
+    "category": "Retro Computing",
+    "desc": "Dark neon arcade room, coin door slots, high-score screen flicker, street fighter cabinet vinyl art.",
+    "bg": "#06060c",
+    "surface": "#101026",
+    "border": "2px solid #a855f7",
+    "radius": "6px",
+    "font": "'Press Start 2P', monospace",
+    "text_color": "#fdf4ff",
+    "accent": "#e879f9",
+    "glow": "0 0 16px #a855f7",
+    "archetype": "arcade_cabinet"
+  },
+  "cyberpunk": {
+    "index": 43,
+    "slug": "cyberpunk",
+    "name": "Cyberpunk",
+    "category": "Cyberpunk & Tech",
+    "desc": "High tech low life, neon drenched dark wet city, kanji advertisements, chrome cyberware, yellow caution tags.",
+    "bg": "#07080d",
+    "surface": "#10131f",
+    "border": "1px solid #f43f5e",
+    "radius": "0px",
+    "font": "'Orbitron', sans-serif",
+    "text_color": "#00f0ff",
+    "accent": "#f43f5e",
+    "glow": "0 0 12px #00f0ff",
+    "archetype": "cyber_hud"
+  },
+  "laser_grid": {
+    "index": 44,
+    "slug": "laser_grid",
+    "name": "Laser Grid",
+    "category": "Cyberpunk & Tech",
+    "desc": "Tron neon grid horizon vanishing to infinity, intense wireframe vector glow, 80s arcade vector simulator.",
+    "bg": "#000000",
+    "surface": "#080614",
+    "border": "1px solid #00f0ff",
+    "radius": "0px",
+    "font": "'Orbitron', monospace",
+    "text_color": "#ffffff",
+    "accent": "#00f0ff",
+    "glow": "0 0 16px #00f0ff",
+    "archetype": "cyber_hud"
+  },
+  "themed_spaces": {
+    "index": 45,
+    "slug": "themed_spaces",
+    "name": "Themed Spaces",
+    "category": "Design & UI",
+    "desc": "Early 2000s themed retail interior, planetary ceiling projections, sensory overload amusement architecture.",
+    "bg": "#1a1528",
+    "surface": "#29213d",
+    "border": "2px solid #ec4899",
+    "radius": "14px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#fdf4ff",
+    "accent": "#a855f7",
+    "glow": "0 10px 30px rgba(0,0,0,0.5)",
+    "archetype": "y2k_cyber"
+  },
+  "supergraphic_ultramodern": {
+    "index": 46,
+    "slug": "supergraphic_ultramodern",
+    "name": "Supergraphic Ultramodern",
+    "category": "Design & UI",
+    "desc": "Bold diagonal wall graphics, 1970s supergraphics, monumental Swiss typography, high impact geometry.",
+    "bg": "#18181b",
+    "surface": "#27272a",
+    "border": "4px solid #f97316",
+    "radius": "0px",
+    "font": "'Impact', 'Inter', sans-serif",
+    "text_color": "#ffffff",
+    "accent": "#f97316",
+    "glow": "none",
+    "archetype": "pomo_graphic"
+  },
+  "neon_noir": {
+    "index": 47,
+    "slug": "neon_noir",
+    "name": "Neon Noir",
+    "category": "Cyberpunk & Tech",
+    "desc": "Blade Runner rain soaked back alleys, moody saxophone smoke, neon signs reflecting in oil slicks, dark cyan and amber.",
+    "bg": "#06090e",
+    "surface": "#0e1520",
+    "border": "1px solid #0284c7",
+    "radius": "4px",
+    "font": "'Geist', sans-serif",
+    "text_color": "#e0f2fe",
+    "accent": "#f59e0b",
+    "glow": "0 0 14px rgba(2,132,199,0.4)",
+    "archetype": "cyber_hud"
+  },
+  "neo_tokyo": {
+    "index": 48,
+    "slug": "neo_tokyo",
+    "name": "Neo-Tokyo",
+    "category": "Cyberpunk & Tech",
+    "desc": "Akira 1988 motorcycle taillight trails, decaying megalopolis, concrete highway interchanges, red hazard capsules.",
+    "bg": "#0a0507",
+    "surface": "#170a0f",
+    "border": "1.5px solid #ef4444",
+    "radius": "2px",
+    "font": "'Orbitron', sans-serif",
+    "text_color": "#fee2e2",
+    "accent": "#ef4444",
+    "glow": "0 0 18px rgba(239,68,68,0.5)",
+    "archetype": "cyber_hud"
+  },
+  "nineties_cool": {
+    "index": 49,
+    "slug": "nineties_cool",
+    "name": "90s Cool",
+    "category": "Lifestyle & Retro",
+    "desc": "B-boy baggy denim, Sony Walkman belt clips, CD jewel cases, clear plastic pager beepers, VHS tape noise.",
+    "bg": "#181920",
+    "surface": "#222430",
+    "border": "2px solid #38bdf8",
+    "radius": "8px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#f1f5f9",
+    "accent": "#38bdf8",
+    "glow": "0 4px 14px rgba(0,0,0,0.4)",
+    "archetype": "ambient_lounge"
+  },
+  "abstract_tech": {
+    "index": 50,
+    "slug": "abstract_tech",
+    "name": "Abstract Tech",
+    "category": "Cyberpunk & Tech",
+    "desc": "Non-figurative digital generative geometry, floating floating coordinate axes, particle node constellations.",
+    "bg": "#0a0b10",
+    "surface": "#12141e",
+    "border": "1px solid #3b82f6",
+    "radius": "6px",
+    "font": "'Geist Mono', monospace",
+    "text_color": "#e0e7ff",
+    "accent": "#3b82f6",
+    "glow": "0 0 12px rgba(59,130,246,0.3)",
+    "archetype": "cyber_hud"
+  },
+  "artcore": {
+    "index": 51,
+    "slug": "artcore",
+    "name": "Artcore",
+    "category": "Music & Subculture",
+    "desc": "Japanese drum and bass / piano rhythm game subculture, delicate piano keys meets intense breakbeats, airy white clouds.",
+    "bg": "#0c1017",
+    "surface": "#161d2a",
+    "border": "1px solid #93c5fd",
+    "radius": "10px",
+    "font": "'Newsreader', sans-serif",
+    "text_color": "#f0f9ff",
+    "accent": "#38bdf8",
+    "glow": "0 8px 24px rgba(56,189,248,0.2)",
+    "archetype": "synthwave_outrun"
+  },
+  "clovercore": {
+    "index": 52,
+    "slug": "clovercore",
+    "name": "Clovercore",
+    "category": "Organic & Folk",
+    "desc": "Dewey morning clover fields, four-leaf clover luck, fresh morning mist, bright emerald and dandelion yellow.",
+    "bg": "#0a1a0f",
+    "surface": "#132b1b",
+    "border": "1.5px solid #4ade80",
+    "radius": "14px",
+    "font": "'Inter', sans-serif",
+    "text_color": "#f0fdf4",
+    "accent": "#22c55e",
+    "glow": "0 6px 18px rgba(34,197,94,0.25)",
+    "archetype": "solarpunk_botanical"
+  },
+  "dark_aero": {
+    "index": 53,
+    "slug": "dark_aero",
+    "name": "Dark Aero",
+    "category": "Y2K & Millennium",
+    "desc": "Windows Vista era midnight glass, dark acrylic aero glass blur, moody glowing aquamarine borders, wet obsidian reflections.",
+    "bg": "radial-gradient(circle, #081521 0%, #020407 100%)",
+    "surface": "rgba(10, 26, 40, 0.75)",
+    "border": "1px solid rgba(56, 189, 248, 0.35)",
+    "radius": "14px",
+    "font": "'Geist', sans-serif",
+    "text_color": "#f0f9ff",
+    "accent": "#38bdf8",
+    "glow": "0 16px 36px rgba(0,0,0,0.7)",
+    "archetype": "aero_liquid"
+  },
+  "darkest_academia": {
+    "index": 54,
+    "slug": "darkest_academia",
+    "name": "Darkest Academia",
+    "category": "Dark & Gothic",
+    "desc": "Oxford gothic library at midnight, dusty leather-bound grimoires, dripping candle wax, classical Greek tragedy.",
+    "bg": "#100d0b",
+    "surface": "#1a1613",
+    "border": "1px solid #44372c",
+    "radius": "4px",
+    "font": "'Newsreader', serif",
+    "text_color": "#ede6dd",
+    "accent": "#c49a6c",
+    "glow": "0 4px 16px rgba(0,0,0,0.6)",
+    "archetype": "scholastic_grimoire"
+  },
+  "dorfic": {
+    "index": 55,
+    "slug": "dorfic",
+    "name": "DORFic",
+    "category": "Design & UI",
+    "desc": "Raw brutalist municipal computing, concrete telecommunications towers, utilitarian public transit signage.",
+    "bg": "#1e2022",
+    "surface": "#282a2d",
+    "border": "2px solid #5c636a",
+    "radius": "0px",
+    "font": "'Geist Mono', monospace",
+    "text_color": "#e9ecef",
+    "accent": "#adb5bd",
+    "glow": "none",
+    "archetype": "analog_console"
+  },
+  "four_colors": {
+    "index": 56,
+    "slug": "four_colors",
+    "name": "Four Colors",
+    "category": "Design & UI",
+    "desc": "Strict 4-color CGA graphics palette (Black, Cyan, Magenta, White), stark graphic novel impact.",
+    "bg": "#000000",
+    "surface": "#000055",
+    "border": "2px solid #00aaaa",
+    "radius": "0px",
+    "font": "'VT323', monospace",
+    "text_color": "#ffffff",
+    "accent": "#aa00aa",
+    "glow": "none",
+    "archetype": "pomo_graphic"
+  },
+  "frutiger_aero": {
+    "index": 57,
+    "slug": "frutiger_aero",
+    "name": "Frutiger Aero",
+    "category": "Y2K & Millennium",
+    "desc": "2005\u20132013 glossy skeumorphism, crystal clear water bubbles, lush green hills under azure blue sky, translucent glass lens flares.",
+    "bg": "linear-gradient(180deg, #38bdf8 0%, #0284c7 40%, #16a34a 100%)",
+    "surface": "rgba(255, 255, 255, 0.75)",
+    "border": "1.5px solid rgba(255, 255, 255, 0.9)",
+    "radius": "16px",
+    "font": "'Segoe UI', 'Inter', sans-serif",
+    "text_color": "#0f172a",
+    "accent": "#0284c7",
+    "glow": "0 12px 30px rgba(0,0,0,0.3)",
+    "archetype": "aero_liquid"
+  },
+  "frutiger_eco": {
+    "index": 58,
+    "slug": "frutiger_eco",
+    "name": "Frutiger Eco",
+    "category": "Y2K & Millennium",
+    "desc": "Clean eco-futurism of the late 2000s, wind turbines on green hills, clean white minimalist appliances, solar energy droplets.",
+    "bg": "linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%)",
+    "surface": "rgba(255, 255, 255, 0.9)",
+    "border": "1.5px solid #34d399",
+    "radius": "14px",
+    "font": "'Inter', sans-serif",
+    "text_color": "#064e3b",
+    "accent": "#10b981",
+    "glow": "0 6px 20px rgba(16,185,129,0.2)",
+    "archetype": "aero_liquid"
+  },
+  "genericana": {
+    "index": 59,
+    "slug": "genericana",
+    "name": "Genericana",
+    "category": "Design & UI",
+    "desc": "Black and white generic grocery packaging (BEER, CEREAL), austere sans-serif, supermarket aisle minimalism.",
+    "bg": "#ffffff",
+    "surface": "#f8f9fa",
+    "border": "2px solid #000000",
+    "radius": "0px",
+    "font": "'Helvetica Neue', Arial, sans-serif",
+    "text_color": "#000000",
+    "accent": "#000000",
+    "glow": "none",
+    "archetype": "pomo_graphic"
+  },
+  "hauntology": {
+    "index": 60,
+    "slug": "hauntology",
+    "name": "Hauntology",
+    "category": "Dark & Gothic",
+    "desc": "Mark Fisher / Ghost Box records, decaying public service broadcasts, memory of lost futures, magnetic tape flutter.",
+    "bg": "#1a1815",
+    "surface": "#24211d",
+    "border": "1px solid #473e35",
+    "radius": "4px",
+    "font": "'VT323', monospace",
+    "text_color": "#d4c8b8",
+    "accent": "#e07a5f",
+    "glow": "0 0 12px rgba(0,0,0,0.5)",
+    "archetype": "gothic_velvet"
+  },
+  "internet_awesomesauce": {
+    "index": 61,
+    "slug": "internet_awesomesauce",
+    "name": "Internet Awesomesauce",
+    "category": "Internet & Meme",
+    "desc": "2008 epic bacon era, narwhals, rage comics, lolcats, bright cyan and yellow starbursts.",
+    "bg": "radial-gradient(circle, #0284c7 0%, #0369a1 100%)",
+    "surface": "#ffffff",
+    "border": "3px solid #facc15",
+    "radius": "12px",
+    "font": "'Impact', sans-serif",
+    "text_color": "#0f172a",
+    "accent": "#facc15",
+    "glow": "0 6px 0 #000",
+    "archetype": "geocities_web1"
+  },
+  "indiecraft": {
+    "index": 62,
+    "slug": "indiecraft",
+    "name": "Indiecraft",
+    "category": "Internet & Meme",
+    "desc": "Etsy handmade zines, recycled craft paper textures, rubber stamp ink, mismatched vintage typewriter keys.",
+    "bg": "#241e19",
+    "surface": "#302822",
+    "border": "2px dashed #8c6d58",
+    "radius": "6px",
+    "font": "'Courier New', monospace",
+    "text_color": "#f0e6dc",
+    "accent": "#d97736",
+    "glow": "0 4px 10px rgba(0,0,0,0.3)",
+    "archetype": "pomo_graphic"
+  },
+  "moe": {
+    "index": 63,
+    "slug": "moe",
+    "name": "Moe",
+    "category": "Internet & Meme",
+    "desc": "Cute anime aesthetics, pastel strawberry milk pink, sparkles, rounded puffy cloud bubbles, blush stickers.",
+    "bg": "#fff1f2",
+    "surface": "#ffffff",
+    "border": "2px solid #fda4af",
+    "radius": "18px",
+    "font": "'Inter', sans-serif",
+    "text_color": "#4c0519",
+    "accent": "#fb7185",
+    "glow": "0 8px 20px rgba(251,113,133,0.2)",
+    "archetype": "visual_novel"
+  },
+  "pixelscape": {
+    "index": 64,
+    "slug": "pixelscape",
+    "name": "Pixelscape",
+    "category": "Retro Computing",
+    "desc": "Detailed 16-bit pixel landscape scenery, twilight cyberpunk cityscapes, pixel art water reflections.",
+    "bg": "#120f24",
+    "surface": "#1e1a38",
+    "border": "2px solid #6366f1",
+    "radius": "0px",
+    "font": "'Press Start 2P', monospace",
+    "text_color": "#e0e7ff",
+    "accent": "#818cf8",
+    "glow": "0 0 14px rgba(99,102,241,0.4)",
+    "archetype": "arcade_cabinet"
+  },
+  "skeuomorphism": {
+    "index": 65,
+    "slug": "skeuomorphism",
+    "name": "Skeuomorphism",
+    "category": "Design & UI",
+    "desc": "Classic iOS 6 stitched leather, polished brass switches, realistic paper grain, glossy bubble buttons.",
+    "bg": "#2a2521",
+    "surface": "#3b332c",
+    "border": "2px solid #5a4e43",
+    "radius": "8px",
+    "font": "'Helvetica Neue', sans-serif",
+    "text_color": "#f5f2eb",
+    "accent": "#d4a373",
+    "glow": "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 10px rgba(0,0,0,0.6)",
+    "archetype": "tactile_hardware"
+  },
+  "solarpunk": {
+    "index": 66,
+    "slug": "solarpunk",
+    "name": "Solarpunk",
+    "category": "Organic & Folk",
+    "desc": "Art Nouveau stained glass meets solar micro-grids, lush rooftop gardens, warm brass curves, ecological optimism.",
+    "bg": "linear-gradient(135deg, #132a13 0%, #061506 100%)",
+    "surface": "rgba(19, 42, 19, 0.8)",
+    "border": "1.5px solid #eab308",
+    "radius": "14px",
+    "font": "'Newsreader', serif",
+    "text_color": "#ecfccb",
+    "accent": "#eab308",
+    "glow": "0 0 18px rgba(234,179,8,0.3)",
+    "archetype": "solarpunk_botanical"
+  },
+  "steampunk": {
+    "index": 67,
+    "slug": "steampunk",
+    "name": "Steampunk",
+    "category": "Design & UI",
+    "desc": "Victorian brass clockwork, exposed steam pressure dials, riveted copper plating, sepia tinted goggles.",
+    "bg": "#1c150f",
+    "surface": "#2b2017",
+    "border": "3px double #b45309",
+    "radius": "4px",
+    "font": "'Cinzel', serif",
+    "text_color": "#fef3c7",
+    "accent": "#f59e0b",
+    "glow": "inset 0 0 10px rgba(0,0,0,0.8), 0 4px 15px rgba(0,0,0,0.5)",
+    "archetype": "steampunk_machinery"
+  },
+  "synthwave": {
+    "index": 68,
+    "slug": "synthwave",
+    "name": "Synthwave",
+    "category": "Cyberpunk & Tech",
+    "desc": "1984 neon wireframe grid sunset, hot magenta chrome, glowing cyan grid horizon, OutRun aesthetic.",
+    "bg": "linear-gradient(180deg, #18002e 0%, #40003b 50%, #0f001f 100%)",
+    "surface": "#26003b",
+    "border": "2px solid #ff007f",
+    "radius": "8px",
+    "font": "'Orbitron', sans-serif",
+    "text_color": "#ffffff",
+    "accent": "#00ffff",
+    "glow": "0 0 20px #ff007f",
+    "archetype": "synthwave_outrun"
+  },
+  "acid_design": {
+    "index": 69,
+    "slug": "acid_design",
+    "name": "Acid Design",
+    "category": "Design & UI",
+    "desc": "High-frequency psychedelic distortion, melted chrome vector blobs, lime green and deep purple optical illusions.",
+    "bg": "#0a0514",
+    "surface": "#150b28",
+    "border": "2px solid #ccff00",
+    "radius": "12px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#f3e8ff",
+    "accent": "#ccff00",
+    "glow": "0 0 20px #ccff00",
+    "archetype": "pomo_graphic"
+  },
+  "adventurecore": {
+    "index": 70,
+    "slug": "adventurecore",
+    "name": "Adventurecore",
+    "category": "Organic & Folk",
+    "desc": "Mountain trail topographic contour maps, rugged hiking cordura nylon, brass compass, forest mud.",
+    "bg": "#1a2016",
+    "surface": "#252d20",
+    "border": "2px solid #65a30d",
+    "radius": "6px",
+    "font": "'Inter', sans-serif",
+    "text_color": "#ecfccb",
+    "accent": "#84cc16",
+    "glow": "0 4px 12px rgba(0,0,0,0.4)",
+    "archetype": "solarpunk_botanical"
+  },
+  "bloomcore": {
+    "index": 71,
+    "slug": "bloomcore",
+    "name": "Bloomcore",
+    "category": "Organic & Folk",
+    "desc": "Overgrown English cottage gardens, blooming wild peonies, soft afternoon sunlight, watercolor petals.",
+    "bg": "#1c1819",
+    "surface": "#292224",
+    "border": "1.5px solid #f472b6",
+    "radius": "12px",
+    "font": "'Newsreader', serif",
+    "text_color": "#fdf2f8",
+    "accent": "#f472b6",
+    "glow": "0 4px 16px rgba(244,114,182,0.2)",
+    "archetype": "solarpunk_botanical"
+  },
+  "colorful_pop": {
+    "index": 72,
+    "slug": "colorful_pop",
+    "name": "Colorful Pop",
+    "category": "Design & UI",
+    "desc": "Bright saturated block colors, bold rounded geometric shapes, playful toy box energy.",
+    "bg": "#0f172a",
+    "surface": "#1e293b",
+    "border": "3px solid #38bdf8",
+    "radius": "16px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#ffffff",
+    "accent": "#f43f5e",
+    "glow": "0 8px 0 #0f172a",
+    "archetype": "pomo_graphic"
+  },
+  "cyberminimalism": {
+    "index": 73,
+    "slug": "cyberminimalism",
+    "name": "Cyberminimalism",
+    "category": "Cyberpunk & Tech",
+    "desc": "Stripped-down monochromatic cybernetics, pure carbon fiber black, single glowing status diode.",
+    "bg": "#030303",
+    "surface": "#080808",
+    "border": "1px solid #222222",
+    "radius": "2px",
+    "font": "'Geist Mono', monospace",
+    "text_color": "#ffffff",
+    "accent": "#3b82f6",
+    "glow": "0 0 8px rgba(59,130,246,0.3)",
+    "archetype": "cyber_hud"
+  },
+  "darksynth": {
+    "index": 74,
+    "slug": "darksynth",
+    "name": "Darksynth",
+    "category": "Cyberpunk & Tech",
+    "desc": "Perturbator / Carpenter Brut horror synth, demonic crimson pentagram neon, heavy distortion bass.",
+    "bg": "#050203",
+    "surface": "#120508",
+    "border": "2px solid #dc2626",
+    "radius": "2px",
+    "font": "'Orbitron', sans-serif",
+    "text_color": "#fee2e2",
+    "accent": "#ef4444",
+    "glow": "0 0 16px rgba(220,38,38,0.5)",
+    "archetype": "cyber_hud"
+  },
+  "dokukawaii": {
+    "index": 75,
+    "slug": "dokukawaii",
+    "name": "Dokukawaii",
+    "category": "Internet & Meme",
+    "desc": "Poison cute, pastel gothic Japanese street fashion, cute skulls, medical eyepatch stickers, pastel lavender and toxic slime.",
+    "bg": "#171120",
+    "surface": "#231a30",
+    "border": "2px solid #a855f7",
+    "radius": "14px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#faf5ff",
+    "accent": "#c084fc",
+    "glow": "0 0 16px rgba(192,132,252,0.4)",
+    "archetype": "visual_novel"
+  },
+  "dragoncore": {
+    "index": 76,
+    "slug": "dragoncore",
+    "name": "Dragoncore",
+    "category": "Ethereal & Fantasy",
+    "desc": "Smaug treasure hoard, shimmering dragon scales, molten gold coins, ruby embers, ancient fantasy majesty.",
+    "bg": "#140a08",
+    "surface": "#21110e",
+    "border": "2px solid #ea580c",
+    "radius": "6px",
+    "font": "'Cinzel', serif",
+    "text_color": "#ffedd5",
+    "accent": "#f59e0b",
+    "glow": "0 0 18px rgba(234,88,12,0.4)",
+    "archetype": "cosmic_ethereal"
+  },
+  "dreampunk": {
+    "index": 77,
+    "slug": "dreampunk",
+    "name": "Dreampunk",
+    "category": "Ethereal & Fantasy",
+    "desc": "Rain-slicked surreal metropolis, floating umbrellas in fog, sub-bass echoes, vapor dreamscapes.",
+    "bg": "#0b0d17",
+    "surface": "#131728",
+    "border": "1.5px solid #818cf8",
+    "radius": "10px",
+    "font": "'Inter', sans-serif",
+    "text_color": "#e0e7ff",
+    "accent": "#a5b4fc",
+    "glow": "0 8px 24px rgba(129,140,248,0.25)",
+    "archetype": "cosmic_ethereal"
+  },
+  "future_funk": {
+    "index": 78,
+    "slug": "future_funk",
+    "name": "Future Funk",
+    "category": "Internet & Meme",
+    "desc": "Sailor Moon 80s anime city pop remix, disco glitter sparkles, pastel magenta sunset, roller-skating in Tokyo.",
+    "bg": "linear-gradient(135deg, #4c0519 0%, #831843 100%)",
+    "surface": "#370617",
+    "border": "2px solid #f43f5e",
+    "radius": "14px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#fff1f2",
+    "accent": "#fb7185",
+    "glow": "0 0 20px rgba(251,113,133,0.4)",
+    "archetype": "synthwave_outrun"
+  },
+  "forestpunk": {
+    "index": 79,
+    "slug": "forestpunk",
+    "name": "Forestpunk",
+    "category": "Organic & Folk",
+    "desc": "Moss-covered mechanical automaton, ancient forest growth overtaking solar panels, damp pine needles.",
+    "bg": "#0c150c",
+    "surface": "#142214",
+    "border": "1.5px solid #4ade80",
+    "radius": "8px",
+    "font": "'Inter', sans-serif",
+    "text_color": "#dcfce7",
+    "accent": "#22c55e",
+    "glow": "0 4px 14px rgba(34,197,94,0.3)",
+    "archetype": "solarpunk_botanical"
+  },
+  "gen_z_soft_club": {
+    "index": 80,
+    "slug": "gen_z_soft_club",
+    "name": "Gen Z Soft Club",
+    "category": "Lifestyle & Retro",
+    "desc": "TikTok ambient room glow, purple LED strip lights, wireframe butterflies, dreamy low-fi bedroom.",
+    "bg": "#0e0917",
+    "surface": "#171026",
+    "border": "1px solid #c084fc",
+    "radius": "16px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#faf5ff",
+    "accent": "#e879f9",
+    "glow": "0 8px 24px rgba(192,132,252,0.3)",
+    "archetype": "ambient_lounge"
+  },
+  "lo_fi_art": {
+    "index": 81,
+    "slug": "lo_fi_art",
+    "name": "Lo-fi Art",
+    "category": "Design & UI",
+    "desc": "Cozy rainy bedroom study beats, warm paper texture, hand-drawn wobbly ink lines, steaming coffee mug.",
+    "bg": "#1f1d1a",
+    "surface": "#2b2723",
+    "border": "1.5px solid #d97736",
+    "radius": "10px",
+    "font": "'Lora', serif",
+    "text_color": "#ede5da",
+    "accent": "#e0a96d",
+    "glow": "0 4px 12px rgba(0,0,0,0.3)",
+    "archetype": "ambient_lounge"
+  },
+  "lunarpunk": {
+    "index": 82,
+    "slug": "lunarpunk",
+    "name": "Lunarpunk",
+    "category": "Ethereal & Fantasy",
+    "desc": "Bioluminescent nocturnal forest, moonlit quartz crystals, glowing blue mushrooms, cool silver night.",
+    "bg": "radial-gradient(circle, #0a1128 0%, #03040a 100%)",
+    "surface": "#0f1b3b",
+    "border": "1.5px solid #38bdf8",
+    "radius": "12px",
+    "font": "'Newsreader', serif",
+    "text_color": "#e0f2fe",
+    "accent": "#7dd3fc",
+    "glow": "0 0 16px rgba(56,189,248,0.35)",
+    "archetype": "cosmic_ethereal"
+  },
+  "mlg": {
+    "index": 83,
+    "slug": "mlg",
+    "name": "MLG",
+    "category": "Internet & Meme",
+    "desc": "Major League Gaming 2014 montage parodies, Doritos, Mountain Dew, hitmarkers, 360 noscope lens flares.",
+    "bg": "#000000",
+    "surface": "#0c1a0c",
+    "border": "3px solid #22c55e",
+    "radius": "0px",
+    "font": "'Impact', monospace",
+    "text_color": "#ffffff",
+    "accent": "#22c55e",
+    "glow": "0 0 14px #22c55e",
+    "archetype": "geocities_web1"
+  },
+  "mallsoft": {
+    "index": 84,
+    "slug": "mallsoft",
+    "name": "Mallsoft",
+    "category": "Internet & Meme",
+    "desc": "Empty abandoned 1992 shopping mall at closing time, distant muffled muzak echoing off ceramic floor tiles, pastel palm trees.",
+    "bg": "linear-gradient(135deg, #1e1b2e 0%, #110e1f 100%)",
+    "surface": "#262238",
+    "border": "1px solid #a78bfa",
+    "radius": "10px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#ede9fe",
+    "accent": "#c084fc",
+    "glow": "0 8px 24px rgba(167,139,250,0.2)",
+    "archetype": "ambient_lounge"
+  },
+  "neo_vectorheart": {
+    "index": 85,
+    "slug": "neo_vectorheart",
+    "name": "Neo-Vectorheart",
+    "category": "Y2K & Millennium",
+    "desc": "Modern high-res revival of late 90s vector flourish art, glowing concentric ribbon loops, iridescent chrome hearts.",
+    "bg": "#140727",
+    "surface": "#220e40",
+    "border": "1.5px solid #f43f5e",
+    "radius": "14px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#fff1f2",
+    "accent": "#fb7185",
+    "glow": "0 0 20px rgba(244,63,94,0.4)",
+    "archetype": "y2k_cyber"
+  },
+  "neo_y2k": {
+    "index": 86,
+    "slug": "neo_y2k",
+    "name": "Neo-Y2K",
+    "category": "Y2K & Millennium",
+    "desc": "Modern fashion revival of Y2K, 3D chrome typography, inflatable puffer aesthetics, metallic cyber butterfly accessories.",
+    "bg": "radial-gradient(circle, #1e1b4b 0%, #09061c 100%)",
+    "surface": "#1f1c4f",
+    "border": "1.5px solid #818cf8",
+    "radius": "16px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#f5f3ff",
+    "accent": "#a5b4fc",
+    "glow": "0 0 18px rgba(129,140,248,0.35)",
+    "archetype": "y2k_cyber"
+  },
+  "ocean_grunge": {
+    "index": 87,
+    "slug": "ocean_grunge",
+    "name": "Ocean Grunge",
+    "category": "Dark & Gothic",
+    "desc": "Murky deep sea trench, barnacle encrusted sunken ships, wet moody dark teal, saltwater decay.",
+    "bg": "#040e14",
+    "surface": "#091c26",
+    "border": "1.5px solid #0d9488",
+    "radius": "4px",
+    "font": "'Newsreader', serif",
+    "text_color": "#ccfbf1",
+    "accent": "#14b8a6",
+    "glow": "0 4px 16px rgba(13,148,136,0.3)",
+    "archetype": "cosmic_ethereal"
+  },
+  "polychrome": {
+    "index": 88,
+    "slug": "polychrome",
+    "name": "Polychrome",
+    "category": "Design & UI",
+    "desc": "Vibrant spectrum harmony, multicolor chromatic bars, lively rainbow sequence with modernist restraint.",
+    "bg": "#0f172a",
+    "surface": "#1e293b",
+    "border": "2px solid #38bdf8",
+    "radius": "8px",
+    "font": "'Inter', sans-serif",
+    "text_color": "#ffffff",
+    "accent": "#f59e0b",
+    "glow": "0 4px 16px rgba(0,0,0,0.4)",
+    "archetype": "pomo_graphic"
+  },
+  "signalwave": {
+    "index": 89,
+    "slug": "signalwave",
+    "name": "Signalwave",
+    "category": "Cyberpunk & Tech",
+    "desc": "Late night analogue television static, emergency broadcast system test tones, weather radar scans.",
+    "bg": "#08080c",
+    "surface": "#12121c",
+    "border": "1.5px solid #38bdf8",
+    "radius": "2px",
+    "font": "'VT323', monospace",
+    "text_color": "#e0f2fe",
+    "accent": "#38bdf8",
+    "glow": "0 0 10px rgba(56,189,248,0.4)",
+    "archetype": "analog_console"
+  },
+  "soft_colonial_wanderlust": {
+    "index": 90,
+    "slug": "soft_colonial_wanderlust",
+    "name": "Soft Colonial Wanderlust",
+    "category": "Lifestyle & Retro",
+    "desc": "19th century botanical explorer journals, pressed fern leaves, brass pocket chronometers, sepia parchment.",
+    "bg": "#1a1612",
+    "surface": "#26201a",
+    "border": "1px solid #78644e",
+    "radius": "6px",
+    "font": "'Newsreader', serif",
+    "text_color": "#eee3d5",
+    "accent": "#c29d78",
+    "glow": "0 4px 12px rgba(0,0,0,0.4)",
+    "archetype": "ambient_lounge"
+  },
+  "sportsbrut": {
+    "index": 91,
+    "slug": "sportsbrut",
+    "name": "Sportsbrut",
+    "category": "Design & UI",
+    "desc": "Aggressive raw athletics branding, high-voltage neon yellow, heavy angular typography, rubber grip textures.",
+    "bg": "#09090b",
+    "surface": "#18181b",
+    "border": "3px solid #eab308",
+    "radius": "0px",
+    "font": "'Impact', 'Inter', sans-serif",
+    "text_color": "#ffffff",
+    "accent": "#eab308",
+    "glow": "none",
+    "archetype": "tactile_hardware"
+  },
+  "angelcore": {
+    "index": 92,
+    "slug": "angelcore",
+    "name": "Angelcore",
+    "category": "Ethereal & Fantasy",
+    "desc": "Soft feather wings, warm sunlight beams through cathedral stained glass, white marble clouds, golden halos.",
+    "bg": "linear-gradient(180deg, #1c1815 0%, #0d0c0a 100%)",
+    "surface": "#26211d",
+    "border": "1px solid #d4af37",
+    "radius": "12px",
+    "font": "'Cinzel', serif",
+    "text_color": "#fbf7ee",
+    "accent": "#d4af37",
+    "glow": "0 0 18px rgba(212,175,55,0.3)",
+    "archetype": "cosmic_ethereal"
+  },
+  "bardcore": {
+    "index": 93,
+    "slug": "bardcore",
+    "name": "Bardcore",
+    "category": "Ethereal & Fantasy",
+    "desc": "Medieval tavern lute covers, illuminated manuscript borders, calligraphy ink, tapestries, fantasy roll.",
+    "bg": "#18120b",
+    "surface": "#261d12",
+    "border": "2px solid #92400e",
+    "radius": "4px",
+    "font": "'Cinzel', serif",
+    "text_color": "#fef3c7",
+    "accent": "#d97706",
+    "glow": "0 4px 14px rgba(0,0,0,0.5)",
+    "archetype": "scholastic_grimoire"
+  },
+  "claymorphism": {
+    "index": 94,
+    "slug": "claymorphism",
+    "name": "Claymorphism",
+    "category": "Design & UI",
+    "desc": "Soft rounded 3D clay inflatables, double inner shadows creating matte puffy pillowy depth.",
+    "bg": "#131620",
+    "surface": "#1e2230",
+    "border": "none",
+    "radius": "20px",
+    "font": "'Inter', sans-serif",
+    "text_color": "#f1f5f9",
+    "accent": "#60a5fa",
+    "glow": "inset -4px -4px 8px rgba(0,0,0,0.5), inset 4px 4px 8px rgba(255,255,255,0.1), 0 12px 24px rgba(0,0,0,0.4)",
+    "archetype": "tactile_hardware"
+  },
+  "dark_naturalism": {
+    "index": 95,
+    "slug": "dark_naturalism",
+    "name": "Dark Naturalism",
+    "category": "Dark & Gothic",
+    "desc": "Shadowed damp mossy stones, raven feathers, nocturnal forest floor, deep obsidian earth.",
+    "bg": "#0a0f0b",
+    "surface": "#121a14",
+    "border": "1px solid #2d4a34",
+    "radius": "6px",
+    "font": "'Newsreader', serif",
+    "text_color": "#dcfce7",
+    "accent": "#4ade80",
+    "glow": "0 4px 14px rgba(0,0,0,0.5)",
+    "archetype": "solarpunk_botanical"
+  },
+  "divine_machinery": {
+    "index": 96,
+    "slug": "divine_machinery",
+    "name": "Divine Machinery",
+    "category": "Ethereal & Fantasy",
+    "desc": "Golden celestial clockwork, rotating astronomical astrolabes, sacred geometry, mechanical cherubim.",
+    "bg": "#0e0c07",
+    "surface": "#1c180e",
+    "border": "1.5px solid #d4af37",
+    "radius": "8px",
+    "font": "'Cinzel', serif",
+    "text_color": "#fefce8",
+    "accent": "#d4af37",
+    "glow": "0 0 20px rgba(212,175,55,0.4)",
+    "archetype": "steampunk_machinery"
+  },
+  "dreamcore": {
+    "index": 97,
+    "slug": "dreamcore",
+    "name": "Dreamcore",
+    "category": "Ethereal & Fantasy",
+    "desc": "Liminal nostalgic dream spaces, endless soft cloud skies, uncanny peaceful surrealism, faded pastel mist.",
+    "bg": "radial-gradient(circle, #242b42 0%, #0d101a 100%)",
+    "surface": "rgba(36, 43, 66, 0.6)",
+    "border": "1px solid rgba(255,255,255,0.2)",
+    "radius": "16px",
+    "font": "'Lora', serif",
+    "text_color": "#f1f5f9",
+    "accent": "#93c5fd",
+    "glow": "0 10px 30px rgba(0,0,0,0.4)",
+    "archetype": "cosmic_ethereal"
+  },
+  "fallen_angel": {
+    "index": 98,
+    "slug": "fallen_angel",
+    "name": "Fallen Angel",
+    "category": "Ethereal & Fantasy",
+    "desc": "Blackened burnt feathers, shattered marble cathedral pillars, dark tragic divinity, gothic romance.",
+    "bg": "#070608",
+    "surface": "#120f14",
+    "border": "1px solid #4a3e52",
+    "radius": "4px",
+    "font": "'Cinzel', serif",
+    "text_color": "#ede8f2",
+    "accent": "#a855f7",
+    "glow": "0 0 15px rgba(168,85,247,0.3)",
+    "archetype": "gothic_velvet"
+  },
+  "glassmorphism": {
+    "index": 99,
+    "slug": "glassmorphism",
+    "name": "Glassmorphism",
+    "category": "Design & UI",
+    "desc": "High-specular frosty blurred acrylic glass, multi-layer depth, colorful refractive gradient glows behind cards.",
+    "bg": "radial-gradient(circle at 20% 30%, #312e81 0%, #030712 100%)",
+    "surface": "rgba(255, 255, 255, 0.08)",
+    "border": "1px solid rgba(255, 255, 255, 0.2)",
+    "radius": "16px",
+    "font": "'Inter', sans-serif",
+    "text_color": "#ffffff",
+    "accent": "#818cf8",
+    "glow": "0 20px 50px rgba(0,0,0,0.6)",
+    "archetype": "aero_liquid"
+  },
+  "neumorphism": {
+    "index": 100,
+    "slug": "neumorphism",
+    "name": "Neumorphism",
+    "category": "Design & UI",
+    "desc": "Soft extruded plastic tactile surfaces, continuous surface with dual-directional soft light & dark drop shadows.",
+    "bg": "#24272c",
+    "surface": "#24272c",
+    "border": "none",
+    "radius": "14px",
+    "font": "'Inter', sans-serif",
+    "text_color": "#e2e8f0",
+    "accent": "#38bdf8",
+    "glow": "6px 6px 14px #1a1c20, -6px -6px 14px #2e3238",
+    "archetype": "tactile_hardware"
+  },
+  "neo_aero": {
+    "index": 101,
+    "slug": "neo_aero",
+    "name": "Neo-Aero",
+    "category": "Y2K & Millennium",
+    "desc": "Modern evolution of Frutiger Aero with modern ray-traced glass physics, HDR luminous water optics.",
+    "bg": "linear-gradient(135deg, #0284c7 0%, #0369a1 40%, #0f172a 100%)",
+    "surface": "rgba(255, 255, 255, 0.15)",
+    "border": "1px solid rgba(255, 255, 255, 0.5)",
+    "radius": "18px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#ffffff",
+    "accent": "#38bdf8",
+    "glow": "0 16px 40px rgba(0,0,0,0.5)",
+    "archetype": "aero_liquid"
+  },
+  "spacecore": {
+    "index": 102,
+    "slug": "spacecore",
+    "name": "Spacecore",
+    "category": "Ethereal & Fantasy",
+    "desc": "Deep interstellar nebulae, Hubble telescope star clusters, void blackness, luminous cosmic dust.",
+    "bg": "radial-gradient(circle at 60% 40%, #1e1136 0%, #020205 100%)",
+    "surface": "#0b0914",
+    "border": "1px solid #6366f1",
+    "radius": "10px",
+    "font": "'Orbitron', sans-serif",
+    "text_color": "#ede9fe",
+    "accent": "#818cf8",
+    "glow": "0 0 16px rgba(99,102,241,0.4)",
+    "archetype": "cosmic_ethereal"
+  },
+  "spainwave": {
+    "index": 103,
+    "slug": "spainwave",
+    "name": "Spainwave",
+    "category": "Music & Subculture",
+    "desc": "Iberian coastal vaporwave, 80s Spanish pop nostalgia, Mediterranean dusk gradients, retro summer TV.",
+    "bg": "linear-gradient(180deg, #831843 0%, #be123c 40%, #fb923c 100%)",
+    "surface": "#3f0a1c",
+    "border": "2px solid #fdba74",
+    "radius": "12px",
+    "font": "'Space Grotesk', sans-serif",
+    "text_color": "#fff7ed",
+    "accent": "#fdba74",
+    "glow": "0 8px 24px rgba(0,0,0,0.5)",
+    "archetype": "synthwave_outrun"
+  }
+};
+
+    let currentThemeKey = "y3k_futurism";
+    let isPlaying = false;
+    let playInterval = null;
+
+    // --- BESPOKE VECTOR ART GENERATOR ---
+    function getHeroSvg(slug, theme) {
+      const acc = theme.accent || "#00ffcc";
+      const arch = theme.archetype || "pomo_graphic";
+
+      if (arch === "visual_novel") {
+        return `<svg viewBox="0 0 160 110" style="width:100%; height:105px;">
+          <rect x="10" y="10" width="140" height="90" rx="4" fill="#111" stroke="${acc}" stroke-width="2"/>
+          <circle cx="80" cy="45" r="22" fill="${acc}" opacity="0.3"/>
+          <path d="M60 80 C60 60, 100 60, 100 80 Z" fill="${acc}" opacity="0.6"/>
+          <rect x="20" y="18" width="45" height="10" fill="${acc}"/>
+          <text x="24" y="26" font-size="8" fill="#000" font-family="monospace" font-weight="bold">PC-98 VM</text>
+        </svg>`;
+      }
+
+      if (arch === "analog_console") {
+        return `<svg viewBox="0 0 160 80" style="width:100%; height:80px;">
+          <rect x="5" y="5" width="150" height="70" rx="4" fill="#222" stroke="#444" stroke-width="2"/>
+          <circle cx="45" cy="40" r="22" fill="#111" stroke="${acc}" stroke-width="2"/>
+          <circle cx="45" cy="40" r="8" fill="#333" stroke="${acc}"/>
+          <circle cx="115" cy="40" r="22" fill="#111" stroke="${acc}" stroke-width="2"/>
+          <circle cx="115" cy="40" r="8" fill="#333" stroke="${acc}"/>
+          <rect x="35" y="32" width="90" height="16" rx="2" fill="none" stroke="${acc}" stroke-width="1.5" stroke-dasharray="4,2"/>
+          <text x="70" y="44" font-size="9" fill="${acc}" font-family="monospace">48kHz</text>
+        </svg>`;
+      }
+
+      if (arch === "cyber_hud") {
+        return `<svg viewBox="0 0 160 95" style="width:100%; height:90px;">
+          <circle cx="80" cy="48" r="38" fill="none" stroke="${acc}" stroke-width="1.5" stroke-dasharray="6,4"/>
+          <circle cx="80" cy="48" r="24" fill="none" stroke="${acc}" stroke-width="1" opacity="0.6"/>
+          <line x1="80" y1="5" x2="80" y2="90" stroke="${acc}" stroke-width="1" opacity="0.4"/>
+          <line x1="35" y1="48" x2="125" y2="48" stroke="${acc}" stroke-width="1" opacity="0.4"/>
+          <polygon points="76,44 84,44 84,52 76,52" fill="${acc}"/>
+          <text x="10" y="18" font-size="9" fill="${acc}" font-family="monospace">HUD.LOCK</text>
+        </svg>`;
+      }
+
+      if (arch === "gothic_velvet") {
+        return `<svg viewBox="0 0 160 100" style="width:100%; height:95px;">
+          <circle cx="80" cy="50" r="32" fill="none" stroke="${acc}" stroke-width="2"/>
+          <path d="M80 15 L80 85 M45 50 L115 50 M55 25 L105 75 M55 75 L105 25" stroke="${acc}" stroke-width="1" opacity="0.5"/>
+          <circle cx="80" cy="50" r="8" fill="${acc}"/>
+          <polygon points="80,5 83,18 96,18 85,26 89,39 80,31 71,39 75,26 64,18 77,18" fill="${acc}" transform="translate(0, 2) scale(0.6)"/>
+        </svg>`;
+      }
+
+      if (arch === "burtonesque") {
+        return `<svg viewBox="0 0 160 95" style="width:100%; height:90px;">
+          <circle cx="110" cy="35" r="28" fill="${acc}" opacity="0.3"/>
+          <path d="M10 90 Q 60 70 80 40 Q 90 25 100 35 Q 110 50 100 65 Q 90 75 75 70" fill="none" stroke="${acc}" stroke-width="3"/>
+          <polygon points="40,30 45,35 48,28 52,32 58,26 50,38" fill="${acc}"/>
+          <polygon points="80,20 85,24 88,18 91,22 96,16 89,28" fill="${acc}"/>
+        </svg>`;
+      }
+
+      if (arch === "aero_liquid") {
+        return `<svg viewBox="0 0 160 85" style="width:100%; height:85px;">
+          <defs>
+            <radialGradient id="aGrad" cx="35%" cy="35%" r="65%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"/>
+              <stop offset="50%" stop-color="${acc}" stop-opacity="0.6"/>
+              <stop offset="100%" stop-color="#003366" stop-opacity="0.9"/>
+            </radialGradient>
+          </defs>
+          <circle cx="60" cy="42" r="28" fill="url(#aGrad)"/>
+          <circle cx="110" cy="32" r="16" fill="url(#aGrad)"/>
+          <circle cx="125" cy="60" r="10" fill="url(#aGrad)"/>
+        </svg>`;
+      }
+
+      if (arch === "steampunk_machinery") {
+        return `<svg viewBox="0 0 160 85" style="width:100%; height:85px;">
+          <circle cx="55" cy="42" r="26" fill="none" stroke="${acc}" stroke-width="3" stroke-dasharray="8,4"/>
+          <circle cx="55" cy="42" r="10" fill="#111" stroke="${acc}" stroke-width="2"/>
+          <circle cx="105" cy="42" r="18" fill="none" stroke="${acc}" stroke-width="3" stroke-dasharray="6,3"/>
+          <circle cx="105" cy="42" r="8" fill="#111" stroke="${acc}" stroke-width="2"/>
+          <line x1="55" y1="42" x2="105" y2="42" stroke="${acc}" stroke-width="2"/>
+        </svg>`;
+      }
+
+      if (arch === "synthwave_outrun") {
+        return `<svg viewBox="0 0 160 85" style="width:100%; height:85px;">
+          <defs>
+            <linearGradient id="sGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#ff007f"/>
+              <stop offset="100%" stop-color="#ffaa00"/>
+            </linearGradient>
+          </defs>
+          <circle cx="80" cy="40" r="30" fill="url(#sGrad)"/>
+          <line x1="52" y1="36" x2="108" y2="36" stroke="#000" stroke-width="2"/>
+          <line x1="54" y1="44" x2="106" y2="44" stroke="#000" stroke-width="3"/>
+          <line x1="60" y1="52" x2="100" y2="52" stroke="#000" stroke-width="4"/>
+          <path d="M20 80 L80 65 L140 80" fill="none" stroke="${acc}" stroke-width="1.5"/>
+        </svg>`;
+      }
+
+      if (arch === "geocities_web1") {
+        return `<svg viewBox="0 0 160 75" style="width:100%; height:75px;">
+          <rect x="10" y="8" width="140" height="58" fill="#000" stroke="#ffff00" stroke-width="2" stroke-dasharray="4,4"/>
+          <polygon points="25,50 35,22 45,50" fill="#ff3300"/>
+          <polygon points="30,50 35,32 40,50" fill="#ffff00"/>
+          <polygon points="115,50 125,22 135,50" fill="#ff3300"/>
+          <polygon points="120,50 125,32 130,50" fill="#ffff00"/>
+          <text x="45" y="42" fill="#00ff00" font-family="monospace" font-size="10" font-weight="bold">UNDER CONST</text>
+        </svg>`;
+      }
+
+      if (arch === "scholastic_grimoire") {
+        return `<svg viewBox="0 0 160 85" style="width:100%; height:85px;">
+          <rect x="25" y="10" width="110" height="65" fill="#fdfcf7" stroke="${acc}" stroke-width="2"/>
+          <circle cx="80" cy="42" r="18" fill="none" stroke="${acc}" stroke-width="2"/>
+          <circle cx="80" cy="42" r="14" fill="#a00" opacity="0.8"/>
+          <text x="74" y="47" font-size="12" fill="#fff" font-family="serif" font-weight="bold">V</text>
+          <line x1="35" y1="20" x2="125" y2="20" stroke="${acc}" stroke-width="1"/>
+          <line x1="35" y1="65" x2="125" y2="65" stroke="${acc}" stroke-width="1"/>
+        </svg>`;
+      }
+
+      if (arch === "solarpunk_botanical") {
+        return `<svg viewBox="0 0 160 85" style="width:100%; height:85px;">
+          <path d="M40 75 Q 40 25 80 15 Q 120 25 120 75" fill="none" stroke="${acc}" stroke-width="2"/>
+          <circle cx="80" cy="35" r="14" fill="${acc}" opacity="0.4"/>
+          <path d="M50 60 Q 65 50 60 40 Q 55 55 50 60 Z" fill="${acc}"/>
+          <path d="M110 60 Q 95 50 100 40 Q 105 55 110 60 Z" fill="${acc}"/>
+        </svg>`;
+      }
+
+      if (arch === "arcade_cabinet") {
+        return `<svg viewBox="0 0 160 85" style="width:100%; height:85px;">
+          <rect x="25" y="10" width="110" height="65" rx="8" fill="#111" stroke="${acc}" stroke-width="2"/>
+          <rect x="35" y="20" width="90" height="35" rx="4" fill="#000" stroke="#333"/>
+          <text x="45" y="42" fill="${acc}" font-family="'Press Start 2P', monospace" font-size="8">1P INSERT</text>
+          <circle cx="50" cy="65" r="4" fill="#f00"/>
+          <circle cx="65" cy="65" r="4" fill="#0f0"/>
+          <circle cx="80" cy="65" r="4" fill="#00f"/>
+        </svg>`;
+      }
+
+      if (arch === "ambient_lounge") {
+        return `<svg viewBox="0 0 160 85" style="width:100%; height:85px;">
+          <circle cx="65" cy="42" r="32" fill="#151515" stroke="${acc}" stroke-width="2"/>
+          <circle cx="65" cy="42" r="10" fill="${acc}"/>
+          <circle cx="65" cy="42" r="2" fill="#000"/>
+          <line x1="120" y1="15" x2="85" y2="40" stroke="${acc}" stroke-width="2"/>
+          <circle cx="120" cy="15" r="4" fill="#444"/>
+        </svg>`;
+      }
+
+      if (arch === "cosmic_ethereal") {
+        return `<svg viewBox="0 0 160 85" style="width:100%; height:85px;">
+          <circle cx="80" cy="42" r="34" fill="none" stroke="${acc}" stroke-width="1" stroke-dasharray="4,4"/>
+          <circle cx="80" cy="42" r="18" fill="none" stroke="${acc}" stroke-width="1.5"/>
+          <circle cx="80" cy="42" r="8" fill="${acc}"/>
+          <circle cx="105" cy="30" r="3" fill="${acc}"/>
+          <circle cx="55" cy="55" r="2.5" fill="${acc}"/>
+        </svg>`;
+      }
+
+      if (arch === "y2k_cyber") {
+        return `<svg viewBox="0 0 160 85" style="width:100%; height:85px;">
+          <ellipse cx="80" cy="42" rx="45" ry="24" fill="none" stroke="${acc}" stroke-width="2"/>
+          <circle cx="80" cy="42" r="16" fill="${acc}" opacity="0.5"/>
+          <circle cx="50" cy="35" r="4" fill="${acc}"/>
+          <circle cx="110" cy="48" r="4" fill="${acc}"/>
+          <path d="M35 50 Q 80 65 125 35" fill="none" stroke="${acc}" stroke-width="1.5"/>
+        </svg>`;
+      }
+
+      // DEFAULT POMO / TECH
+      return `<svg viewBox="0 0 160 80" style="width:100%; height:80px;">
+        <rect x="20" y="15" width="40" height="40" fill="${acc}" opacity="0.4"/>
+        <circle cx="95" cy="35" r="22" fill="none" stroke="${acc}" stroke-width="3"/>
+        <polygon points="135,55 150,20 120,20" fill="${acc}"/>
+        <line x1="10" y1="65" x2="150" y2="65" stroke="${acc}" stroke-width="2" stroke-dasharray="6,4"/>
+      </svg>`;
+    }
+
+    // --- STAGE RENDERER DISPATCHER ---
+    function renderStage(theme) {
+      const arch = theme.archetype || "pomo_graphic";
+      const heroSvg = getHeroSvg(theme.slug, theme);
+      const acc = theme.accent || "#00ffcc";
+
+      // 1. VISUAL NOVEL
+      if (arch === "visual_novel") {
+        return `<div class="stage-grid">
+          <div class="card-panel">
+            <div class="card-hdr"><span>SPEAKER PORTRAIT</span><span style="color:var(--accent);">PC-98 SYSTEM</span></div>
+            <div class="card-body" style="align-items:center; text-align:center;">
+              <div style="width:120px; height:120px; border:2px solid var(--accent); border-radius:4px; overflow:hidden; background:#000;">${heroSvg}</div>
+              <div style="font-weight:800; font-size:13px; margin-top:8px;">Elena Vance</div>
+              <div style="font-size:10px; opacity:0.7;">Chief Financial Officer</div>
+              <div style="width:100%; margin-top:12px; padding:8px; border-radius:4px; background:rgba(0,0,0,0.3); font-size:10.5px; text-align:left;">
+                <div>STATUS: <strong style="color:var(--accent);">TESTIFYING</strong></div>
+                <div>CONFIDENCE: <strong>94.8%</strong></div>
+                <div>MIC: <strong>48kHz Studio</strong></div>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div class="card-panel" style="flex:1;">
+              <div class="card-hdr"><span>TESTIMONY PROCEEDINGS</span><span style="color:var(--accent);">[ LOG VIEW ]</span></div>
+              <div class="card-body">
+                <div class="spk-item">
+                  <div class="spk-hdr-line"><span>Arthur Morgan (CEO)</span><span>00:00.000 ➔ 00:04.280</span></div>
+                  <div class="spk-txt">Good morning everyone and welcome to our fourth quarter financial earnings conference call.</div>
+                </div>
+                <div class="spk-item" style="border-left:3px solid var(--accent); padding-left:10px;">
+                  <div class="spk-hdr-line"><span>Elena Vance (CFO)</span><span style="color:var(--accent);">00:04.280 ➔ 00:10.150 • DISPUTE</span></div>
+                  <div class="spk-txt">Thank you Arthur. Our revenue expanded by fourteen percent year over year. In enterprise, we anticipate a slight <span class="dispute-chip">uptick [?]</span> in recurring margins.</div>
+                </div>
+              </div>
+            </div>
+            <div class="vn-dialogue-box">
+              <div class="vn-nameplate">Elena Vance</div>
+              <div style="font-size:13.5px; line-height:1.6;">"Capital expenditures remained disciplined at twenty-four million dollars, reflecting our strategic realignment towards high-throughput inference silicon." <span style="color:var(--accent); animation:blink 1s infinite;">▼</span></div>
+            </div>
+          </div>
+          <div class="card-panel">
+            <div class="card-hdr"><span>COMMANDS & JUROR</span><span style="color:var(--accent);">VERDICT</span></div>
+            <div class="card-body">
+              <button class="nav-btn" style="width:100%; padding:8px; text-align:left;">💬 [ TALK / TRANSCRIBE ]</button>
+              <button class="nav-btn" style="width:100%; padding:8px; text-align:left;">🔍 [ EXAMINE AUDIO ]</button>
+              <button class="nav-btn" style="width:100%; padding:8px; text-align:left;">⚖️ [ JUROR VOTE ]</button>
+              <button class="nav-btn" style="width:100%; padding:8px; text-align:left;">💾 [ EXPORT SCRIPT ]</button>
+              <div style="margin-top:auto; padding:10px; border:1px solid var(--accent); border-radius:4px; font-size:11px;">
+                <div style="font-weight:700; color:var(--accent);">JUROR ACCORD:</div>
+                <div style="margin-top:4px;">Whisper Large: "UPTICK"</div>
+                <div>Canary 1B: "UPTURN"</div>
+                <div>Nova-2: "UPTICK"</div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // 2. ANALOG CONSOLE
+      if (arch === "analog_console") {
+        return `<div class="stage-grid">
+          <div class="card-panel">
+            <div class="card-hdr"><span>CHANNEL INPUT</span><span style="color:var(--accent);">CH-1</span></div>
+            <div class="card-body">
+              <div style="padding:10px; background:#111; border-radius:4px; border:1px solid #333;">
+                <div style="font-size:11px; font-weight:700; color:var(--accent);">Earnings_Call_Q4.wav</div>
+                <div style="font-size:10px; opacity:0.7;">48kHz • 24-bit PCM</div>
+              </div>
+              <div style="margin-top:10px; display:flex; justify-content:space-around;">
+                <div style="text-align:center;">
+                  <div style="width:36px; height:36px; border-radius:50%; border:2px solid var(--accent); margin:auto; display:flex; align-items:center; justify-content:center; font-size:10px;">+4dB</div>
+                  <div style="font-size:9.5px; margin-top:4px;">GAIN</div>
+                </div>
+                <div style="text-align:center;">
+                  <div style="width:36px; height:36px; border-radius:50%; border:2px solid var(--accent); margin:auto; display:flex; align-items:center; justify-content:center; font-size:10px;">EQ</div>
+                  <div style="font-size:9.5px; margin-top:4px;">FILTER</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card-panel">
+            <div class="card-hdr"><span>MAGNETIC TAPE TRANSCRIPTION REEL</span><span style="color:var(--accent);">SPEED: 7.5 IPS</span></div>
+            <div style="padding:12px; background:rgba(0,0,0,0.3); border-bottom:var(--border-spec);">${heroSvg}</div>
+            <div class="card-body">
+              <div class="spk-item">
+                <div class="spk-hdr-line"><span>Arthur Morgan (CEO)</span><span>00:00.000 ➔ 00:04.280</span></div>
+                <div class="spk-txt">Good morning everyone and welcome to our fourth quarter financial earnings conference call.</div>
+              </div>
+              <div class="spk-item" style="border-left:3px solid var(--accent); padding-left:10px;">
+                <div class="spk-hdr-line"><span>Elena Vance (CFO)</span><span style="color:var(--accent);">00:04.280 ➔ 00:10.150</span></div>
+                <div class="spk-txt">Thank you Arthur. Our revenue expanded by fourteen percent. We anticipate a slight <span class="dispute-chip">uptick [?]</span> in recurring margins.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-panel">
+            <div class="card-hdr"><span>ANALOG VU METERS</span><span style="color:var(--accent);">PEAK -0dB</span></div>
+            <div class="card-body">
+              <div class="vu-dial-meter"><div style="font-size:8.5px; color:#888;">VU - LEFT CHANNEL</div><div class="vu-needle"></div></div>
+              <div class="vu-dial-meter" style="margin-top:10px;"><div style="font-size:8.5px; color:#888;">VU - RIGHT CHANNEL</div><div class="vu-needle" style="animation-delay:0.3s;"></div></div>
+              <div style="margin-top:auto; padding:10px; background:#111; border-radius:4px; border:1px solid #333; text-align:center;">
+                <div style="font-size:10px; opacity:0.7;">TAPE TRANSPORT:</div>
+                <div style="font-weight:800; color:var(--accent); font-size:12px; margin-top:2px;">LOCKED & SYNCED</div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // 3. CYBER HUD
+      if (arch === "cyber_hud") {
+        return `<div class="stage-grid">
+          <div class="card-panel">
+            <div class="card-hdr"><span>TACTICAL RADAR</span><span style="color:var(--accent);">ONLINE</span></div>
+            <div class="card-body" style="align-items:center;">
+              <div class="radar-sweep-box"><div class="radar-sweep-arm"></div></div>
+              <div style="width:100%; font-family:monospace; font-size:9.5px; opacity:0.8; line-height:1.4;">
+                <div>[0x7FFF8A] ADDR_LOCKED</div>
+                <div>[SIGNAL] 48.000 kHz</div>
+                <div>[KANJI] 文字起こし中</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-panel">
+            <div class="card-hdr"><span>NEURAL TRANSCRIPTION FEED</span><span style="color:var(--accent);">// SYNC</span></div>
+            <div class="card-body">
+              <div class="spk-item">
+                <div class="spk-hdr-line"><span>[SPK_01] Arthur Morgan</span><span>00:00.000</span></div>
+                <div class="spk-txt">Good morning everyone and welcome to our fourth quarter financial earnings conference call.</div>
+              </div>
+              <div class="spk-item" style="border-left:3px solid var(--accent); padding-left:10px;">
+                <div class="spk-hdr-line"><span>[SPK_02] Elena Vance</span><span style="color:var(--accent);">DISPUTE DETECTED</span></div>
+                <div class="spk-txt">Our revenue expanded by fourteen percent. We anticipate a slight <span class="dispute-chip">uptick [?]</span> in recurring margins.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-panel">
+            <div class="card-hdr"><span>CONSENSUS TELEMETRY</span><span style="color:var(--accent);">RATIFIED</span></div>
+            <div class="card-body">
+              <div style="padding:10px; border:1px solid var(--accent); border-radius:4px; background:rgba(0,0,0,0.2);">
+                <div style="font-size:10px;">ACCORD RATIO:</div>
+                <div style="font-size:18px; font-weight:900; color:var(--accent); font-family:monospace;">94.8%</div>
+              </div>
+              <div style="margin-top:10px; font-size:11px; display:flex; flex-direction:column; gap:6px;">
+                <div>Whisper Large: <strong>UPTICK [98%]</strong></div>
+                <div>Canary 1B: <strong>UPTURN [89%]</strong></div>
+                <div>Nova-2: <strong>UPTICK [94%]</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // 4. GOTHIC VELVET
+      if (arch === "gothic_velvet") {
+        return `<div class="stage-grid">
+          <div class="card-panel gothic-arch-card">
+            <div class="card-hdr"><span>CELESTIAL WHEEL</span><span style="color:var(--accent);">ZODIAC</span></div>
+            <div class="card-body" style="align-items:center;">
+              <div style="width:100%;">${heroSvg}</div>
+              <div style="font-size:11px; text-align:center; margin-top:8px; font-style:italic;">"Beneath the midnight indigo velvet sky"</div>
+            </div>
+          </div>
+          <div class="card-panel gothic-arch-card">
+            <div class="card-hdr"><span>ILLUMINATED TRANSCRIPT</span><span style="color:var(--accent);">LIBER IV</span></div>
+            <div class="card-body">
+              <div class="spk-item">
+                <div class="spk-hdr-line"><span>Arthur Morgan (Master of Council)</span><span>Hora 00:00.000</span></div>
+                <div class="spk-txt"><span style="font-size:18px; font-family:serif; color:var(--accent); float:left; line-height:1; margin-right:4px;">G</span>ood morning everyone and welcome to our solemn quarterly conference.</div>
+              </div>
+              <div class="spk-item" style="border-left:3px solid var(--accent); padding-left:10px;">
+                <div class="spk-hdr-line"><span>Elena Vance (Chancellor of Treasury)</span><span style="color:var(--accent);">DISPUTATIO</span></div>
+                <div class="spk-txt">Our treasury expanded by fourteen percent. We foresee a gentle <span class="dispute-chip">uptick [?]</span> in margins.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-panel gothic-arch-card">
+            <div class="card-hdr"><span>TRIBUNAL SEALS</span><span style="color:var(--accent);">SANCTIONED</span></div>
+            <div class="card-body">
+              <div style="text-align:center; padding:10px; border:1px solid var(--accent); border-radius:4px;">
+                <div style="font-size:10px; letter-spacing:0.1em;">CONCORDIA</div>
+                <div style="font-size:16px; font-family:serif; color:var(--accent); font-weight:bold;">XCIV.VIII%</div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // 5. BURTONESQUE
+      if (arch === "burtonesque") {
+        return `<div class="stage-grid">
+          <div class="card-panel burton-skew">
+            <div class="card-hdr"><span>SPIRAL HILL</span><span style="color:var(--accent);">PALE MOON</span></div>
+            <div class="card-body" style="align-items:center;">
+              <div style="width:100%;">${heroSvg}</div>
+              <div style="font-size:11px; text-align:center; font-style:italic;">"Through crooked trees and spiral hills..."</div>
+            </div>
+          </div>
+          <div class="card-panel burton-skew">
+            <div class="card-hdr"><span>STITCHED PROCEEDINGS</span><span style="color:var(--accent);">SKEWED LOG</span></div>
+            <div class="card-body">
+              <div class="spk-item" style="border:1px dashed var(--accent);">
+                <div class="spk-hdr-line"><span>Arthur M. (The Skeleton)</span><span>00:00.000</span></div>
+                <div class="spk-txt">Good evening and welcome to our curious gathering!</div>
+              </div>
+              <div class="spk-item" style="border:1px dashed var(--accent); margin-top:8px;">
+                <div class="spk-hdr-line"><span>Elena V. (The Stitch)</span><span style="color:var(--accent);">QUARREL</span></div>
+                <div class="spk-txt">Our numbers rose by fourteen stitched percent. An <span class="dispute-chip">uptick [?]</span> awaits!</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-panel burton-skew">
+            <div class="card-hdr"><span>PENDULUM TALLY</span><span style="color:var(--accent);">TICK TOCK</span></div>
+            <div class="card-body" style="text-align:center;">
+              <div style="font-size:20px; font-family:serif; color:var(--accent); font-weight:bold;">94.8%</div>
+              <div style="font-size:10px; opacity:0.8;">RATIFIED BY THREE GHOSTS</div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // 6. AERO LIQUID
+      if (arch === "aero_liquid") {
+        return `<div class="stage-grid">
+          <div class="card-panel">
+            <div class="card-hdr"><span>CRYSTALLINE DOCK</span><span style="color:var(--accent);">AERO 2.0</span></div>
+            <div class="card-body" style="align-items:center;">
+              <div class="aero-orb"></div>
+              <div style="margin-top:12px; font-size:11px; text-align:center;">Liquid Audio Stream</div>
+              <div style="font-size:9.5px; opacity:0.7;">48kHz • Crystalline PCM</div>
+            </div>
+          </div>
+          <div class="card-panel">
+            <div class="card-hdr"><span>FROSTED GLASS PROCEEDINGS</span><span style="color:var(--accent);">PRISTINE</span></div>
+            <div class="card-body">
+              <div class="spk-item">
+                <div class="spk-hdr-line"><span>Arthur Morgan (CEO)</span><span>00:00.000</span></div>
+                <div class="spk-txt">Good morning everyone and welcome to our fourth quarter financial earnings conference call.</div>
+              </div>
+              <div class="spk-item" style="border-left:3px solid var(--accent); padding-left:10px;">
+                <div class="spk-hdr-line"><span>Elena Vance (CFO)</span><span style="color:var(--accent);">DISPUTE</span></div>
+                <div class="spk-txt">Our revenue expanded by fourteen percent. We anticipate a slight <span class="dispute-chip">uptick [?]</span> in recurring margins.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-panel">
+            <div class="card-hdr"><span>AQUA CONSENSUS</span><span style="color:var(--accent);">94.8%</span></div>
+            <div class="card-body">
+              <div style="padding:10px; border-radius:12px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.3); text-align:center;">
+                <div style="font-size:11px;">Plurality Resolution</div>
+                <div style="font-size:16px; font-weight:800; color:var(--accent); margin-top:2px;">94.8% ACCORD</div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // 7. STEAMPUNK
+      if (arch === "steampunk_machinery") {
+        return `<div class="stage-grid">
+          <div class="card-panel">
+            <div class="card-hdr"><span>CLOCKWORK GEAR TRAIN</span><span style="color:var(--accent);">BRASS COGS</span></div>
+            <div class="card-body" style="align-items:center;">
+              <div style="width:100%;">${heroSvg}</div>
+              <div style="font-size:10.5px; text-align:center; margin-top:8px;">Steam Pressure: <strong>140 PSI</strong></div>
+            </div>
+          </div>
+          <div class="card-panel" style="background:#f4ebd9; color:#221c11;">
+            <div class="card-hdr" style="border-bottom:2px solid #8b5a2b; color:#5c3a1e;"><span>PARCHMENT TRANSCRIPT SCROLL</span><span>VICTORIAN</span></div>
+            <div class="card-body">
+              <div class="spk-item" style="background:rgba(0,0,0,0.04); border:1px solid #d4c4a8; color:#1a140b;">
+                <div class="spk-hdr-line"><span style="color:#8b5a2b;">Lord Arthur (Director)</span><span>00:00.000</span></div>
+                <div class="spk-txt">Gentlemen of the board, I welcome you to our quarterly meeting.</div>
+              </div>
+              <div class="spk-item" style="background:rgba(0,0,0,0.04); border-left:3px solid #8b5a2b; margin-top:8px; color:#1a140b;">
+                <div class="spk-hdr-line"><span style="color:#8b5a2b;">Lady Elena (Bursar)</span><span style="color:#a00;">DISAGREEMENT</span></div>
+                <div class="spk-txt">Our treasury has grown by fourteen percent. We project a noticeable <span class="dispute-chip" style="background:#8b5a2b; color:#fff;">uptick [?]</span>.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-panel">
+            <div class="card-hdr"><span>BOILER GAUGES</span><span style="color:var(--accent);">CONSENSUS</span></div>
+            <div class="card-body" style="text-align:center;">
+              <div style="width:80px; height:80px; border-radius:50%; border:3px solid var(--accent); margin:auto; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:bold; color:var(--accent);">94.8</div>
+              <div style="font-size:10px; margin-top:8px;">TRIBUNAL EQUILIBRIUM</div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // 8. SYNTHWAVE
+      if (arch === "synthwave_outrun") {
+        return `<div class="stage-grid">
+          <div class="card-panel">
+            <div class="card-hdr"><span>OUTRUN CASSETTE</span><span style="color:var(--accent);">1984</span></div>
+            <div class="card-body" style="align-items:center;">
+              <div class="synth-sun-hero" style="width:100%;"><div class="synth-sun-bars"></div></div>
+              <div style="font-weight:800; font-size:12px; color:var(--accent);">CHROME SOUNDTRACK</div>
+              <div style="font-size:9.5px; opacity:0.7;">Neon Synth Grid Audio</div>
+            </div>
+          </div>
+          <div class="card-panel">
+            <div class="card-hdr"><span>NEON GRID PROCEEDINGS</span><span style="color:var(--accent);">OUTRUN MODE</span></div>
+            <div class="card-body">
+              <div class="spk-item">
+                <div class="spk-hdr-line"><span>Arthur Morgan // CEO</span><span>00:00.000</span></div>
+                <div class="spk-txt">Good morning everyone and welcome to our fourth quarter financial earnings conference call.</div>
+              </div>
+              <div class="spk-item" style="border-left:3px solid var(--accent); padding-left:10px;">
+                <div class="spk-hdr-line"><span>Elena Vance // CFO</span><span style="color:var(--accent);">DISPUTE</span></div>
+                <div class="spk-txt">Our revenue expanded by fourteen percent. We anticipate a slight <span class="dispute-chip">uptick [?]</span> in recurring margins.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-panel">
+            <div class="card-hdr"><span>SPECTRUM ANALYZER</span><span style="color:var(--accent);">LED MATRIX</span></div>
+            <div class="card-body">
+              <div style="padding:10px; background:#000; border:1px solid var(--accent); border-radius:4px; text-align:center;">
+                <div style="font-size:10px; color:#ffaa00;">HIGH-FREQUENCY ACCORD</div>
+                <div style="font-size:18px; font-weight:900; color:var(--accent); font-family:monospace;">94.8%</div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // 9. GEOCITIES
+      if (arch === "geocities_web1") {
+        return `<div class="stage-grid">
+          <div class="card-panel web1-table">
+            <div class="card-hdr" style="background:#000080; color:#fff;"><span>NAV BAR</span><span>GIF</span></div>
+            <div class="card-body">
+              <button class="nav-btn" style="width:100%; border:2px outset #fff; background:#c0c0c0; color:#000;">[ HOME ]</button>
+              <button class="nav-btn" style="width:100%; border:2px outset #fff; background:#c0c0c0; color:#000;">[ GUESTBOOK ]</button>
+              <button class="nav-btn" style="width:100%; border:2px outset #fff; background:#c0c0c0; color:#000;">[ WEBRING ]</button>
+              <div style="margin-top:auto; text-align:center;">
+                <div style="font-size:10px; font-weight:bold;">VISITORS:</div>
+                <div style="background:#000; color:#0f0; font-family:monospace; padding:4px; font-size:14px; font-weight:bold;">0 4 8 2 1 9</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-panel web1-table">
+            <div class="card-hdr" style="background:#000080; color:#fff;"><span>MY HOMEPAGE TRANSCRIPT</span><span>1997</span></div>
+            <div style="padding:4px; background:#000;">${heroSvg}</div>
+            <div class="card-body" style="background:#fff; color:#000;">
+              <p><b>Arthur:</b> Good morning and welcome to my site!</p>
+              <p style="color:blue;"><u>Elena:</u> Our revenue is up 14%!</p>
+            </div>
+          </div>
+          <div class="card-panel web1-table">
+            <div class="card-hdr" style="background:#000080; color:#fff;"><span>NETSCAPE STATS</span><span>OK</span></div>
+            <div class="card-body">
+              <p><b>JUROR VERDICT:</b></p>
+              <p>Score: 94.8%</p>
+              <p>Plurality: 2-to-1</p>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // 10. SCHOLASTIC GRIMOIRE
+      if (arch === "scholastic_grimoire") {
+        return `<div class="stage-grid">
+          <div class="card-panel" style="background:#fcfbf7; color:#1a1815;">
+            <div class="card-hdr" style="border-bottom:1px solid #d4c5b0; color:#6b583e;"><span>ACADEMIC CREST</span><span>VERITAS</span></div>
+            <div class="card-body" style="align-items:center;">
+              <div style="width:100%;">${heroSvg}</div>
+              <div style="font-size:11px; text-align:center; margin-top:8px; font-style:italic;">"Ordo et Consensio"</div>
+            </div>
+          </div>
+          <div class="card-panel" style="background:#fcfbf7; color:#1a1815;">
+            <div class="card-hdr" style="border-bottom:1px solid #d4c5b0; color:#6b583e;"><span>TRIBUNAL PROCEEDINGS</span><span>ANNALES</span></div>
+            <div class="card-body">
+              <div class="spk-item" style="background:transparent; border:none; border-bottom:1px solid #e0d8cc; color:#1a1815;">
+                <div class="spk-hdr-line"><span style="color:#8c6b3e;">Arthur M. (Praeses)</span><span>00:00.000</span></div>
+                <div class="spk-txt">Good morning everyone and welcome to our fourth quarter financial earnings conference call.</div>
+              </div>
+              <div class="spk-item" style="background:transparent; border:none; border-left:3px solid #8c6b3e; padding-left:10px; margin-top:8px; color:#1a1815;">
+                <div class="spk-hdr-line"><span style="color:#8c6b3e;">Elena V. (Quaestor)</span><span style="color:#b22222;">DISPUTATIO</span></div>
+                <div class="spk-txt">Revenue expanded by fourteen percent. We anticipate a slight <span class="dispute-chip" style="background:#8c6b3e; color:#fff;">uptick [?]</span> in recurring margins.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-panel" style="background:#fcfbf7; color:#1a1815;">
+            <div class="card-hdr" style="border-bottom:1px solid #d4c5b0; color:#6b583e;"><span>COLLEGIUM VOTE</span><span>RATIFIED</span></div>
+            <div class="card-body" style="text-align:center;">
+              <div style="font-size:18px; font-family:serif; font-weight:bold; color:#8c6b3e;">XCIV.VIII%</div>
+              <div style="font-size:10px; opacity:0.8;">TRI-PARTITE RATIFICATION</div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // 11. SOLARPUNK BOTANICAL
+      if (arch === "solarpunk_botanical") {
+        return `<div class="stage-grid">
+          <div class="card-panel">
+            <div class="card-hdr"><span>SOLAR CANOPY</span><span style="color:var(--accent);">MICRO-GRID</span></div>
+            <div class="card-body" style="align-items:center;">
+              <div style="width:100%;">${heroSvg}</div>
+              <div style="font-size:10.5px; text-align:center; margin-top:8px;">Photovoltaic Efficiency: <strong>96.2%</strong></div>
+            </div>
+          </div>
+          <div class="card-panel">
+            <div class="card-hdr"><span>GREENHOUSE PROCEEDINGS</span><span style="color:var(--accent);">ECO-TRANSCRIPT</span></div>
+            <div class="card-body">
+              <div class="spk-item">
+                <div class="spk-hdr-line"><span>Arthur Morgan (Steward)</span><span>00:00.000</span></div>
+                <div class="spk-txt">Good morning everyone and welcome to our fourth quarter financial earnings conference call.</div>
+              </div>
+              <div class="spk-item" style="border-left:3px solid var(--accent); padding-left:10px; margin-top:8px;">
+                <div class="spk-hdr-line"><span>Elena Vance (Botanist)</span><span style="color:var(--accent);">GROWTH VARIANCE</span></div>
+                <div class="spk-txt">Our yield expanded by fourteen percent. We anticipate a slight <span class="dispute-chip">uptick [?]</span> in renewable margins.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-panel">
+            <div class="card-hdr"><span>HARMONY INDEX</span><span style="color:var(--accent);">ACCORD</span></div>
+            <div class="card-body" style="text-align:center;">
+              <div style="font-size:18px; font-weight:bold; color:var(--accent);">94.8%</div>
+              <div style="font-size:10px; opacity:0.8;">ECO-SYSTEM BALANCED</div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // 12. ARCADE CABINET
+      if (arch === "arcade_cabinet") {
+        return `<div class="stage-grid">
+          <div class="card-panel arcade-crt">
+            <div class="card-hdr"><span>PLAYER 1</span><span style="color:var(--accent);">CREDIT: 02</span></div>
+            <div class="card-body" style="align-items:center;">
+              <div style="width:100%;">${heroSvg}</div>
+              <div style="font-family:'Press Start 2P', monospace; font-size:8px; margin-top:8px; color:var(--accent);">STAGE 01 - CALL</div>
+            </div>
+          </div>
+          <div class="card-panel arcade-crt">
+            <div class="card-hdr"><span>DIALOGUE SCENE</span><span style="color:var(--accent);">ROUND 1</span></div>
+            <div class="card-body">
+              <div class="spk-item">
+                <div class="spk-hdr-line"><span>P1: ARTHUR</span><span>00:00</span></div>
+                <div class="spk-txt">Good morning everyone and welcome to our earnings conference!</div>
+              </div>
+              <div class="spk-item" style="border-left:3px solid var(--accent); padding-left:10px; margin-top:8px;">
+                <div class="spk-hdr-line"><span>P2: ELENA</span><span style="color:var(--accent);">COMBO BREAK</span></div>
+                <div class="spk-txt">Revenue expanded 14%! Look for an <span class="dispute-chip">uptick [?]</span>!</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-panel arcade-crt">
+            <div class="card-hdr"><span>HIGH SCORES</span><span style="color:var(--accent);">TOP 3</span></div>
+            <div class="card-body" style="font-family:'Press Start 2P', monospace; font-size:8px; line-height:1.8;">
+              <div>1ST: WHISPER 98%</div>
+              <div>2ND: NOVA-2  94%</div>
+              <div>3RD: CANARY  89%</div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // 13. AMBIENT LOUNGE
+      if (arch === "ambient_lounge") {
+        return `<div class="stage-grid">
+          <div class="card-panel">
+            <div class="card-hdr"><span>VINYL DECK</span><span style="color:var(--accent);">33 RPM</span></div>
+            <div class="card-body" style="align-items:center;">
+              <div class="vinyl-record"></div>
+              <div style="font-size:11px; margin-top:10px; font-weight:600;">Cafe Del Mar Chillout</div>
+              <div style="font-size:9.5px; opacity:0.7;">Warm Analog Transcription</div>
+            </div>
+          </div>
+          <div class="card-panel">
+            <div class="card-hdr"><span>LOUNGE CONVERSATION</span><span style="color:var(--accent);">ACOUSTIC SYNC</span></div>
+            <div class="card-body">
+              <div class="spk-item">
+                <div class="spk-hdr-line"><span>Arthur M.</span><span>00:00.000</span></div>
+                <div class="spk-txt">Good morning everyone and welcome to our fourth quarter financial earnings conference call.</div>
+              </div>
+              <div class="spk-item" style="border-left:3px solid var(--accent); padding-left:10px; margin-top:8px;">
+                <div class="spk-hdr-line"><span>Elena V.</span><span style="color:var(--accent);">HARMONY DISPUTE</span></div>
+                <div class="spk-txt">Our revenue expanded by fourteen percent. We anticipate a slight <span class="dispute-chip">uptick [?]</span> in recurring margins.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-panel">
+            <div class="card-hdr"><span>WARMTH INDEX</span><span style="color:var(--accent);">HIGH FIDELITY</span></div>
+            <div class="card-body" style="text-align:center;">
+              <div style="font-size:18px; font-weight:bold; color:var(--accent);">94.8%</div>
+              <div style="font-size:10px; opacity:0.8;">CHILLOUT FIDELITY LOCKED</div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // 14. COSMIC ETHEREAL
+      if (arch === "cosmic_ethereal") {
+        return `<div class="stage-grid">
+          <div class="card-panel">
+            <div class="card-hdr"><span>ORBITAL OBSERVATORY</span><span style="color:var(--accent);">DEEP SPACE</span></div>
+            <div class="card-body" style="align-items:center;">
+              <div style="width:100%;">${heroSvg}</div>
+              <div style="font-size:10.5px; margin-top:8px; opacity:0.8;">Telemetry: <strong>RA 04h 35m</strong></div>
+            </div>
+          </div>
+          <div class="card-panel">
+            <div class="card-hdr"><span>STELLAR TRANSMISSION</span><span style="color:var(--accent);">COSMIC STREAM</span></div>
+            <div class="card-body">
+              <div class="spk-item">
+                <div class="spk-hdr-line"><span>Commander Arthur</span><span>00:00.000</span></div>
+                <div class="spk-txt">Good morning interstellar crew, commencing fourth quarter status transmission.</div>
+              </div>
+              <div class="spk-item" style="border-left:3px solid var(--accent); padding-left:10px; margin-top:8px;">
+                <div class="spk-hdr-line"><span>Navigator Elena</span><span style="color:var(--accent);">SIGNAL VARIANCE</span></div>
+                <div class="spk-txt">Our drive output expanded fourteen percent. Observing a cosmic <span class="dispute-chip">uptick [?]</span>.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-panel">
+            <div class="card-hdr"><span>STELLAR CONSENSUS</span><span style="color:var(--accent);">MAGNITUDE</span></div>
+            <div class="card-body" style="text-align:center;">
+              <div style="font-size:18px; font-weight:bold; color:var(--accent);">94.8%</div>
+              <div style="font-size:10px; opacity:0.8;">3-STAR ALIGNMENT</div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // 15. Y2K CYBER
+      if (arch === "y2k_cyber") {
+        return `<div class="stage-grid">
+          <div class="card-panel">
+            <div class="card-hdr"><span>CHROME NANO-FLUID</span><span style="color:var(--accent);">MILLENNIUM</span></div>
+            <div class="card-body" style="align-items:center;">
+              <div style="width:100%;">${heroSvg}</div>
+              <div style="font-size:10.5px; margin-top:8px; color:var(--accent); font-weight:bold;">iMac Polycarbonate G3</div>
+            </div>
+          </div>
+          <div class="card-panel">
+            <div class="card-hdr"><span>BLOBBY CYBER TRANSMISSION</span><span style="color:var(--accent);">Y2K FEED</span></div>
+            <div class="card-body">
+              <div class="spk-item">
+                <div class="spk-hdr-line"><span>Arthur M. (CEO)</span><span>00:00.000</span></div>
+                <div class="spk-txt">Good morning everyone and welcome to our fourth quarter financial earnings conference call.</div>
+              </div>
+              <div class="spk-item" style="border-left:3px solid var(--accent); padding-left:10px; margin-top:8px;">
+                <div class="spk-hdr-line"><span>Elena V. (CFO)</span><span style="color:var(--accent);">DISPUTE</span></div>
+                <div class="spk-txt">Revenue expanded by fourteen percent. We anticipate a slight <span class="dispute-chip">uptick [?]</span> in recurring margins.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-panel">
+            <div class="card-hdr"><span>HOLO ACCORD</span><span style="color:var(--accent);">DIFFRACTION</span></div>
+            <div class="card-body" style="text-align:center;">
+              <div style="font-size:18px; font-weight:900; color:var(--accent);">94.8%</div>
+              <div style="font-size:10px; opacity:0.8;">CYBER ACCORD RATIFIED</div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // 16. DEFAULT POMO GRAPHIC
+      return `<div class="stage-grid" style="display:grid; grid-template-columns:240px 1fr 280px; gap:14px; height:100%;">
+        <div class="card-panel">
+          <div class="card-hdr"><span>GRAPHIC ART & INGEST</span><span style="color:var(--accent);">${arch.toUpperCase()}</span></div>
+          <div style="padding:10px; border-bottom:var(--border-spec); background:rgba(0,0,0,0.15);">${heroSvg}</div>
+          <div class="card-body">
+            <div style="padding:8px; border-radius:4px; background:rgba(0,0,0,0.2); border:var(--border-spec);">
+              <div style="font-weight:700; color:var(--accent); font-size:11.5px;">Earnings_Call_Q4.wav</div>
+              <div style="font-size:9.5px; opacity:0.7;">48kHz • 24-bit PCM</div>
+            </div>
+            <div style="padding:8px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); font-size:11px;">
+              <div>ARCHETYPE: <strong>${theme.archetype}</strong></div>
+              <div>CATEGORY: <strong>${theme.category}</strong></div>
+            </div>
+          </div>
+        </div>
+        <div class="card-panel">
+          <div class="card-hdr"><span>MASTER EDITORIAL PROCEEDINGS</span><span style="color:var(--accent);">CONSENSUS 94.8%</span></div>
+          <div class="card-body">
+            <div class="spk-item">
+              <div class="spk-hdr-line"><span>Arthur Morgan (Chief Executive Officer)</span><span>00:00.000 ➔ 00:04.280</span></div>
+              <div class="spk-txt">Good morning everyone and welcome to our fourth quarter financial earnings conference call. Today we are reviewing our annual performance and operating margins.</div>
+            </div>
+            <div class="spk-item" style="border-left:3px solid var(--accent); padding-left:10px;">
+              <div class="spk-hdr-line"><span>Elena Vance (Chief Financial Officer)</span><span style="color:var(--accent);">00:04.280 ➔ 00:10.150 • DISPUTE</span></div>
+              <div class="spk-txt">Thank you Arthur. As outlined in our regulatory filing, our revenue expanded by fourteen percent year over year. In enterprise, we anticipate a slight <span class="dispute-chip">uptick [?]</span> in recurring margins through next quarter.</div>
+            </div>
+            <div class="spk-item">
+              <div class="spk-hdr-line"><span>Elena Vance</span><span>00:10.150 ➔ 00:15.820</span></div>
+              <div class="spk-txt">Capital expenditures remained disciplined at twenty-four million dollars, reflecting our strategic realignment towards high-throughput inference silicon.</div>
+            </div>
+          </div>
+        </div>
+        <div class="card-panel">
+          <div class="card-hdr"><span>JUROR COUNCIL ENGINE</span><span style="color:var(--accent);">RATIFIED</span></div>
+          <div class="card-body">
+            <div style="padding:10px; border-radius:var(--radius-val); border:var(--border-spec); background:rgba(0,0,0,0.2);">
+              <div style="display:flex; justify-content:space-between; font-size:11.5px;">
+                <span>Consensus Score:</span>
+                <span style="font-weight:800; color:var(--accent); font-family:monospace;">94.8%</span>
+              </div>
+              <div style="font-size:10px; opacity:0.7; margin-top:2px;">Plurality Resolution Accepted</div>
+            </div>
+            <div style="font-size:10.5px; font-weight:700; opacity:0.8; margin-top:4px;">JUROR VOTE LEDGER:</div>
+            <div style="display:flex; flex-direction:column; gap:5px; font-size:11px;">
+              <div style="display:flex; justify-content:space-between; padding:5px 8px; border-radius:4px; background:rgba(255,255,255,0.04);">
+                <span>Whisper Large v3:</span><strong style="color:var(--accent);">"UPTICK" [98%]</strong>
+              </div>
+              <div style="display:flex; justify-content:space-between; padding:5px 8px; border-radius:4px; background:rgba(255,255,255,0.04);">
+                <span>Nvidia Canary 1B:</span><span style="opacity:0.7;">"UPTURN" [89%]</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; padding:5px 8px; border-radius:4px; background:rgba(255,255,255,0.04);">
+                <span>Deepgram Nova-2:</span><strong style="color:var(--accent);">"UPTICK" [94%]</strong>
+              </div>
+            </div>
+            <div style="margin-top:auto; padding:8px; border-radius:var(--radius-val); border:1px dashed var(--accent); font-size:10.5px; text-align:center;">
+              Acoustic Plurality Ratio: <strong>2-to-1</strong>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }
+function renderAudioDeck(theme) {
+      const acc = theme.accent || "#00ffcc";
+      let waveBarsHtml = "";
+      for (let i = 0; i < 48; i++) {
+        const h = Math.floor(Math.random() * 20) + 6;
+        waveBarsHtml += `<div class="w-bar ${i < 18 ? 'active' : ''}" style="height:${h}px;"></div>`;
+      }
+
+      return `
+        <div style="display:flex; align-items:center; gap:12px;">
+          <button class="deck-play-btn" onclick="togglePlay()">▶</button>
+          <div>
+            <div style="font-family:monospace; font-size:11.5px; font-weight:700;">00:04.280 / 14:20.000</div>
+            <div style="font-size:9.5px; opacity:0.7;">48 kHz 24-bit PCM • Real-time Sync</div>
+          </div>
+        </div>
+
+        <div class="wave-bars-holder" id="waveBarsContainer">
+          ${waveBarsHtml}
+        </div>
+
+        <div style="font-family:monospace; font-size:10.5px; font-weight:700; color:var(--accent);">
+          [ PEAK: -6.2 dBFS ]
+        </div>
+      `;
+    }
+
+    // --- APPLY THEME ---
+    function selectTheme(key) {
+      const t = THEMES[key];
+      if (!t) return;
+      currentThemeKey = key;
+
+      const root = document.documentElement;
+      root.style.setProperty("--bg", t.bg || "#08090c");
+      root.style.setProperty("--surface-bg", t.surface || "rgba(20,20,30,0.6)");
+      root.style.setProperty("--border-spec", t.border || "1px solid rgba(255,255,255,0.1)");
+      root.style.setProperty("--radius-val", t.radius || "8px");
+      root.style.setProperty("--font-main", t.font || "'Inter', sans-serif");
+      root.style.setProperty("--text-color", t.text_color || "#ededed");
+      root.style.setProperty("--accent", t.accent || "#00ffcc");
+      root.style.setProperty("--shadow-val", t.glow || "0 4px 15px rgba(0,0,0,0.3)");
+
+      // Viewport class
+      const vp = document.getElementById("aestheticViewport");
+      const archRaw = t.archetype || 'pomo_graphic';
+      const archHyphen = archRaw.replace(/_/g, '-');
+      vp.className = `aesthetic-viewport layout-${archRaw} layout-${archHyphen}`;
+
+      // Update banner
+      document.getElementById("themeNumBadge").innerText = `#${String(t.index).padStart(2, '0')}`;
+      document.getElementById("themeNameTxt").innerText = t.name;
+      document.getElementById("themeCatTag").innerText = `[ ${t.category} • ${t.archetype} ]`;
+      document.getElementById("themeDescTxt").innerText = t.desc;
+
+      // Update Dropdown
+      const sel = document.getElementById("themeSelect");
+      if (sel.value !== key) sel.value = key;
+
+      // Render Stage & Deck
+      document.getElementById("stageContainer").innerHTML = renderStage(t);
+      document.getElementById("audioDeck").innerHTML = renderAudioDeck(t);
+
+      // URL Sync
+      const url = new URL(window.location);
+      url.searchParams.set("theme", key);
+      window.history.replaceState({}, "", url);
+    }
+
+    // --- DROPDOWN POPULATOR ---
+    function populateDropdown() {
+      const sel = document.getElementById("themeSelect");
+      sel.innerHTML = "";
+      Object.keys(THEMES).sort((a,b) => THEMES[a].index - THEMES[b].index).forEach(k => {
+        const opt = document.createElement("option");
+        opt.value = k;
+        opt.text = `#${String(THEMES[k].index).padStart(2, '0')} - ${THEMES[k].name} (${THEMES[k].category})`;
+        sel.appendChild(opt);
+      });
+    }
+
+    function filterThemes(q) {
+      q = q.toLowerCase();
+      const sel = document.getElementById("themeSelect");
+      Array.from(sel.options).forEach(opt => {
+        const txt = opt.text.toLowerCase();
+        opt.style.display = txt.includes(q) ? "" : "none";
+      });
+    }
+
+    function navPrev() {
+      const keys = Object.keys(THEMES).sort((a,b) => THEMES[a].index - THEMES[b].index);
+      let idx = keys.indexOf(currentThemeKey);
+      idx = (idx - 1 + keys.length) % keys.length;
+      selectTheme(keys[idx]);
+    }
+
+    function navNext() {
+      const keys = Object.keys(THEMES).sort((a,b) => THEMES[a].index - THEMES[b].index);
+      let idx = keys.indexOf(currentThemeKey);
+      idx = (idx + 1) % keys.length;
+      selectTheme(keys[idx]);
+    }
+
+    function randomTheme() {
+      const keys = Object.keys(THEMES);
+      const r = keys[Math.floor(Math.random() * keys.length)];
+      selectTheme(r);
+    }
+
+    function setMode(m) {
+      document.body.className = `mode-${m}`;
+      document.getElementById("btnContinuous").classList.toggle("active", m === "continuous");
+      document.getElementById("btnTactile").classList.toggle("active", m === "tactile");
+    }
+
+    function togglePlay() {
+      isPlaying = !isPlaying;
+      if (isPlaying) {
+        playInterval = setInterval(() => {
+          const bars = document.querySelectorAll(".w-bar");
+          bars.forEach(b => {
+            b.style.height = (Math.floor(Math.random() * 22) + 4) + "px";
+          });
+        }, 120);
+      } else {
+        clearInterval(playInterval);
+      }
+    }
+
+    // --- INIT ---
+    window.addEventListener("DOMContentLoaded", () => {
+      populateDropdown();
+      const params = new URLSearchParams(window.location.search);
+      const themeParam = params.get("theme");
+      if (themeParam && THEMES[themeParam]) {
+        selectTheme(themeParam);
+      } else {
+        selectTheme("y3k_futurism");
+      }
+    });
+  </script>
+</body>
+</html>

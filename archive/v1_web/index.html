@@ -1,0 +1,1887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transcript Suite | Canary-Qwen-2.5B Supreme Council</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌲</text></svg>">
+  <link rel="stylesheet" href="/static/style.css?v=2.1">
+  <!-- WaveSurfer.js for audio waveform visualization -->
+  <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
+</head>
+<body data-theme="foggy-woodland">
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🌲</div>
+      <div class="brand-title">Transcript Suite</div>
+      <div class="brand-badge">Canary-Qwen-2.5B Supreme Council</div>
+    </div>
+    <div class="nav-controls">
+      <div class="vram-meter" id="sysRamMeter" title="Total RAM breakdown: Suite Only vs. External System vs. Total Machine RAM">
+        <span title="Transcript Suite Process Memory (RSS Only)">Suite:</span>
+        <span id="appRamText" style="font-weight: 700; color: #10b981;">-- GB</span>
+        <span style="color: var(--border-focus); margin: 0 3px;">|</span>
+        <span title="System RAM used by other applications and OS (excluding Suite)">w/o Suite:</span>
+        <span id="sysWithoutSuiteText" style="font-weight: 600; color: #38bdf8;">-- GB</span>
+        <span style="color: var(--border-focus); margin: 0 3px;">|</span>
+        <span title="Total Active Operating System RAM (Suite + OS)">Total:</span>
+        <div class="vram-bar" style="width: 36px;">
+          <div class="vram-bar-fill" id="ramBarFill" style="background-color: var(--accent-bark);"></div>
+        </div>
+        <span id="ramText">-- / -- GB</span>
+      </div>
+      <div class="vram-meter" id="vramMeter" title="GPU VRAM Usage">
+        <span>VRAM:</span>
+        <div class="vram-bar">
+          <div class="vram-bar-fill" id="vramBarFill"></div>
+        </div>
+        <span id="vramText">-- / 7.6 GB</span>
+      </div>
+
+      <!-- Cache & Storage Dropdown Container -->
+      <div class="cache-dropdown-container" id="cacheDropdownContainer">
+        <button class="btn-clear-cache-header" id="btnCacheDropdownToggle" title="Inspect memory & disk footprints and trigger granular flushes">
+          🧹 Cache & Storage ▾
+        </button>
+        <div class="cache-dropdown-menu" id="cacheDropdownMenu">
+          <div class="cache-dropdown-header">
+            <span>⚡ Memory & Storage Footprint</span>
+            <span class="cache-status-live" id="cacheLiveStatus">Live</span>
+          </div>
+
+          <!-- Section 1: Active System Memory -->
+          <div class="cache-section">
+            <div class="cache-section-title">ACTIVE MEMORY</div>
+            <div class="cache-row">
+              <div class="cache-label-group">
+                <span class="cache-label">GPU VRAM Cache</span>
+                <span class="cache-val" id="cacheVramVal">-- MB</span>
+              </div>
+              <button class="btn-cache-action" id="btnClearVramOnly" data-target="vram" title="Flush PyTorch CUDA memory cache">Clear VRAM</button>
+            </div>
+            <div class="cache-row">
+              <div class="cache-label-group">
+                <span class="cache-label">Process Engine (RAM)</span>
+                <span class="cache-val" id="cacheRamVal">-- MB</span>
+              </div>
+              <button class="btn-cache-action" id="btnClearRamOnly" data-target="ram" title="Run Python GC and trim glibc heap to baseline">Trim Heap</button>
+            </div>
+          </div>
+
+          <!-- Section 2: On-Disk Storage Footprint -->
+          <div class="cache-section">
+            <div class="cache-section-title">STORAGE & CHECKPOINTS</div>
+            <div class="cache-row">
+              <div class="cache-label-group">
+                <span class="cache-label">Temp Audio & Chunks</span>
+                <span class="cache-val" id="cacheTempAudioVal">-- MB</span>
+              </div>
+              <button class="btn-cache-action" id="btnClearTempAudio" data-target="temp_audio" title="Purge temporary audio slices & uploads">Purge Temp</button>
+            </div>
+            <div class="cache-row">
+              <div class="cache-label-group">
+                <span class="cache-label">Hugging Face Hub</span>
+                <span class="cache-val" id="cacheHfVal">-- GB</span>
+              </div>
+              <span class="cache-pill" title="Cached model weights">Models</span>
+            </div>
+            <div class="cache-row">
+              <div class="cache-label-group">
+                <span class="cache-label">NeMo / Torch Cache</span>
+                <span class="cache-val" id="cacheNemoVal">-- GB</span>
+              </div>
+              <span class="cache-pill" title="Cached NeMo checkpoints">Checkpoints</span>
+            </div>
+            <div class="cache-row cache-row-total">
+              <span class="cache-label" style="font-weight: 600;">Total Disk Footprint:</span>
+              <span class="cache-val-total" id="cacheTotalDiskVal">-- GB</span>
+            </div>
+          </div>
+
+          <!-- Section 3: Master Action Button -->
+          <div class="cache-dropdown-footer">
+            <button class="btn-cache-flush-all" id="btnFlushAllMemory" data-target="all" title="Flush GPU VRAM, trim RAM heap, and purge stale temp audio files">
+              🧹 Flush All Memory & Temp Cache
+            </button>
+          </div>
+        </div>
+      <button class="btn-notif-header" id="btnToggleNotifDrawer" title="View notification history and alerts">
+        🔔 <span class="notif-badge" id="notifCountBadge">0</span>
+      </button>
+
+      <select class="theme-select" id="themeSelect">
+        <option value="foggy-woodland">🌲 Foggy Woodland</option>
+        <option value="forest-sage">🌿 Forest Sage</option>
+        <option value="nordic-slate">⛰️ Nordic Slate</option>
+        <option value="warm-umber">☕ Warm Umber</option>
+      </select>
+    </div>
+  </header>
+
+  <!-- Emergency Notification HUD Banner -->
+  <div class="emergency-hud-banner" id="emergencyHudBanner" style="display: none;">
+    <div class="emergency-hud-content">
+      <span class="emergency-hud-icon" id="emergencyHudIcon">🚨</span>
+      <div class="emergency-hud-text">
+        <strong id="emergencyHudTitle">Emergency Intervention Triggered</strong>
+        <span id="emergencyHudMessage">VRAM velocity exceeded safety threshold.</span>
+      </div>
+      <div class="emergency-hud-actions">
+        <button class="btn-hud-action" id="btnEmergencyAbortBanner">🚨 Abort Task</button>
+        <button class="btn-hud-dismiss" id="btnDismissEmergencyHud">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Primary Tab Navigation Bar -->
+  <nav class="main-tabs-bar">
+    <button class="main-tab-btn active" data-tab="paneStudio" id="tabBtnStudio">🎙️ Studio & Ingest</button>
+    <button class="main-tab-btn" data-tab="paneTranscript" id="tabBtnTranscript">
+      📝 Transcript & Editor <span class="tab-badge" id="tabTranscriptBadge">0</span>
+    </button>
+    <button class="main-tab-btn" data-tab="paneModels" id="tabBtnModels">🤖 Models & Checkpoints</button>
+    <button class="main-tab-btn" data-tab="paneTelemetry" id="tabBtnTelemetry">📈 Telemetry & Logs</button>
+    <button class="main-tab-btn" data-tab="paneSettings" id="tabBtnSettings">⚙️ Settings</button>
+  </nav>
+
+  <main>
+    <!-- TAB 1: STUDIO & INGEST PANE -->
+    <div class="tab-pane active" id="paneStudio">
+      <div class="upload-card">
+        <div class="dropzone" id="dropzone">
+          <div class="dropzone-icon">🎙️</div>
+          <div class="dropzone-text" id="dropzoneText">Drop single or multiple audio files here, or click to browse</div>
+          <div class="dropzone-hint">Multi-file sequential batch queueing with Canary-Qwen &amp; Tri-Model Supreme Council</div>
+          <input type="file" id="fileInput" accept="audio/*,.aac,.wav,.mp3,.m4a" multiple style="display: none;">
+        </div>
+
+        <!-- Feature 1.1.A & 1.1.B: Pre-Flight Audio Health Badge & Stereo Auto-Remix -->
+        <div class="audio-health-badge-bar" id="audioHealthBadgeBar" style="display: none;">
+          <div class="health-badge-header">
+            <div class="health-badge-title-group">
+              <span class="health-badge-icon">🩺</span>
+              <span class="health-badge-title">Pre-Flight Audio Health Report</span>
+              <span class="health-grade-chip grade-checking" id="healthBadgeGrade">CHECKING</span>
+            </div>
+            <button class="btn-health-dismiss" id="btnDismissHealthBadge" title="Dismiss">✕</button>
+          </div>
+
+          <div class="health-metrics-grid">
+            <div class="health-metric-tile">
+              <span class="metric-label">SNR (Signal-to-Noise)</span>
+              <span class="metric-value" id="healthSnrVal">-- dB</span>
+              <span class="metric-status" id="healthSnrStatus">--</span>
+            </div>
+            <div class="health-metric-tile">
+              <span class="metric-label">0 dBFS Clipping</span>
+              <span class="metric-value" id="healthClippingVal">-- %</span>
+              <span class="metric-status" id="healthClippingStatus">--</span>
+            </div>
+            <div class="health-metric-tile">
+              <span class="metric-label">Mains DC Offset</span>
+              <span class="metric-value" id="healthDcVal">--</span>
+              <span class="metric-status" id="healthDcStatus">--</span>
+            </div>
+            <div class="health-metric-tile">
+              <span class="metric-label">Peak / RMS Level</span>
+              <span class="metric-value" id="healthLevelsVal">-- / -- dBFS</span>
+              <span class="metric-status" id="healthLevelsStatus">--</span>
+            </div>
+            <div class="health-metric-tile">
+              <span class="metric-label">EBU R128 Loudness</span>
+              <span class="metric-value" id="healthLufsVal">-- LUFS</span>
+              <span class="metric-status" id="healthLufsStatus">--</span>
+            </div>
+            <div class="health-metric-tile">
+              <span class="metric-label">Channel Phase Correlation</span>
+              <span class="metric-value" id="healthPhaseVal">--</span>
+              <span class="metric-status" id="healthPhaseStatus">--</span>
+            </div>
+          </div>
+
+          <!-- Feature 1.1.B Phase Inversion / Remix Alert Banner -->
+          <div class="health-remedy-banner" id="healthRemedyBanner" style="display: none;">
+            <span class="remedy-icon">⚡</span>
+            <span class="remedy-text" id="healthRemedyText">Stereo Polarity Inverted (Auto-Remixed)</span>
+          </div>
+
+          <!-- Actionable recommendations / notices -->
+          <div class="health-recs-container" id="healthRecsContainer" style="display: none;">
+            <div class="health-recs-title">Recommendations:</div>
+            <ul class="health-recs-list" id="healthRecsList"></ul>
+          </div>
+        </div>
+
+
+        <div class="options-row">
+          <label class="checkbox-label" title="Diarize distinct speakers">
+            <input type="checkbox" id="speakerLabelsCheckbox" checked>
+            <span>Speaker Diarization</span>
+          </label>
+
+          <label class="checkbox-label" title="Normalize audio to -16 LUFS broadcast standard with soft-knee dynamic peak limiter (0% clipping)">
+            <input type="checkbox" id="lufsNormCheckbox" checked>
+            <span>EBU R128 Norm (-16 LUFS)</span>
+          </label>
+
+          <label class="checkbox-label" title="500ms sliding window chunk overlap with boundary word deduplication to prevent clipped speech">
+            <input type="checkbox" id="chunkOverlapCheckbox" checked>
+            <span>500ms Overlap Dedup</span>
+          </label>
+
+          <label class="checkbox-label" title="Low-cut rumble filter, spectral noise gate, and vocal presence equalizer on GPU">
+            <input type="checkbox" id="voiceEnhancerCheckbox" checked>
+            <span>Voice Filter & Amplifier (GPU)</span>
+          </label>
+
+          <div style="display: flex; align-items: center; gap: 8px;" title="GPU Vocal Amplifier Boost Headroom">
+            <span style="font-size: 13px; color: var(--text-secondary);">Vocal Boost:</span>
+            <select class="select-input" id="vocalBoostSelect">
+              <option value="adaptive">🔊 Adaptive AGC (+15 dB)</option>
+              <option value="standard">🔈 Standard (+10 dB)</option>
+              <option value="high">📢 High Boost (+18 dB)</option>
+              <option value="max">⚡ Max Headroom (+22 dB)</option>
+            </select>
+          </div>
+
+          <label class="checkbox-label" title="Auto-slows tricky audio frames to 0.75x and re-evaluates before asking for human review">
+            <input type="checkbox" id="ambiguityCheckbox" checked>
+            <span>Ambiguity Resolver (Auto-slow)</span>
+          </label>
+
+          <label class="checkbox-label" title="Supreme Multi-Model Council: Canary-Qwen-2.5B + Whisper + Parakeet/Conformer to eliminate hallucinations">
+            <input type="checkbox" id="councilCheckbox" checked>
+            <span>⚖️ Multi-Model Council</span>
+          </label>
+
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 13px; color: var(--text-secondary);">Council Mode:</span>
+            <select class="select-input" id="councilModeSelect">
+              <option value="sequential">🔬 3-Sequential Supreme (Deepest Accuracy)</option>
+              <option value="concurrent">⚡ Concurrent (Fast 1-Pass)</option>
+            </select>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 13px; color: var(--text-secondary);">Diarizer:</span>
+            <select class="select-input" id="diarizerSelect">
+              <option value="nemo">NeMo TitaNet (Open & Local)</option>
+              <option value="pyannote">PyAnnote 3.x (Optional)</option>
+            </select>
+          </div>
+
+          <button type="button" class="btn-secondary btn-sm" id="btnStudioGlossary" style="display: flex; align-items: center; gap: 5px; height: 36px; padding: 0 12px; font-weight: 500;" title="Manage Domain & Phonetic Glossary">
+            📖 Glossary (<span id="studioGlossaryCount">0</span>)
+          </button>
+
+          <button class="btn-primary" id="btnStart" disabled>Transcribe Audio</button>
+        </div>
+
+        <!-- Compact Active Council Roster Indicator -->
+        <div class="council-roster-bar" id="councilRosterBar">
+          <span class="council-roster-title">⚖️ Active Council:</span>
+          <span class="roster-pill" id="pillLeadJustice">Pass 1: Canary-Qwen-2.5B</span>
+          <span class="roster-pill" id="pillCrossExaminer">Pass 2: Whisper-Large-v3</span>
+          <span class="roster-pill" id="pillAnchor">Pass 3A: Conformer-CTC</span>
+          <span class="roster-pill" id="pillTransducer">Pass 3B: Parakeet-TDT</span>
+          <span class="roster-pill" id="pillAttention" style="border-color: rgba(99, 102, 241, 0.4); color: #818cf8;">⚡ SDPA Active</span>
+          <button type="button" class="btn-roster-config" id="btnGoToModels" title="Configure or change models in the Models & Checkpoints tab">⚙️ Change Models</button>
+        </div>
+      </div>
+
+      <div class="progress-card" id="progressCard">
+        <div class="progress-header">
+          <span id="progressStatus">Initializing pipeline...</span>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span id="progressPercentage">0%</span>
+            <div class="progress-actions">
+              <button class="btn-control btn-pause" id="btnPause" title="Pause transcription">⏸ Pause</button>
+              <button class="btn-control btn-resume" id="btnResume" style="display: none;" title="Resume transcription">▶ Resume</button>
+              <button class="btn-control btn-stop" id="btnStop" title="Cancel & stop transcription">⏹ Stop</button>
+            </div>
+          </div>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+      </div>
+
+      <!-- Ingest Status Notice when finished -->
+      <div class="ingest-completed-banner" id="ingestCompletedBanner" style="display: none;">
+        <span>✅ Transcription complete! Switch to the <strong>Transcript & Editor</strong> tab to audit and edit.</span>
+      </div>
+
+      <!-- Sub-Phase 5.1.A: Multi-File Sequential Ingest Queue & Batch Drawer -->
+      <div class="batch-queue-card" id="batchQueueSection">
+        <div class="batch-queue-header">
+          <div class="batch-title-group">
+            <span class="batch-icon">📦</span>
+            <span class="batch-title">Batch Processing Queue</span>
+            <span class="batch-count-badge" id="batchCountBadge">0 in queue</span>
+            <span class="batch-status-chip" id="batchStatusChip" style="display: none;">Idle</span>
+          </div>
+          <div class="batch-actions-bar">
+            <button type="button" class="btn-batch-control" id="btnPauseBatch" title="Pause sequential queue execution">⏸ Pause Queue</button>
+            <button type="button" class="btn-batch-control" id="btnResumeBatch" style="display: none;" title="Resume sequential queue execution">▶ Resume Queue</button>
+            <button type="button" class="btn-batch-control btn-batch-danger" id="btnClearBatch" title="Clear all queued pending files">🗑️ Clear Pending</button>
+          </div>
+        </div>
+
+        <!-- Active Batch Item Progress Bar -->
+        <div class="batch-active-item" id="batchActiveItem" style="display: none;">
+          <div class="batch-active-info">
+            <span class="batch-active-label">Currently Processing:</span>
+            <strong id="batchActiveName">filename.wav</strong>
+            <span class="batch-active-pct" id="batchActivePct">0%</span>
+          </div>
+          <div class="batch-progress-bar">
+            <div class="batch-progress-fill" id="batchProgressFill"></div>
+          </div>
+        </div>
+
+        <!-- Reorderable Queued Files List -->
+        <div class="batch-queue-list" id="batchQueueList">
+          <div class="batch-queue-empty" id="batchQueueEmpty">No batch files queued. Drop multiple audio files above to transcribe sequentially.</div>
+        </div>
+      </div>
+
+      <!-- Sub-Phase 5.2.A: Crash Checkpoints & Resumable Tasks Drawer -->
+      <div class="checkpoints-card" id="checkpointsSection" style="display: none;">
+        <div class="checkpoints-header">
+          <div class="checkpoints-title-group">
+            <span class="checkpoints-icon">💾</span>
+            <span class="checkpoints-title">Resumable Tasks &amp; Crash Recovery</span>
+            <span class="checkpoints-badge" id="checkpointsBadge">0 resumable</span>
+          </div>
+          <button type="button" class="btn-secondary btn-sm" id="btnRefreshCheckpoints">🔄 Refresh</button>
+        </div>
+        <div class="checkpoints-list" id="checkpointsList"></div>
+      </div>
+    </div>
+
+    <!-- TAB 2: TRANSCRIPT & EDITOR PANE -->
+    <div class="tab-pane" id="paneTranscript">
+      <div class="workspace-container layout-stacked" id="workspaceContainer">
+        <!-- Sub-Phase 4.1.A: Dual-Track Audio Studio Dock -->
+        <div class="workspace-audio-dock" id="workspaceAudioDock">
+          <div class="player-card" id="playerCard">
+            <div class="studio-header">
+              <div class="studio-title-group">
+                <span class="studio-badge">🎙️ DUAL-TRACK AUDIO STUDIO</span>
+                <span class="sync-status-badge">⚡ Synchronized Lockstep</span>
+              </div>
+              <div class="mix-match-bar">
+                <div class="ab-toggle-group">
+                  <button class="btn-ab active" id="btnABOriginal" title="Audition Original Audio Only">🎙️ Original</button>
+                  <button class="btn-ab" id="btnABMix" title="Mix both tracks 50/50">🎛️ Mix 50/50</button>
+                  <button class="btn-ab" id="btnABModel" title="Audition Model Classification Ingest Only">🤖 Model Ingested</button>
+                </div>
+                <div class="crossfader-container" title="Crossfader: blend between Original (left) and Model Ingested (right)">
+                  <span class="crossfader-label">Orig</span>
+                  <input type="range" class="crossfader" id="audioCrossfader" min="0" max="100" value="0">
+                  <span class="crossfader-label">Model</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="track-row" id="trackOriginal">
+              <div class="track-channel-strip">
+                <div class="track-name">
+                  <span class="track-dot dot-orig"></span>
+                  <span class="track-title-text">Original Audio (Raw)</span>
+                </div>
+                <div class="track-channel-controls">
+                  <button class="btn-strip btn-solo" id="soloOrig" title="Solo Original Track">S</button>
+                  <button class="btn-strip btn-mute" id="muteOrig" title="Mute Original Track">M</button>
+                  <input type="range" class="vol-slider" id="volOrig" min="0" max="1" step="0.05" value="1" title="Original Volume">
+                </div>
+              </div>
+              <div class="waveform-wrapper" id="waveformWrapperOrig">
+                <div id="waveformOrig" class="waveform-box"></div>
+                <div class="waveform-selection-overlay" id="selectionOverlayOrig"></div>
+              </div>
+            </div>
+
+            <div class="track-row" id="trackModel">
+              <div class="track-channel-strip">
+                <div class="track-name">
+                  <span class="track-dot dot-model"></span>
+                  <span class="track-title-text">Model Classification Ingest (16kHz Enhanced)</span>
+                </div>
+                <div class="track-channel-controls">
+                  <button class="btn-strip btn-solo" id="soloModel" title="Solo Model Ingest Track">S</button>
+                  <button class="btn-strip btn-mute" id="muteModel" title="Mute Model Ingest Track">M</button>
+                  <input type="range" class="vol-slider" id="volModel" min="0" max="1" step="0.05" value="0" title="Model Ingest Volume">
+                </div>
+              </div>
+              <div class="waveform-wrapper" id="waveformWrapperModel">
+                <div id="waveformModel" class="waveform-box"></div>
+                <div class="waveform-selection-overlay" id="selectionOverlayModel"></div>
+              </div>
+            </div>
+
+            <!-- Sub-Phase 3.1.A: Waveform Acoustic Confidence Heatmap -->
+            <div class="track-row track-telemetry" id="trackHeatmapRow">
+              <div class="track-channel-strip track-channel-strip-sm">
+                <div class="track-name">
+                  <span class="track-dot dot-heatmap"></span>
+                  <span class="track-title-text">Acoustic Consensus Heatmap</span>
+                </div>
+                <div class="heatmap-legend">
+                  <span class="legend-chip legend-green">≥85% Unanimous</span>
+                  <span class="legend-chip legend-yellow">65-84% Majority</span>
+                  <span class="legend-chip legend-red">&lt;65% Disputed</span>
+                  <span class="legend-chip legend-pink">⚡ Breaker</span>
+                </div>
+              </div>
+              <div class="timeline-ribbon-wrapper" id="heatmapRibbonWrapper">
+                <div class="timeline-ribbon" id="confidenceHeatmap"></div>
+                <div class="timeline-playhead" id="heatmapPlayhead"></div>
+              </div>
+            </div>
+
+            <!-- Sub-Phase 3.1.C: Multi-Speaker Timeline Gantt Ribbon -->
+            <div class="track-row track-telemetry" id="trackGanttRow">
+              <div class="track-channel-strip track-channel-strip-sm">
+                <div class="track-name">
+                  <span class="track-dot dot-gantt"></span>
+                  <span class="track-title-text">Speaker Timeline Gantt</span>
+                </div>
+                <div class="gantt-solo-bar" id="ganttSoloBar">
+                  <button class="btn-gantt-solo active" data-speaker="ALL" id="btnGanttSoloAll">🎙️ All</button>
+                </div>
+              </div>
+              <div class="timeline-ribbon-wrapper" id="ganttRibbonWrapper">
+                <div class="timeline-ribbon" id="speakerGantt"></div>
+                <div class="timeline-playhead" id="ganttPlayhead"></div>
+              </div>
+            </div>
+
+            <!-- Sub-Phase 3.1.B: FFT Spectrogram Waterfall Display -->
+            <div class="track-row track-telemetry" id="trackSpectrogramRow">
+              <div class="track-channel-strip track-channel-strip-sm">
+                <div class="track-name">
+                  <span class="track-dot dot-spectrogram"></span>
+                  <span class="track-title-text">FFT Spectrogram Waterfall</span>
+                </div>
+                <div class="spectrogram-controls">
+                  <span class="spectrogram-freq-axis">0 – 8 kHz Formants</span>
+                  <button class="btn-strip btn-toggle-vis" id="btnToggleSpectrogram" title="Toggle Spectrogram Height">⤢</button>
+                </div>
+              </div>
+              <div class="timeline-ribbon-wrapper spectrogram-wrapper" id="spectrogramWrapper">
+                <canvas id="spectrogramCanvas" class="spectrogram-canvas" height="64"></canvas>
+                <div class="timeline-playhead" id="spectrogramPlayhead"></div>
+              </div>
+            </div>
+
+            <div class="player-controls">
+              <div class="player-controls-left">
+                <button class="btn-player" id="btnPlayPause">▶ Play Both</button>
+                <button class="btn-player" id="btnBack5">↺ -5s</button>
+                <button class="btn-player" id="btnFwd5">↻ +5s</button>
+                <select class="select-input" id="playbackSpeed">
+                  <option value="1.0">1.0x Speed</option>
+                  <option value="1.25">1.25x</option>
+                  <option value="1.5">1.5x</option>
+                  <option value="0.75">0.75x</option>
+                </select>
+
+                <!-- Sub-Phase 3.2.A: Waveform Zoom Controls -->
+                <div class="zoom-controls" id="zoomControls">
+                  <button class="btn-zoom" id="btnZoomOut" title="Zoom Out (Ctrl + Scroll)">🔍−</button>
+                  <span class="zoom-pill" id="zoomPill">Fit</span>
+                  <button class="btn-zoom" id="btnZoomIn" title="Zoom In (Ctrl + Scroll)">🔍+</button>
+                  <button class="btn-zoom" id="btnZoomFit" title="Fit to Width">Fit</button>
+                </div>
+
+                <!-- Sub-Phase 3.3.A: NLE J-K-L Shuttle Scrubbing Status -->
+                <div class="shuttle-badge" id="shuttleBadge" title="NLE Transport: J (Rev), K (Stop), L (Fwd), Space (Play)">
+                  <span class="shuttle-icon">⏸</span>
+                  <span class="shuttle-text" id="shuttleText">1.0x (J-K-L)</span>
+                </div>
+              </div>
+
+              <div class="player-controls-right">
+                <!-- Sub-Phase 3.2.A & 3.2.B: Loop Region Active Pill -->
+                <div class="loop-badge" id="loopRegionBadge" style="display: none;" title="Active Audition Loop Region">
+                  <span class="loop-icon">🔁</span>
+                  <span class="loop-time-text" id="loopTimeText">00:00 – 00:00</span>
+                  <button class="btn-clear-loop" id="btnClearLoop" title="Clear Active Loop (Esc)">✕</button>
+                </div>
+
+                <!-- Sub-Phase 3.3.B: Human Listener 3-Band Vocal Clarity EQ -->
+                <div class="eq-controls-group" id="eqControlsGroup">
+                  <span class="eq-label">🎧 Clarity EQ:</span>
+                  <button class="btn-eq-pill active" id="btnEqFlat" data-preset="flat" title="Flat EQ (Unfiltered Bypass)">Flat</button>
+                  <button class="btn-eq-pill" id="btnEqClarifier" data-preset="clarifier" title="Vocal Clarifier (+5dB Formants 2.8kHz, -120Hz Rumble Cut)">🎙️ Clarifier</button>
+                  <button class="btn-eq-pill" id="btnEqDehiss" data-preset="dehiss" title="De-Hiss (-6.5kHz Low-pass, -100Hz Low-cut)">🎧 De-Hiss</button>
+                </div>
+
+                <div class="player-time" id="playerTime">00:00 / 00:00</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="studio-workspace-layout" id="studioWorkspaceLayout">
+          <!-- Left Sidebar: Speaker Hub & Quick Filters -->
+          <aside class="speaker-sidebar" id="speakerSidebar">
+            <div class="speaker-sidebar-header">
+              <div class="speaker-sidebar-title">
+                <span>👥 Speakers</span>
+                <span class="speaker-count-badge" id="speakerCountBadge">0</span>
+              </div>
+              <button class="btn-sidebar-action" id="btnRenameModal" title="Batch rename speaker aliases">✏️ Aliases</button>
+            </div>
+
+            <div class="speaker-search-wrapper">
+              <input type="text" class="speaker-search-input" id="speakerSearchInput" placeholder="Filter speakers by name...">
+            </div>
+
+            <div class="sidebar-filter-group">
+              <div class="sidebar-filter-pill active" data-filter="ALL" id="pillFilterAll">
+                <span>All Chunks</span>
+                <span class="filter-count-chip" id="filterCountAll">0</span>
+              </div>
+              <div class="sidebar-filter-pill filter-review" data-filter="REVIEW" id="pillFilterReview" style="display: none;">
+                <span>⚠️ Needs Review</span>
+                <span class="filter-count-chip chip-review" id="filterCountReview">0</span>
+              </div>
+              <div class="sidebar-filter-pill filter-disputed" data-filter="DISPUTED" id="pillFilterDisputed" style="display: none;">
+                <span>⚖️ Disputed</span>
+                <span class="filter-count-chip chip-disputed" id="filterCountDisputed">0</span>
+              </div>
+            </div>
+
+            <div class="speaker-list-compact" id="speakerListCompact">
+              <!-- Dynamically populated speaker cards with talk-time stats -->
+            </div>
+          </aside>
+
+          <!-- Right Main Panel: Transcript Feed & Mini-Map -->
+          <section class="transcript-workspace" id="transcriptWorkspace">
+            <div class="transcript-toolbar">
+              <div class="transcript-search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" class="text-input" id="searchInput" placeholder="Search spoken text across all chunks...">
+              </div>
+              <div class="transcript-actions">
+                <!-- Sub-Phase 4.1.A: Dual-Pane Layout Mode Toggle (Split / Stacked) -->
+                <div class="layout-toggle-group" id="layoutToggleGroup" title="Workspace Layout Mode (16:9 / Ultrawide)">
+                  <button type="button" class="btn-layout active" id="btnLayoutStacked" title="Stacked View (Waveform Studio on top, Editor below)">⯀ Stacked</button>
+                  <button type="button" class="btn-layout" id="btnLayoutSplit" title="Side-by-Side Split View (Waveforms on left, Editor on right)">⫴ Split</button>
+                </div>
+
+                <!-- Sub-Phase 4.1.B: Ambient Reading Ruler Focus Dimming Toggle -->
+                <button type="button" class="btn-tool-pill" id="btnToggleReadingRuler" title="Toggle Ambient Reading Ruler Focus Dimming (Alt + F)">
+                  <span class="ruler-bulb">💡</span> Reading Ruler
+                </button>
+
+                <!-- Sub-Phase 4.2.A: Model Comparator Lab Button -->
+                <button type="button" class="btn-tool-pill" id="btnModelComparator" title="Open Model Comparator Lab (Canary vs Whisper vs CTC vs Parakeet)">
+                  🔬 Comparator Lab
+                </button>
+
+                <!-- Sub-Phase 4.2.B: Expand/Collapse All Juror Voting Drawers -->
+                <button type="button" class="btn-tool-pill" id="btnToggleAllJurors" title="Expand/Collapse All Juror Voting Drawers">
+                  🏛️ All Jurors
+                </button>
+
+                <!-- Sub-Phase 4.3.A: Full Undo / Redo History Buttons -->
+                <div class="history-button-group">
+                  <button type="button" class="btn-tool-pill btn-history" id="btnUndo" title="Undo (Ctrl+Z)" disabled>↩ Undo</button>
+                  <button type="button" class="btn-tool-pill btn-history" id="btnRedo" title="Redo (Ctrl+Y)" disabled>↪ Redo</button>
+                </div>
+
+                <!-- Sub-Phase 4.3.B: Smart Auto-Scroll with Viewport Edit Lock Toggle -->
+                <button type="button" class="btn-tool-pill" id="btnAutoScrollLock" title="Toggle Auto-Scroll Lock (Freezes viewport scrolling during editing)">
+                  <span id="autoScrollLockIcon">🔓</span> <span id="autoScrollLockLabel">Auto-Scroll</span>
+                </button>
+
+                <!-- Sub-Phase 4.4.A: Deterministic Normalizer Button -->
+                <button type="button" class="btn-tool-pill" id="btnOpenNormalizer" title="Deterministic Numbers & Disfluency Normalizer">
+                  🪄 Normalizer
+                </button>
+
+                <!-- Sub-Phase 4.4.C: Global Search & Replace Toggle -->
+                <button type="button" class="btn-tool-pill" id="btnToggleSearchReplace" title="Global Search & Replace (Ctrl+H)">
+                  🔍 Find & Replace
+                </button>
+
+                <!-- Sub-Phase 4.4.E: Typography & Accessibility Customizer -->
+                <button type="button" class="btn-tool-pill" id="btnTypography" title="Typography & Dyslexia Customizer">
+                  🔤 Typography
+                </button>
+
+                <!-- Sub-Phase 4.4.F: Speaker Palette & Avatars -->
+                <button type="button" class="btn-tool-pill" id="btnSpeakerPalette" title="Customize Speaker Palettes & Roles">
+                  🎨 Speakers
+                </button>
+
+                <!-- Sub-Phase 4.4.G: Keyboard Shortcuts Cheatsheet -->
+                <button type="button" class="btn-tool-pill" id="btnShortcutsCheatsheet" title="Interactive Keyboard Shortcuts Cheatsheet (?)">
+                  ⌨️ Shortcuts
+                </button>
+
+                <span class="editor-tip" title="Click text to edit inline. Press Ctrl+Enter to save and advance.">💡 Tip: Ctrl+Enter saves</span>
+                <button class="btn-primary" id="btnExportTxt">📥 Export .TXT</button>
+              </div>
+            </div>
+
+            <!-- Sub-Phase 4.4.C: Global Search & Replace Bar -->
+            <div class="search-replace-bar" id="searchReplaceBar" style="display: none;">
+              <div class="sr-input-group">
+                <span class="sr-icon">🔍</span>
+                <input type="text" class="text-input text-input-sm" id="srFindInput" placeholder="Find text in transcript...">
+              </div>
+              <div class="sr-input-group">
+                <span class="sr-icon">✏️</span>
+                <input type="text" class="text-input text-input-sm" id="srReplaceInput" placeholder="Replace with...">
+              </div>
+              <div class="sr-toggles">
+                <button type="button" class="sr-toggle-btn" id="chkFindMatchCase" title="Match Case (Aa)">Aa</button>
+                <button type="button" class="sr-toggle-btn" id="chkFindWholeWord" title="Match Whole Word (\b)">\b</button>
+                <button type="button" class="sr-toggle-btn" id="chkFindRegex" title="Use Regular Expression (.*)">.*</button>
+              </div>
+              <div class="sr-nav-group">
+                <span class="sr-count-badge" id="srCountBadge">0 matches</span>
+                <button type="button" class="btn-secondary btn-sm" id="btnFindPrev" title="Previous match">▲</button>
+                <button type="button" class="btn-secondary btn-sm" id="btnFindNext" title="Next match">▼</button>
+                <button type="button" class="btn-secondary btn-sm" id="btnReplaceNext">Replace</button>
+                <button type="button" class="btn-primary btn-sm" id="btnReplaceAll">Replace All</button>
+                <button type="button" class="sr-close-btn" id="btnCloseSearchReplace" title="Close Search & Replace">✕</button>
+              </div>
+            </div>
+
+            <!-- Sub-Phase 4.4.D: Live Document Metrics Ribbon -->
+            <div class="document-metrics-ribbon" id="documentMetricsRibbon">
+              <div class="doc-metric-pill" id="metricTotalWords">
+                <span class="doc-metric-icon">📊</span>
+                <span class="doc-metric-val" id="metricValWords">0</span>
+                <span class="doc-metric-label">Words</span>
+              </div>
+              <div class="doc-metric-pill" id="metricTotalDuration">
+                <span class="doc-metric-icon">⏱️</span>
+                <span class="doc-metric-val" id="metricValDuration">00:00</span>
+                <span class="doc-metric-label">Duration</span>
+              </div>
+              <div class="doc-metric-pill" id="metricAvgWpm">
+                <span class="doc-metric-icon">⚡</span>
+                <span class="doc-metric-val" id="metricValWpm">0</span>
+                <span class="doc-metric-label">Avg WPM</span>
+              </div>
+              <div class="doc-metric-pill" id="metricAvgCps">
+                <span class="doc-metric-icon">💬</span>
+                <span class="doc-metric-val" id="metricValCps">0.0</span>
+                <span class="doc-metric-label">Avg CPS</span>
+              </div>
+            </div>
+
+            <!-- Sub-Phase 4.1.C: Vertical Document Mini-Map Scrub Bar -->
+            <div class="transcript-feed-wrapper" id="transcriptFeedWrapper">
+              <div class="transcript-feed" id="transcriptFeed">
+                <div class="empty-state-notice">
+                  <div style="font-size: 36px; margin-bottom: 8px;">🎙️</div>
+                  <div style="font-weight: 600;">No transcript segments yet</div>
+                  <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                    Upload an audio file in the <strong>Studio & Ingest</strong> tab to begin transcription.
+                  </div>
+                </div>
+              </div>
+              <div class="transcript-minimap" id="transcriptMinimap" title="Document Mini-Map (Click or drag to scrub transcript)">
+                <canvas class="minimap-canvas" id="minimapCanvas" width="36" height="600"></canvas>
+                <div class="minimap-slider" id="minimapSlider" title="Visible viewport (Drag to scrub)"></div>
+                <div class="minimap-playhead" id="minimapPlayhead" title="Active playback position"></div>
+              </div>
+            </div>
+
+            <!-- Sub-Phase 4.3.C: Floating Quick-Action Selection Bubble Menu -->
+            <div class="selection-bubble" id="selectionBubble" style="display: none;">
+              <button type="button" class="btn-bubble-action" id="bubbleBtnAudition" title="Audition highlighted text slice">🔊 Audition</button>
+              <button type="button" class="btn-bubble-action" id="bubbleBtnGlossary" title="Add highlighted text to domain glossary">📖 +Glossary</button>
+              <div class="bubble-dropdown">
+                <button type="button" class="btn-bubble-action" id="bubbleBtnCase" title="Transform text capitalization">Aa Case ▾</button>
+                <div class="bubble-dropdown-menu" id="bubbleCaseDropdown">
+                  <button type="button" class="bubble-dropdown-item" data-case="title">Title Case</button>
+                  <button type="button" class="bubble-dropdown-item" data-case="upper">UPPERCASE</button>
+                  <button type="button" class="bubble-dropdown-item" data-case="lower">lowercase</button>
+                </div>
+              </div>
+              <button type="button" class="btn-bubble-action" id="bubbleBtnFlag" title="Toggle human review flag for this chunk">🚩 Flag Review</button>
+              <button type="button" class="btn-bubble-close" id="bubbleBtnClose" title="Dismiss selection menu">✕</button>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- Persistent Floating Play/Pause Audio Player Dock -->
+      <div class="floating-player-dock" id="floatingPlayer">
+        <div class="floating-player-content">
+          <button class="btn-floating-play" id="btnFloatingPlayPause" title="Play / Pause Audio">▶</button>
+          <div class="floating-time-info">
+            <span class="floating-time" id="floatingTime">00:00 / 00:00</span>
+            <div class="floating-snippet-box">
+              <span class="floating-spk" id="floatingSpeaker">Speaker --</span>
+              <span class="floating-snippet" id="floatingSnippet">Ready to audition</span>
+            </div>
+          </div>
+          <div class="floating-controls">
+            <button class="btn-floating-mini" id="btnFloatingBack5" title="Rewind 5 seconds">↺ 5s</button>
+            <button class="btn-floating-mini" id="btnFloatingFwd5" title="Forward 5 seconds">↻ 5s</button>
+            <select class="select-input select-floating" id="floatingPlaybackSpeed">
+              <option value="1.0">1.0x</option>
+              <option value="1.25">1.25x</option>
+              <option value="1.5">1.5x</option>
+              <option value="0.75">0.75x</option>
+            </select>
+            <button class="btn-floating-jump" id="btnFloatingJump" title="Scroll transcript to current playhead">🎯 Jump</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: MODELS & CHECKPOINTS PANE -->
+    <div class="tab-pane" id="paneModels">
+      <!-- 1. Active Council Pipeline Roster -->
+      <div class="model-manager-card">
+        <div class="model-card-header">
+          <div class="model-card-title-group">
+            <span class="model-badge">⚖️ ACTIVE COUNCIL ROSTER</span>
+            <span class="model-card-subtitle">Configure which models deliberate in the 5-stage Supreme Council pipeline (Canary, Whisper, Conformer, Parakeet, Audex)</span>
+          </div>
+          <button class="btn-primary btn-save-roster" id="btnSaveRoster">💾 Save Active Pipeline Roster</button>
+        </div>
+
+        <div class="roster-grid">
+          <!-- Pass 1 -->
+          <div class="roster-field">
+            <label for="rosterSelectCanary" class="roster-label">
+              <span class="roster-stage-tag stage-lead">Pass 1</span>
+              <span>Lead Justice (Speech-LLM):</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectCanary"></select>
+            <div class="roster-hint">NVIDIA Speech-LLM providing overarching conversational context & acoustic reasoning.</div>
+          </div>
+
+          <!-- Pass 2 -->
+          <div class="roster-field">
+            <label for="rosterSelectWhisper" class="roster-label">
+              <span class="roster-stage-tag stage-cross">Pass 2</span>
+              <span>Cross-Examiner (Autoregressive):</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectWhisper"></select>
+            <div class="roster-hint">Autoregressive Whisper cross-examiner for phonetic precision & phrase boundary validation.</div>
+          </div>
+
+          <!-- Pass 3A -->
+          <div class="roster-field">
+            <label for="rosterSelectConformer" class="roster-label">
+              <span class="roster-stage-tag stage-ctc">Pass 3A</span>
+              <span>Acoustic Anchor (Dense CTC):</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectConformer"></select>
+            <div class="roster-hint">Non-autoregressive Conformer CTC model. Overrules speech-LLM hallucinations.</div>
+          </div>
+
+          <!-- Pass 3B -->
+          <div class="roster-field">
+            <label for="rosterSelectParakeet" class="roster-label">
+              <span class="roster-stage-tag stage-tdt">Pass 3B</span>
+              <span>Transducer (RNN-T / TDT):</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectParakeet"></select>
+            <div class="roster-hint">Token-and-Duration Transducer for joint acoustic-linguistic cross-examination.</div>
+          </div>
+
+          <!-- Diarizer -->
+          <div class="roster-field">
+            <label for="rosterSelectDiarizer" class="roster-label">
+              <span class="roster-stage-tag stage-diar">Diarizer</span>
+              <span>Speaker Diarization Engine:</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectDiarizer">
+              <option value="nemo">NeMo TitaNet-Large (1D Depthwise CNN Embeddings)</option>
+              <option value="pyannote">PyAnnote Audio 3.1 (Neural End-to-End)</option>
+            </select>
+            <div class="roster-hint">Clusters speech segments into distinct speaker voices.</div>
+          </div>
+
+          <!-- Vocal Boost -->
+          <div class="roster-field">
+            <label for="rosterSelectBoost" class="roster-label">
+              <span class="roster-stage-tag stage-boost">Enhancer</span>
+              <span>GPU Vocal Amplifier Boost Level:</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectBoost">
+              <option value="adaptive">🔊 Adaptive AGC (+15 dB Headroom - Recommended)</option>
+              <option value="standard">🔈 Standard (+10 dB Headroom)</option>
+              <option value="high">📢 High Boost (+18 dB Headroom)</option>
+              <option value="max">⚡ Max Headroom (+22 dB Boost)</option>
+            </select>
+            <div class="roster-hint">Frame-gated dynamic amplifier with soft-knee tanh peak limiting.</div>
+          </div>
+
+          <!-- Stage 5: Audex Supreme Adjudicator -->
+          <div class="roster-field">
+            <label for="rosterSelectAudex" class="roster-label">
+              <span class="roster-stage-tag stage-lead" style="background:#4338ca;">Stage 5</span>
+              <span>Supreme Audio Adjudicator:</span>
+            </label>
+            <select class="select-input roster-select" id="rosterSelectAudex">
+              <option value="disabled">Disabled (Default Consensus Deliberation)</option>
+              <option value="nvidia/Nemotron-Labs-Audex-2B">Nemotron-Labs-Audex-2B (&lt;think&gt; Audio Deliberator)</option>
+            </select>
+            <div class="roster-hint">NVIDIA dense audio-language model with chain-of-thought &lt;think&gt; reasoning on disputed chunks.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PyAnnote Audio 3.1 Setup & Verification Card -->
+      <div class="model-manager-card" id="pyannoteSetupCard">
+        <div class="model-card-header">
+          <div class="model-card-title-group">
+            <span class="model-badge">🎙️ PYANNOTE AUDIO 3.1 SETUP & TOKEN VERIFIER</span>
+            <span class="model-card-subtitle">Connect Hugging Face Token to unlock neural speaker diarization</span>
+          </div>
+          <div class="pyannote-status-pill" id="pyannoteStatusPill">Checking Status...</div>
+        </div>
+
+        <div class="pyannote-guide-box">
+          <div class="pyannote-guide-step">
+            <strong>Step 1:</strong> Log in to Hugging Face and accept the user agreements for both gated models:
+            <div class="pyannote-links">
+              <a href="https://huggingface.co/pyannote/speaker-diarization-3.1" target="_blank" rel="noreferrer" class="pyannote-link">🔗 1. pyannote/speaker-diarization-3.1 (Click to Accept)</a>
+              <a href="https://huggingface.co/pyannote/segmentation-3.0" target="_blank" rel="noreferrer" class="pyannote-link">🔗 2. pyannote/segmentation-3.0 (Click to Accept)</a>
+            </div>
+          </div>
+          <div class="pyannote-guide-step">
+            <strong>Step 2:</strong> Generate a User Access Token (Read permission) at <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noreferrer" class="pyannote-link">huggingface.co/settings/tokens</a>.
+          </div>
+        </div>
+
+        <div class="install-form-row" style="margin-top: 14px;">
+          <div class="install-input-group" style="flex: 1;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label class="install-label" for="hfTokenInput" style="margin-bottom: 0;">Hugging Face Access Token (HF_TOKEN):</label>
+              <span id="hfTokenPersistBadge" style="font-size: 0.72rem; color: #10b981; font-weight: 500; display: none;">💾 Saved in settings.json</span>
+            </div>
+            <div class="token-input-wrap">
+              <input type="password" class="text-input" id="hfTokenInput" placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+              <button type="button" class="btn-toggle-token" id="btnToggleTokenVisibility" title="Show/Hide Token">👁️</button>
+            </div>
+          </div>
+          <div style="display: flex; align-items: flex-end; gap: 8px;">
+            <button class="btn-primary" id="btnVerifyHfToken">🔍 Test &amp; Save Token</button>
+            <button class="btn-telemetry" id="btnClearHfToken" title="Clear saved token from configuration" style="display: none;">🗑️ Clear</button>
+          </div>
+        </div>
+        <div class="pyannote-feedback" id="pyannoteFeedbackText"></div>
+      </div>
+
+      <!-- 2. Install / Download Model Checkpoint -->
+      <div class="model-manager-card">
+        <div class="model-card-header">
+          <div class="model-card-title-group">
+            <span class="model-badge">⬇️ INSTALL NEW MODEL / CHECKPOINT</span>
+            <span class="model-card-subtitle">Download official or custom Hugging Face / NeMo models directly into local cache</span>
+          </div>
+        </div>
+
+        <div class="install-form-row">
+          <div class="install-input-group" style="flex: 1;">
+            <label class="install-label" for="customModelId">Hugging Face Repo ID or NeMo Model Name:</label>
+            <input type="text" class="text-input" id="customModelId" placeholder="e.g. openai/whisper-large-v3-turbo or nvidia/parakeet-ctc-1.1b">
+          </div>
+          <div class="install-input-group" style="width: 180px;">
+            <label class="install-label" for="customModelFramework">Framework:</label>
+            <select class="select-input" id="customModelFramework">
+              <option value="huggingface">Hugging Face Hub</option>
+              <option value="nemo">NVIDIA NeMo</option>
+            </select>
+          </div>
+          <div class="install-input-group" style="width: 200px;">
+            <label class="install-label" for="customModelRole">Architecture Role:</label>
+            <select class="select-input" id="customModelRole">
+              <option value="whisper">Pass 2: Whisper</option>
+              <option value="conformer">Pass 3A: CTC Anchor</option>
+              <option value="parakeet">Pass 3B: Transducer</option>
+              <option value="speech_llm">Pass 1: Speech-LLM</option>
+              <option value="diarizer">Diarizer</option>
+            </select>
+          </div>
+          <button class="btn-primary btn-install-action" id="btnInstallCustomModel">⬇️ Download Model</button>
+        </div>
+
+        <!-- Download Status Box -->
+        <div class="download-progress-box" id="downloadProgressBox" style="display: none;">
+          <div class="download-progress-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="download-status-indicator" id="downloadStatusIndicator">⏳</span>
+              <div class="download-progress-title" id="downloadProgressTitle">Downloading Checkpoint...</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="download-telemetry-badge" id="downloadProgressSpeed" title="Real-time download throughput" style="display: none;"></span>
+              <span class="download-telemetry-badge" id="downloadProgressEta" title="Estimated remaining time" style="display: none;"></span>
+              <span class="download-progress-pct" id="downloadProgressPct">0%</span>
+              <button type="button" class="btn-cancel-download" id="btnCancelDownload" title="Cancel active download">✕ Cancel</button>
+            </div>
+          </div>
+          <div class="download-progress-track">
+            <div class="download-progress-fill" id="downloadProgressFill"></div>
+          </div>
+          <div class="download-progress-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 11px;">
+            <div class="download-progress-msg" id="downloadProgressMsg">Contacting registry...</div>
+            <div class="download-progress-bytes" id="downloadProgressBytes" style="font-family: monospace; color: var(--text-muted);"></div>
+          </div>
+
+          <!-- Sequential Queue List -->
+          <div class="download-queue-box" id="downloadQueueContainer" style="display: none; margin-top: 10px; padding-top: 8px; border-top: 1px dashed rgba(255, 255, 255, 0.1);">
+            <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 6px;">
+              🕒 Queued for Sequential Download:
+            </div>
+            <div class="download-queue-chips" id="downloadQueueChips" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+          </div>
+        </div>
+
+        <!-- Curated 1-Click Install Presets -->
+        <div class="presets-section-title">⚡ Curated 1-Click Model Presets</div>
+        <div class="presets-grid" id="presetsGrid"></div>
+      </div>
+
+      <!-- 3. Installed Checkpoints Manager -->
+      <div class="model-manager-card">
+        <div class="model-card-header">
+          <div class="model-card-title-group">
+            <span class="model-badge">💾 INSTALLED CHECKPOINTS & DISK FOOTPRINT</span>
+            <span class="model-card-subtitle">Inspect local weights and delete checkpoints to immediately reclaim disk space</span>
+          </div>
+          <div class="checkpoint-summary-badge" id="checkpointTotalDisk">Total: -- GB</div>
+        </div>
+
+        <div class="checkpoints-table-container">
+          <table class="checkpoints-table">
+            <thead>
+              <tr>
+                <th>Model Name & Identifier</th>
+                <th>Role in Pipeline</th>
+                <th style="width: 120px;">Framework</th>
+                <th style="width: 100px;">Disk Size</th>
+                <th style="width: 140px;">Last Modified</th>
+                <th style="width: 140px;">Roster Status</th>
+                <th style="width: 110px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="checkpointsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: TELEMETRY & LOGS PANE -->
+    <div class="tab-pane" id="paneTelemetry">
+      <div class="telemetry-card" id="telemetryCard">
+        <div class="telemetry-header">
+          <div class="telemetry-tabs">
+            <button class="tab-btn active" id="tabBtnTrace">📈 Memory Trace</button>
+            <button class="tab-btn" id="tabBtnLogs">📜 Live Execution Logs</button>
+            <button class="tab-btn" id="tabBtnDeepMem">🔍 Deep Memory & Processes</button>
+            <button class="tab-btn" id="tabBtnSupervisor">🛡️ Subsystem Supervisor & Control</button>
+            <span class="pulse-indicator" id="telemetryPulse" title="Live telemetry active">● Live</span>
+          </div>
+
+          <div class="telemetry-controls">
+            <div class="interval-selector" title="Telemetry sampling cadence">
+              <span class="interval-label">⏱ Cadence:</span>
+              <div class="interval-btn-group" id="cadenceBtnGroup">
+                <button class="btn-interval active" data-interval="2">2s</button>
+                <button class="btn-interval" data-interval="5">5s</button>
+                <button class="btn-interval" data-interval="10">10s</button>
+              </div>
+            </div>
+
+            <div class="telemetry-actions">
+              <button class="btn-telemetry" id="btnDropPageCacheNav" title="Purge Linux page cache (evict cached model checkpoints & audio buffers from RAM)" style="color: #60a5fa; border-color: #60a5fa; font-weight: 600;">⚡ Purge Page Cache</button>
+              <button class="btn-telemetry" id="btnCopyMemoryAudit" title="Copy full system memory trace and process list to clipboard" style="color: #38bdf8; border-color: #38bdf8; font-weight: 600;">📋 Copy Memory &amp; Procs</button>
+              <button class="btn-telemetry" id="btnClearMemTelemetry" title="Flush VRAM & trim glibc memory">🧹 Clear Cache</button>
+              <button class="btn-telemetry" id="btnExportTraceCsv" title="Export Memory Trace as CSV">📥 Trace CSV</button>
+              <button class="btn-telemetry" id="btnExportLogsCsv" title="Export Execution Logs as CSV">📥 Logs CSV</button>
+              <button class="btn-telemetry" id="btnExportLogsTxt" title="Export Execution Logs as TXT">📥 Logs TXT</button>
+              <button class="btn-telemetry btn-telemetry-clear" id="btnClearTelemetry" title="Clear telemetry buffer">🗑️ Clear</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="telemetry-tab-pane active" id="paneTrace">
+          <div class="trace-summary-bar">
+            <div class="trace-chip">
+              <span class="chip-label">Active Task:</span>
+              <span class="chip-val" id="traceActiveTask">System Idle</span>
+            </div>
+            <div class="trace-chip">
+              <span class="chip-label">Stage:</span>
+              <span class="chip-val" id="traceCurrentStage">Ready</span>
+            </div>
+            <div class="trace-chip">
+              <span class="chip-label">Suite RAM (Only):</span>
+              <span class="chip-val" id="traceLiveAppRam" style="color: #10b981;">-- GB</span>
+            </div>
+            <div class="trace-chip">
+              <span class="chip-label">RAM w/o Suite:</span>
+              <span class="chip-val" id="traceLiveWithoutSuiteRam" style="color: #38bdf8;">-- GB</span>
+            </div>
+            <div class="trace-chip">
+              <span class="chip-label">Total System RAM:</span>
+              <span class="chip-val" id="traceLiveRam">-- / -- GB</span>
+            </div>
+            <div class="trace-chip">
+              <span class="chip-label">GPU VRAM:</span>
+              <span class="chip-val" id="traceLiveVram">-- / -- GB</span>
+            </div>
+            <div class="trace-chip">
+              <span class="chip-label">Peak VRAM / RAM:</span>
+              <span class="chip-val" id="tracePeakMem">-- / -- GB</span>
+            </div>
+          </div>
+
+          <!-- Dual Live Dedicated Visual Memory Graphs -->
+          <div class="dual-trace-graphs-grid">
+            <!-- Graph 1: GPU VRAM Timeline -->
+            <div class="trace-graph-card">
+              <div class="trace-graph-header">
+                <span class="trace-graph-title">🎮 GPU VRAM Timeline (Live)</span>
+                <div class="trace-graph-legend">
+                  <span class="legend-item"><span class="legend-dot" style="background:#a855f7;"></span> Allocated</span>
+                  <span class="legend-item"><span class="legend-dot" style="background:#38bdf8;"></span> Reserved</span>
+                  <span class="legend-item"><span class="legend-dot" style="background:#ef4444; border-radius: 0; width: 10px; height: 2px;"></span> 5.5G Ceiling</span>
+                </div>
+              </div>
+              <div class="trace-graph-canvas-wrap">
+                <canvas id="vramTraceCanvas" height="150"></canvas>
+              </div>
+            </div>
+
+            <!-- Graph 2: Host & Process RAM Timeline -->
+            <div class="trace-graph-card">
+              <div class="trace-graph-header">
+                <span class="trace-graph-title">🧠 Host &amp; Process RAM Timeline (Live)</span>
+                <div class="trace-graph-legend">
+                  <span class="legend-item"><span class="legend-dot" style="background:#10b981;"></span> Suite RAM Only</span>
+                  <span class="legend-item"><span class="legend-dot" style="background:#38bdf8;"></span> RAM w/o Suite</span>
+                  <span class="legend-item"><span class="legend-dot" style="background:#f59e0b;"></span> Total System RAM</span>
+                </div>
+              </div>
+              <div class="trace-graph-canvas-wrap">
+                <canvas id="ramTraceCanvas" height="150"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="trace-table-container" id="traceTableContainer">
+            <table class="trace-table">
+              <thead>
+                <tr>
+                  <th style="width: 80px;">Time</th>
+                  <th style="width: 75px;">Elapsed</th>
+                  <th>Task / Audio File</th>
+                  <th>Pipeline Stage</th>
+                  <th style="width: 95px;">Suite RAM</th>
+                  <th style="width: 95px;">w/o Suite</th>
+                  <th style="width: 140px;">Total Sys RAM</th>
+                  <th style="width: 140px;">GPU VRAM</th>
+                  <th style="width: 95px;">Status</th>
+                </tr>
+              </thead>
+              <tbody id="traceTableBody"></tbody>
+            </table>
+          </div>
+          <div class="telemetry-footer">
+            <label class="autoscroll-label">
+              <input type="checkbox" id="traceAutoScroll" checked>
+              <span>Auto-scroll to latest trace</span>
+            </label>
+            <span class="telemetry-count" id="traceCountText">0 trace samples recorded</span>
+          </div>
+        </div>
+
+        <div class="telemetry-tab-pane" id="paneLogs">
+          <div class="log-filter-bar">
+            <div class="log-filters" id="logLevelFilters">
+              <button class="log-filter-btn active" data-level="ALL">All Events</button>
+              <button class="log-filter-btn" data-level="STAGE">Stages</button>
+              <button class="log-filter-btn" data-level="CHUNK">Chunks</button>
+              <button class="log-filter-btn" data-level="MEM">Memory</button>
+              <button class="log-filter-btn" data-level="ERROR">Errors</button>
+            </div>
+            <div class="log-search-box">
+              <input type="text" class="log-search-input" id="logSearchInput" placeholder="Search log entries...">
+            </div>
+          </div>
+
+          <div class="terminal-container" id="terminalContainer">
+            <div class="terminal-body" id="terminalBody"></div>
+          </div>
+          <div class="telemetry-footer">
+            <label class="autoscroll-label">
+              <input type="checkbox" id="logsAutoScroll" checked>
+              <span>Auto-scroll to latest log</span>
+            </label>
+            <span class="telemetry-count" id="logCountText">0 log entries</span>
+          </div>
+        </div>
+
+        <!-- SUB-TAB 3: DEEP MEMORY & PROCESS TRACE -->
+        <div class="telemetry-tab-pane" id="paneDeepMem">
+          <!-- Deep Memory Cards -->
+          <div class="deep-mem-grid">
+            <div class="deep-mem-card">
+              <div class="deep-card-title">🖥️ Suite Process Memory (RSS / Heap)</div>
+              <div class="deep-stat-row">
+                <span>Resident RAM (RSS):</span>
+                <span class="deep-val" id="deepRssVal">-- MB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Virtual Size (VMS):</span>
+                <span class="deep-val" id="deepVmsVal">-- MB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Shared Libraries:</span>
+                <span class="deep-val" id="deepSharedVal">-- MB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Process Heap Data:</span>
+                <span class="deep-val" id="deepDataVal">-- MB</span>
+              </div>
+            </div>
+
+            <div class="deep-mem-card">
+              <div class="deep-card-title">🎮 GPU VRAM Distribution</div>
+              <div class="deep-stat-row">
+                <span>Device:</span>
+                <span class="deep-val" id="deepGpuDevice" style="font-size: 11px;">--</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>PyTorch Active Tensors:</span>
+                <span class="deep-val" id="deepGpuAlloc" style="color: #a855f7;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>PyTorch Reserved Cache:</span>
+                <span class="deep-val" id="deepGpuReserved" style="color: #38bdf8;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>OS / Compositor VRAM:</span>
+                <span class="deep-val" id="deepGpuExternal" style="color: #f59e0b;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Free Hardware Headroom:</span>
+                <span class="deep-val" id="deepGpuFree" style="color: #10b981;">-- GB</span>
+              </div>
+            </div>
+
+            <div class="deep-mem-card">
+              <div class="deep-card-title">🧠 Host Operating System RAM</div>
+              <div class="deep-stat-row">
+                <span>Total Physical RAM:</span>
+                <span class="deep-val" id="deepSysTotal">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Total Used RAM (OS + Apps):</span>
+                <span class="deep-val" id="deepSysUsed" style="color: #f59e0b;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>↳ Suite Memory Only (App RSS):</span>
+                <span class="deep-val" id="deepSysAppRss" style="color: #10b981;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>↳ RAM Without Suite (OS &amp; Apps):</span>
+                <span class="deep-val" id="deepSysWithoutSuite" style="color: #38bdf8;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>↳ Kernel Zswap &amp; Shared:</span>
+                <span class="deep-val" id="deepSysKernelZswap" style="color: #a78bfa;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>↳ Inactive Page Cache (Disk I/O):</span>
+                <span class="deep-val" id="deepSysCached" style="color: #60a5fa;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Available / Free RAM:</span>
+                <span class="deep-val" id="deepSysFree" style="color: #34d399;">-- GB</span>
+              </div>
+              <div class="deep-stat-row">
+                <span>Host RAM Utilization:</span>
+                <span class="deep-val" id="deepSysPct">-- %</span>
+              </div>
+              <button class="btn-telemetry" id="btnDropPageCacheCard" title="Evict cached model files and filesystem buffers from RAM" style="margin-top: 10px; width: 100%; border-color: #60a5fa; color: #60a5fa; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">⚡ Purge OS Page Cache</button>
+            </div>
+          </div>
+
+          <!-- Top System Processes Table -->
+          <div class="deep-proc-section">
+            <div class="deep-proc-header">
+              <div>
+                <div class="deep-proc-title">⚡ Top Memory-Consuming Processes &amp; Audit (Live Machine Inspection)</div>
+                <div id="deepProcSummary" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 3px;">Aggregating system process tree...</div>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button class="btn-telemetry" id="btnCopyProcessesMem" title="Copy entire process list and memory stats to clipboard" style="background: var(--surface-card); border-color: #38bdf8; color: #38bdf8; font-weight: 600;">📋 Copy All Processes &amp; RAM Info</button>
+                <button class="btn-telemetry" id="btnRefreshDeepMem" title="Poll active processes from psutil">🔄 Refresh Processes</button>
+              </div>
+            </div>
+            <div class="trace-table-container">
+              <table class="trace-table">
+                <thead>
+                  <tr>
+                    <th style="width: 80px;">PID</th>
+                    <th>Process Name</th>
+                    <th style="width: 140px;">User</th>
+                    <th style="width: 120px;">RAM (MB)</th>
+                    <th style="width: 120px;">RAM (GB)</th>
+                    <th style="width: 120px;">% Host RAM</th>
+                  </tr>
+                </thead>
+                <tbody id="deepProcessesBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUBTAB 4: SUBSYSTEM SUPERVISOR & PREDICTIVE GOVERNOR -->
+        <div class="telemetry-tab-pane" id="paneSupervisor">
+          <!-- Section A: Predictive Governor & Emergency Actions -->
+          <div class="supervisor-governor-card">
+            <div class="gov-header">
+              <div class="gov-title-group">
+                <span class="gov-badge">⚡ PREDICTIVE EMERGENCY GOVERNOR</span>
+                <span class="gov-subtitle">Continuous tensor allocation velocity monitoring and pre-emptive OOM guardrails</span>
+              </div>
+              <div class="gov-status-pill" id="govStatusPill">NORMAL</div>
+            </div>
+
+            <div class="gov-controls-grid">
+              <div class="gov-control-item">
+                <div class="gov-control-label">
+                  <span>VRAM Safety Ceiling:</span>
+                  <span class="gov-control-val" id="govCeilingVal">5.5 GB</span>
+                </div>
+                <input type="range" class="gov-slider" id="govCeilingSlider" min="3.5" max="7.5" step="0.1" value="5.5">
+                <div class="gov-control-hint">Auto-flushes cache & throttles batches if VRAM breaches or approaches this ceiling.</div>
+              </div>
+
+              <div class="gov-control-item">
+                <div class="gov-control-label">
+                  <span>Predictive Velocity:</span>
+                  <span class="gov-control-val" id="govVelocityVal">0.0 MB/s</span>
+                </div>
+                <div class="gov-control-label" style="margin-top: 6px;">
+                  <span>5s Projected VRAM:</span>
+                  <span class="gov-control-val" id="govProjectedVal">-- GB</span>
+                </div>
+                <div class="gov-control-hint">Growth rate calculated over 60-second sliding window.</div>
+              </div>
+
+              <div class="gov-actions-group">
+                <button class="btn-emergency-abort" id="btnSupervisorEmergencyAbort" title="Cancel active transcription task immediately and reset hardware state">
+                  🚨 Emergency Abort
+                </button>
+                <button class="btn-supervisor-eject-all" id="btnSupervisorEjectAll" title="Force unload all models from GPU & trim glibc memory heap">
+                  ⚡ Force Unload All Models
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section B: Internal Subsystem Process Fleet -->
+          <div class="supervisor-subsystems-section">
+            <div class="deep-proc-header">
+              <div class="deep-proc-title">🧩 Internal Pipeline Subsystems & Memory Footprints</div>
+              <span class="subsystems-hint">Monitors each component of Transcript Suite with individual model eject controls</span>
+            </div>
+            <div class="subsystems-grid" id="subsystemsGrid">
+              <!-- Dynamically populated subsystem cards -->
+            </div>
+          </div>
+
+          <!-- Section C: Advanced Storage Breakdown & Granular Purge -->
+          <div class="supervisor-storage-section">
+            <div class="deep-proc-header">
+              <div class="deep-proc-title">💾 Advanced Storage Footprint & Granular Purge</div>
+              <div class="storage-header-total">
+                <span>Total Managed Storage:</span>
+                <span class="storage-total-val" id="storageTotalManagedVal">-- GB</span>
+              </div>
+            </div>
+            <div class="storage-targets-grid" id="storageTargetsGrid">
+              <!-- Dynamically populated storage targets -->
+            </div>
+          </div>
+
+          <!-- Section D: Supervisor Audit Event Journal -->
+          <div class="supervisor-journal-section">
+            <div class="deep-proc-header">
+              <div class="deep-proc-title">📜 Supervisor Audit Event Journal</div>
+              <div class="journal-actions">
+                <div class="journal-filter-group" id="journalFilterGroup">
+                  <button class="journal-filter-btn active" data-severity="ALL">All</button>
+                  <button class="journal-filter-btn" data-severity="EMERGENCY">🚨 Emergency</button>
+                  <button class="journal-filter-btn" data-severity="WARNING">⚠️ Warning</button>
+                  <button class="journal-filter-btn" data-severity="INFO">ℹ️ Info</button>
+                </div>
+                <input type="text" class="journal-search-input" id="journalSearchInput" placeholder="Filter journal...">
+                <button class="btn-telemetry" id="btnExportJournalCsv" title="Export audit journal as CSV">📥 CSV</button>
+                <button class="btn-telemetry" id="btnExportJournalJson" title="Export audit journal as JSON">📥 JSON</button>
+                <button class="btn-telemetry btn-telemetry-clear" id="btnClearJournal" title="Clear journal history">🗑️ Clear</button>
+              </div>
+            </div>
+            <div class="trace-table-container">
+              <table class="trace-table">
+                <thead>
+                  <tr>
+                    <th style="width: 140px;">Timestamp</th>
+                    <th style="width: 100px;">Severity</th>
+                    <th style="width: 150px;">Subsystem</th>
+                    <th style="width: 190px;">Event Type</th>
+                    <th>Message & Audit Details</th>
+                  </tr>
+                </thead>
+                <tbody id="journalTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: SETTINGS PANE (Far Right) -->
+    <div class="tab-pane" id="paneSettings">
+      <div class="models-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 20px; margin-bottom: 24px;">
+        
+        <!-- CARD 1: PERSISTENT STORAGE & PATHS -->
+        <div class="model-card" style="grid-column: 1 / -1;">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title">📁 Persistent Storage &amp; Directory Routing</div>
+              <div class="model-card-arch">Directs all model checkpoints, temporary extractions, uploads, and outputs to dedicated disk storage.</div>
+            </div>
+            <span class="status-badge-active" id="settingsDiskStatusBadge">NVMe Connected</span>
+          </div>
+
+          <div style="margin-top: 14px;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">
+              PRIMARY STORAGE ROOT DIRECTORY (Default: <code>/mnt/d/transcript_suite_data</code>)
+            </label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="settingBaseDirInput" class="text-input" style="flex: 1; font-family: monospace; font-size: 13px;" placeholder="/mnt/d/transcript_suite_data">
+              <button class="btn-primary" id="btnSaveStoragePath" style="white-space: nowrap;">💾 Apply Storage Root</button>
+            </div>
+          </div>
+
+          <!-- Live Disk Gauge -->
+          <div style="margin-top: 16px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
+              <span><strong>Selected Partition Disk Space:</strong> <span id="settingDiskFreeText" style="color: #34d399; font-weight: 600;">-- GB Available</span></span>
+              <span id="settingDiskTotalText" style="color: var(--text-muted);">Total: -- GB (--% used)</span>
+            </div>
+            <div style="background: rgba(255,255,255,0.08); height: 8px; border-radius: 4px; overflow: hidden;">
+              <div id="settingDiskBar" style="width: 0%; height: 100%; background: var(--accent-light); transition: width 0.3s ease;"></div>
+            </div>
+          </div>
+
+          <!-- Subdirectories Breakdown -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 14px;">
+            <div style="padding: 10px; background: rgba(0,0,0,0.15); border-radius: 6px; font-size: 11px;">
+              <span style="color: var(--accent-light); font-weight: 600;">🧠 Model Hubs:</span>
+              <div style="color: var(--text-muted); font-family: monospace; margin-top: 3px;" id="settingSubdirModels">models/ (hf, nemo, torch)</div>
+            </div>
+            <div style="padding: 10px; background: rgba(0,0,0,0.15); border-radius: 6px; font-size: 11px;">
+              <span style="color: #60a5fa; font-weight: 600;">⚡ Scratch / Temp:</span>
+              <div style="color: var(--text-muted); font-family: monospace; margin-top: 3px;" id="settingSubdirTmp">tmp/ (replaces /tmp tmpfs)</div>
+            </div>
+            <div style="padding: 10px; background: rgba(0,0,0,0.15); border-radius: 6px; font-size: 11px;">
+              <span style="color: #34d399; font-weight: 600;">📥 Ingest Audio:</span>
+              <div style="color: var(--text-muted); font-family: monospace; margin-top: 3px;" id="settingSubdirUploads">uploads/ (original &amp; 16kHz)</div>
+            </div>
+            <div style="padding: 10px; background: rgba(0,0,0,0.15); border-radius: 6px; font-size: 11px;">
+              <span style="color: #f59e0b; font-weight: 600;">📤 Artifacts:</span>
+              <div style="color: var(--text-muted); font-family: monospace; margin-top: 3px;" id="settingSubdirOutputs">outputs/ (transcripts &amp; json)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 2: MODEL PURGE & MAINTENANCE -->
+        <div class="model-card">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title">🧹 Clean Slate &amp; Model Purge</div>
+              <div class="model-card-arch">Wipe cached checkpoints and scratch buffers to force fresh downloads into persistent storage.</div>
+            </div>
+          </div>
+          <p style="font-size: 12px; color: var(--text-muted); margin-top: 10px; line-height: 1.5;">
+            Purges all local model weights in both legacy cache and the new storage root. When you run your next transcription, clean fresh copies will be downloaded directly into <code>/mnt/d/transcript_suite_data/models</code>.
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
+            <button class="btn-telemetry" id="btnPurgeAllModelsSettings" style="background: rgba(239, 68, 68, 0.12); border: 1px solid #ef4444; color: #f87171; font-weight: 600; padding: 10px 14px; text-align: center; justify-content: center; cursor: pointer;">
+              🗑️ Purge All Existing Models (Clean Slate)
+            </button>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn-telemetry" id="btnPurgeScratchSettings" style="flex: 1; border-color: #60a5fa; color: #60a5fa; justify-content: center;">
+                ⚡ Purge Scratch Temp
+              </button>
+              <button class="btn-telemetry" id="btnDropPageCacheSettingsTab" style="flex: 1; border-color: #34d399; color: #34d399; justify-content: center;">
+                ⚡ Purge OS Page Cache
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 3: HUGGING FACE AUTHENTICATION -->
+        <div class="model-card">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title">🔑 Hugging Face Authentication</div>
+              <div class="model-card-arch">Authentication for PyAnnote Audio 3.1 &amp; gated models.</div>
+            </div>
+            <span class="status-badge" id="settingHfBadge">Checking...</span>
+          </div>
+          <div style="margin-top: 12px;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">
+              User Access Token (read permission)
+            </label>
+            <div style="display: flex; gap: 8px;">
+              <input type="password" id="settingHfTokenInput" class="text-input" style="flex: 1; font-family: monospace; font-size: 12px;" placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxxx">
+              <button class="btn-secondary" id="btnToggleSettingHfToken">👁️</button>
+              <button class="btn-primary" id="btnSaveSettingHfToken">Verify &amp; Save</button>
+              <button class="btn-secondary" id="btnClearSettingHfToken" title="Clear saved token">🗑️</button>
+            </div>
+            <div id="settingHfFeedback" style="font-size: 11px; margin-top: 8px; color: var(--text-muted);">
+              Saved persistently in settings.json.
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 4: PIPELINE & INFERENCE DEFAULTS -->
+        <div class="model-card" style="grid-column: 1 / -1;">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title">⚙️ Pipeline &amp; Hardware Preferences</div>
+              <div class="model-card-arch">Set default precision, diarizer engine, vocal limiter level, and governor safety thresholds.</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Default Speaker Diarizer</label>
+              <select id="settingDefaultDiarizer" class="select-input" style="width: 100%;">
+                <option value="pyannote">PyAnnote Audio 3.1 (State-of-the-art neural diarization)</option>
+                <option value="nemo">NeMo TitaNet Large (Offline, open-weights)</option>
+              </select>
+            </div>
+
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Vocal Boost &amp; Limiter Level</label>
+              <select id="settingVocalBoost" class="select-input" style="width: 100%;">
+                <option value="adaptive">Adaptive Soft-Knee (Recommended)</option>
+                <option value="standard">Standard Gating</option>
+                <option value="high">High Vocal Boost (+6dB)</option>
+                <option value="max">Maximum Vocal Boost (+12dB)</option>
+              </select>
+            </div>
+
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">
+                Predictive Governor Ceiling: <span id="settingGovCeilingVal" style="color: var(--accent-light);">5.5 GB</span>
+              </label>
+              <input type="range" id="settingGovCeilingSlider" min="4.0" max="7.5" step="0.1" value="5.5" style="width: 100%;">
+            </div>
+
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Attention Acceleration Kernel</label>
+              <select id="settingAttentionBackend" class="select-input" style="width: 100%;">
+                <option value="sdpa">⚡ Native PyTorch SDPA (~35% VRAM savings, default)</option>
+                <option value="flash_attention_2">⚡ FlashAttention-2 (Requires flash_attn C++ package)</option>
+                <option value="eager">🐢 Standard PyTorch Eager (Compatibility fallback)</option>
+              </select>
+            </div>
+
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Stage 5 Audex-2B Adjudication</label>
+              <select id="settingEnableAudex" class="select-input" style="width: 100%;">
+                <option value="true">Enabled (Adjudicate disputes with acoustic reasoning)</option>
+                <option value="false">Disabled (Sequential consensus only)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="margin-top: 18px; display: flex; justify-content: flex-end;">
+            <button class="btn-primary" id="btnSavePipelinePrefs" style="padding: 10px 20px;">💾 Save All Pipeline Preferences</button>
+          </div>
+        </div>
+
+        <!-- CARD 5: CUSTOM DOMAIN & PHONETIC GLOSSARY (2.1.B) -->
+        <div class="model-card" style="grid-column: 1 / -1;">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title">📖 Custom Phonetic &amp; Domain Glossary Biasing</div>
+              <div class="model-card-arch">Inject domain-specific acronyms, jargon, and proper nouns into Whisper prompt IDs and Canary conditioning prefixes.</div>
+            </div>
+            <span class="status-badge-active" id="glossaryCountBadge">0 terms active</span>
+          </div>
+          <p style="font-size: 12px; color: var(--text-muted); margin-top: 10px; line-height: 1.5;">
+            Conditioning models on domain vocabularies prevents homophone phonetic errors (e.g., <em>Kubernetes, PostgreSQL, PyTorch, LoRA, FYP, FastAPI</em>). Whisper's decoder is primed with prompt token IDs, while Canary receives a conditioning glossary prefix.
+          </p>
+          <div style="margin-top: 14px; display: flex; gap: 8px;">
+            <input type="text" id="glossaryTermInput" class="text-input" style="flex: 1; font-size: 13px;" placeholder="Add term or comma-separated terms (e.g. PyTorch, Docker, NeMo)...">
+            <button class="btn-primary" id="btnAddGlossaryTerm" style="white-space: nowrap;">➕ Add Term</button>
+            <button class="btn-secondary" id="btnClearGlossary" style="white-space: nowrap;" title="Clear all glossary terms">🗑️ Clear All</button>
+          </div>
+          <div id="glossaryChipsContainer" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; min-height: 42px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid var(--border-color); align-items: center;">
+            <span style="color: var(--text-muted); font-size: 12px; font-style: italic;" id="glossaryEmptyMsg">No custom terms added yet. Add terms above to prime the ASR council.</span>
+          </div>
+        <!-- CARD 6: STORAGE QUOTA & AUTO-PURGE RETENTION (5.2.B) -->
+        <div class="model-card" id="storageRetentionCard" style="grid-column: 1 / -1;">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title">🗄️ Audio Retention Policies &amp; Storage Quotas</div>
+              <div class="model-card-arch">Automatic lifecycle purge of raw audio files (*_orig.wav, *_processed.wav, *_chunks/) with Zero Transcript Loss guarantee.</div>
+            </div>
+            <span class="status-badge-active" id="retentionStatusBadge">Retention Active</span>
+          </div>
+
+          <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 8px; padding: 12px; margin-top: 12px; font-size: 12px; color: #a7f3d0; line-height: 1.5;">
+            🛡️ <strong>Zero Data Loss Invariant:</strong> Audio retention purging only reclaims heavy raw <code>.wav</code> waveforms and chunk cache. Your transcripts (<code>.json</code>), subtitles (<code>.srt</code>, <code>.vtt</code>), formatting overrides, and speaker aliases are preserved permanently.
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 16px;">
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Audio Retention Horizon (Days)</label>
+              <input type="number" id="inputRetentionDays" class="text-input" min="0" max="365" value="14" style="width: 100%;" title="Purge audio older than N days (0 = unlimited retention)">
+              <span style="font-size: 11px; color: var(--text-muted);">Files older than this are targeted for purge (0 = disabled).</span>
+            </div>
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Audio Storage Quota (GB)</label>
+              <input type="number" id="inputStorageQuota" class="text-input" min="1" max="500" step="0.5" value="15.0" style="width: 100%;" title="Maximum disk GB allocated for audio files">
+              <span style="font-size: 11px; color: var(--text-muted);">Purges oldest raw audio when usage exceeds quota.</span>
+            </div>
+            <div style="display: flex; flex-direction: column; justify-content: center;">
+              <label class="checkbox-label" style="font-weight: 600;" title="Run retention purge automatically on pipeline completion">
+                <input type="checkbox" id="toggleAutoPurge">
+                <span>Auto-Purge Expired Audio</span>
+              </label>
+              <span style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Runs purge automatically after every transcription finishes.</span>
+            </div>
+          </div>
+
+          <!-- Retention Metrics Bar -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid var(--border-color); font-size: 12px;">
+            <div>
+              <span>Total Audio Usage: <strong id="retentionAudioTotalMb">0 MB</strong></span>
+              <span style="margin: 0 8px; opacity: 0.4;">|</span>
+              <span>Reclaimable: <strong id="retentionReclaimableMb" style="color: #f59e0b;">0 MB</strong> (<span id="retentionCandidateCount">0</span> targets)</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="btn-secondary btn-sm" id="btnSaveRetentionPolicy">💾 Save Policy</button>
+              <button type="button" class="btn-primary btn-sm" id="btnRunRetentionPurge" style="background: rgba(239, 68, 68, 0.8);">🧹 Run Purge Now</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 7: WORKSPACE FULL ARCHIVE BACKUP (5.3.A) -->
+        <div class="model-card" id="workspaceBackupCard" style="grid-column: 1 / -1;">
+          <div class="model-card-header">
+            <div>
+              <div class="model-card-title">📦 Workspace Full Archive Backup &amp; Disaster Recovery</div>
+              <div class="model-card-arch">One-click comprehensive backup bundling all transcripts (.json, .txt, .srt, .vtt), domain glossaries, speaker palettes, settings, and supervisor audit journals into a portable ZIP.</div>
+            </div>
+            <span class="status-badge-active">Standard ZIP</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid var(--border-color); font-size: 12px;">
+            <div>
+              <span id="workspaceMetaSummaryText">Workspace: <strong>-- sessions</strong>, <strong>-- segments</strong>, <strong>-- words</strong>, <strong>-- hours</strong></span>
+            </div>
+            <button type="button" class="btn-primary" id="btnExportWorkspaceBackup" style="display: flex; align-items: center; gap: 6px;">
+              📥 Export Workspace Backup (.zip)
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <div class="modal-overlay" id="renameModal">
+    <div class="modal-content">
+      <div class="modal-title">Rename Speaker Aliases</div>
+      <div class="modal-inputs" id="aliasInputsContainer"></div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button class="btn-secondary" id="btnCancelRename">Cancel</button>
+        <button class="btn-primary" id="btnSaveAliases">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub-Phase 4.2.A: Supreme Council Model Comparator Lab Modal -->
+  <div class="modal-overlay" id="comparatorModal" style="display: none;">
+    <div class="modal-content modal-content-wide">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">🔬 Supreme Council Model Comparator Lab</div>
+          <div class="modal-subtitle">Direct side-by-side alignment of all active models against the synthesized consensus</div>
+        </div>
+        <button type="button" class="modal-close" id="btnCloseComparator" title="Close Comparator Lab">✕</button>
+      </div>
+      
+      <!-- Scorecards Overview Row -->
+      <div class="comparator-scorecards" id="comparatorScorecards">
+        <!-- Dynamically rendered: Consensus, Canary, Whisper, CTC, Parakeet -->
+      </div>
+
+      <!-- Filters & Toolbar -->
+      <div class="comparator-toolbar">
+        <div class="comparator-filters">
+          <label class="comparator-filter-label">
+            <input type="checkbox" id="chkDisagreementsOnly">
+            <span>Show Disagreements Only</span>
+          </label>
+          <input type="text" class="text-input text-input-sm" id="comparatorSearchInput" placeholder="Filter comparisons by keyword...">
+        </div>
+        <div class="comparator-actions">
+          <button type="button" class="btn-secondary btn-sm" id="btnExportComparatorTxt" title="Copy active comparisons to clipboard">📋 Copy Active View</button>
+        </div>
+      </div>
+
+      <!-- Synchronized Multi-Column Comparator Matrix -->
+      <div class="comparator-grid-wrapper" id="comparatorGridWrapper">
+        <!-- Dynamically rendered multi-model table/grid -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub-Phase 4.4.A: Deterministic Formatting & Disfluency Normalizer Modal -->
+  <div class="modal-overlay" id="normalizerModal" style="display: none;">
+    <div class="modal-content" style="max-width: 580px;">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">🪄 Deterministic Formatting &amp; Normalizer</div>
+          <div class="modal-subtitle">Transform spoken numbers, currencies, and disfluencies into standardized clean prose</div>
+        </div>
+        <button type="button" class="modal-close" id="btnCloseNormalizer" title="Close Normalizer">✕</button>
+      </div>
+      <div style="padding: 16px 0; display: flex; flex-direction: column; gap: 14px;">
+        <label class="pref-toggle-row">
+          <input type="checkbox" id="normOptNumbers" checked>
+          <div>
+            <strong>Convert Spoken Numbers to Digits</strong>
+            <div style="font-size: 11px; color: var(--text-muted);">Converts words like "one hundred and twenty-three" → "123", "first" → "1st"</div>
+          </div>
+        </label>
+        <label class="pref-toggle-row">
+          <input type="checkbox" id="normOptCurrencies" checked>
+          <div>
+            <strong>Standardize Currency Symbols</strong>
+            <div style="font-size: 11px; color: var(--text-muted);">Converts phrases like "one hundred dollars" → "$100", "fifty euros" → "€50"</div>
+          </div>
+        </label>
+        <label class="pref-toggle-row">
+          <input type="checkbox" id="normOptPercentages" checked>
+          <div>
+            <strong>Standardize Percentages</strong>
+            <div style="font-size: 11px; color: var(--text-muted);">Converts phrases like "twenty-five percent" → "25%"</div>
+          </div>
+        </label>
+        <label class="pref-toggle-row">
+          <input type="checkbox" id="normOptDisfluencies">
+          <div>
+            <strong>Remove Filler Words &amp; Disfluencies</strong>
+            <div style="font-size: 11px; color: var(--text-muted);">Removes hesitation fillers: "um", "uh", "erm", "ah", "you know", "like" (surrounded by pauses)</div>
+          </div>
+        </label>
+
+        <div style="margin-top: 8px;">
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Scope</label>
+          <select id="normScopeSelect" class="select-input" style="width: 100%;">
+            <option value="all">Entire Document (All Segments)</option>
+            <option value="active">Active Selected Segment Only</option>
+          </select>
+        </div>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
+        <button type="button" class="btn-secondary" id="btnCancelNormalizer">Cancel</button>
+        <button type="button" class="btn-primary" id="btnApplyNormalizer">✨ Run Normalization</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub-Phase 4.4.E: Typography & Accessibility Customizer Modal -->
+  <div class="modal-overlay" id="typographyModal" style="display: none;">
+    <div class="modal-content" style="max-width: 520px;">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">🎨 Typography &amp; Accessibility</div>
+          <div class="modal-subtitle">Customize reading font, text scale, line spacing, and dyslexia-friendly rendering</div>
+        </div>
+        <button type="button" class="modal-close" id="btnCloseTypography" title="Close Typography Settings">✕</button>
+      </div>
+      <div style="padding: 16px 0; display: flex; flex-direction: column; gap: 16px;">
+        <div>
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Font Family</label>
+          <div class="typography-font-picker" id="typographyFontPicker" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button type="button" class="font-choice-btn active" data-font="sans">Inter / Modern Sans</button>
+            <button type="button" class="font-choice-btn" data-font="dyslexic">OpenDyslexic / Readable</button>
+            <button type="button" class="font-choice-btn" data-font="mono">JetBrains Mono / Code</button>
+            <button type="button" class="font-choice-btn" data-font="serif">Merriweather / Serif</button>
+          </div>
+        </div>
+
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Font Size</label>
+            <span id="fontSizeDisplay" style="font-size: 12px; font-weight: 700; color: var(--primary);">14px</span>
+          </div>
+          <input type="range" id="fontSizeSlider" min="12" max="22" step="1" value="14" style="width: 100%;">
+        </div>
+
+        <div>
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Line Density &amp; Spacing</label>
+          <div class="typography-density-picker" id="typographyDensityPicker" style="display: flex; gap: 8px;">
+            <button type="button" class="density-choice-btn" data-density="compact" style="flex: 1;">Compact</button>
+            <button type="button" class="density-choice-btn active" data-density="comfortable" style="flex: 1;">Comfortable</button>
+            <button type="button" class="density-choice-btn" data-density="relaxed" style="flex: 1;">Relaxed</button>
+          </div>
+        </div>
+
+        <label class="pref-toggle-row">
+          <input type="checkbox" id="chkHighContrast">
+          <div>
+            <strong>High Contrast Text Mode</strong>
+            <div style="font-size: 11px; color: var(--text-muted);">Increases text luminances and sharpens boundary contrast for enhanced readability</div>
+          </div>
+        </label>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+        <button type="button" class="btn-secondary" id="btnResetTypography">Reset Defaults</button>
+        <button type="button" class="btn-primary" id="btnDoneTypography">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub-Phase 4.4.F: Speaker Palette & Role Avatar Customizer Modal -->
+  <div class="modal-overlay" id="speakerPaletteModal" style="display: none;">
+    <div class="modal-content modal-content-wide" style="max-width: 680px;">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">🎭 Speaker Palette &amp; Role Avatars</div>
+          <div class="modal-subtitle">Assign participant colors, role icons, and custom display tags</div>
+        </div>
+        <button type="button" class="modal-close" id="btnCloseSpeakerPalette" title="Close Speaker Palette">✕</button>
+      </div>
+      <div id="speakerPaletteList" style="max-height: 400px; overflow-y: auto; padding: 12px 0; display: flex; flex-direction: column; gap: 12px;">
+        <!-- Dynamically rendered speaker cards -->
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border-color);">
+        <button type="button" class="btn-secondary" id="btnResetSpeakerPalette">Reset Default Palette</button>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn-secondary" id="btnCancelSpeakerPalette">Cancel</button>
+          <button type="button" class="btn-primary" id="btnSaveSpeakerPalette">💾 Save Palette</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub-Phase 4.4.G: Keyboard Shortcuts Cheatsheet Modal -->
+  <div class="modal-overlay" id="shortcutsModal" style="display: none;">
+    <div class="modal-content modal-content-wide" style="max-width: 760px;">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">⌨️ Keyboard Shortcuts &amp; Cheatsheet</div>
+          <div class="modal-subtitle">Pro-editor transport, navigation, formatting, and history keybindings</div>
+        </div>
+        <button type="button" class="modal-close" id="btnCloseShortcuts" title="Close Shortcuts">✕</button>
+      </div>
+      <div class="shortcuts-grid-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 16px 0; max-height: 480px; overflow-y: auto;">
+        
+        <div class="shortcut-category-card">
+          <div class="shortcut-cat-title">Playback &amp; Transport</div>
+          <div class="shortcut-row"><span class="shortcut-desc">Play / Pause</span><span class="shortcut-kbd"><kbd>Space</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Seek Backward / Forward 5s</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>←</kbd> / <kbd>→</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Playback Speed Down / Up</span><span class="shortcut-kbd"><kbd>[</kbd> / <kbd>]</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Word / Syllable Micro-Loop</span><span class="shortcut-kbd"><kbd>R</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Exit Loop / Close Modals</span><span class="shortcut-kbd"><kbd>Esc</kbd></span></div>
+        </div>
+
+        <div class="shortcut-category-card">
+          <div class="shortcut-cat-title">Navigation &amp; Selection</div>
+          <div class="shortcut-row"><span class="shortcut-desc">Jump Previous / Next Segment</span><span class="shortcut-kbd"><kbd>J</kbd> / <kbd>K</kbd> or <kbd>Alt</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Jump to Active Audio Segment</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>L</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Step to Next Word in Segment</span><span class="shortcut-kbd"><kbd>Tab</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Step to Prev Word in Segment</span><span class="shortcut-kbd"><kbd>Shift</kbd> + <kbd>Tab</kbd></span></div>
+        </div>
+
+        <div class="shortcut-category-card">
+          <div class="shortcut-cat-title">Editing &amp; History</div>
+          <div class="shortcut-row"><span class="shortcut-desc">Undo Last Text Edit</span><span class="shortcut-kbd"><kbd>Ctrl</kbd> + <kbd>Z</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Redo Last Edit</span><span class="shortcut-kbd"><kbd>Ctrl</kbd> + <kbd>Y</kbd> / <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Find &amp; Replace Bar</span><span class="shortcut-kbd"><kbd>Ctrl</kbd> + <kbd>H</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Commit Active Inline Edit</span><span class="shortcut-kbd"><kbd>Enter</kbd> or Blur</span></div>
+        </div>
+
+        <div class="shortcut-category-card">
+          <div class="shortcut-cat-title">Segment Merging &amp; Tools</div>
+          <div class="shortcut-row"><span class="shortcut-desc">Merge Segment with Next</span><span class="shortcut-kbd"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>J</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Split Segment at Cursor</span><span class="shortcut-kbd"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Formatting &amp; Normalizer</span><span class="shortcut-kbd"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>N</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Council Model Comparator</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>M</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Shortcuts Cheatsheet</span><span class="shortcut-kbd"><kbd>?</kbd> or <kbd>Ctrl</kbd> + <kbd>/</kbd></span></div>
+        </div>
+
+        <div class="shortcut-category-card" style="grid-column: 1 / -1;">
+          <div class="shortcut-cat-title">Workspace &amp; Fast Navigation</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div class="shortcut-row"><span class="shortcut-desc">Switch to Studio Tab</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>1</kbd></span></div>
+            <div class="shortcut-row"><span class="shortcut-desc">Switch to Transcript Tab</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>2</kbd></span></div>
+            <div class="shortcut-row"><span class="shortcut-desc">Switch to Models Tab</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>3</kbd></span></div>
+            <div class="shortcut-row"><span class="shortcut-desc">Switch to Telemetry Tab</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>4</kbd></span></div>
+            <div class="shortcut-row"><span class="shortcut-desc">Switch to Settings Tab</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>5</kbd></span></div>
+            <div class="shortcut-row"><span class="shortcut-desc">Toggle Batch Queue Drawer</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>Q</kbd></span></div>
+            <div class="shortcut-row"><span class="shortcut-desc">Keyboard Shortcuts Cheatsheet</span><span class="shortcut-kbd"><kbd>Alt</kbd> + <kbd>H</kbd></span></div>
+          </div>
+        </div>
+
+      </div>
+      <div style="display: flex; justify-content: flex-end; margin-top: 12px;">
+        <button type="button" class="btn-primary" id="btnDoneShortcuts">Got It</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification History Drawer -->
+  <div class="notif-drawer-overlay" id="notifDrawerOverlay"></div>
+  <div class="notif-drawer" id="notifDrawer">
+    <div class="notif-drawer-header">
+      <div class="notif-drawer-title">
+        <span>🔔 Notification & Alert Center</span>
+        <span class="notif-drawer-count" id="drawerNotifCount">0 events</span>
+      </div>
+      <div class="notif-drawer-controls">
+        <button class="btn-secondary btn-sm" id="btnClearNotifHistory">Clear All</button>
+        <button class="btn-close-drawer" id="btnCloseNotifDrawer">✕</button>
+      </div>
+    </div>
+    <div class="notif-drawer-list" id="notifDrawerList">
+      <div class="notif-empty">No notifications yet.</div>
+    </div>
+  </div>
+
+  <!-- Sub-Phase 3.2.B: Word-Level A-B Micro-Looping Floating HUD Banner -->
+  <div class="syllable-loop-banner" id="syllableLoopBanner" style="display: none;">
+    <span class="syllable-loop-icon">🔁</span>
+    <span class="syllable-loop-text" id="syllableLoopText">Looping Syllable (0.75x)</span>
+    <button class="btn-exit-syllable" id="btnExitSyllable" title="Exit Syllable Loop (Esc)">✕ Exit</button>
+  </div>
+
+  <!-- Interactive Timeline Ribbon Hover Tooltip -->
+  <div class="timeline-tooltip" id="timelineTooltip" style="display: none;"></div>
+
+  <script src="/static/app.js?v=2.2"></script>
+</body>
+</html>
