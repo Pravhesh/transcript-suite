@@ -338,7 +338,9 @@
               <input type="range" class="vol-slider" id="volOrig" min="0" max="1" step="0.05" value="1" title="Original Volume">
             </div>
           </div>
-          <div id="waveformOrig" class="waveform-box"></div>
+          <div id="waveformOrig" class="waveform-box">
+            <div class="waveform-selection-overlay" id="selectionOverlayOrig"></div>
+          </div>
         </div>
 
         <div class="track-row" id="trackModel">
@@ -353,7 +355,9 @@
               <input type="range" class="vol-slider" id="volModel" min="0" max="1" step="0.05" value="0" title="Model Ingest Volume">
             </div>
           </div>
-          <div id="waveformModel" class="waveform-box"></div>
+          <div id="waveformModel" class="waveform-box">
+            <div class="waveform-selection-overlay" id="selectionOverlayModel"></div>
+          </div>
         </div>
 
         <!-- Sub-Phase 3.1.A: Waveform Acoustic Confidence Heatmap -->
@@ -412,7 +416,7 @@
         </div>
 
         <div class="player-controls">
-          <div style="display: flex; gap: 8px; align-items: center;">
+          <div class="player-controls-left">
             <button class="btn-player" id="btnPlayPause">▶ Play Both</button>
             <button class="btn-player" id="btnBack5">↺ -5s</button>
             <button class="btn-player" id="btnFwd5">↻ +5s</button>
@@ -422,8 +426,40 @@
               <option value="1.5">1.5x</option>
               <option value="0.75">0.75x</option>
             </select>
+
+            <!-- Sub-Phase 3.2.A: Waveform Zoom Controls -->
+            <div class="zoom-controls" id="zoomControls">
+              <button class="btn-zoom" id="btnZoomOut" title="Zoom Out (Ctrl + Scroll)">🔍−</button>
+              <span class="zoom-pill" id="zoomPill">Fit</span>
+              <button class="btn-zoom" id="btnZoomIn" title="Zoom In (Ctrl + Scroll)">🔍+</button>
+              <button class="btn-zoom" id="btnZoomFit" title="Fit to Width">Fit</button>
+            </div>
+
+            <!-- Sub-Phase 3.3.A: NLE J-K-L Shuttle Scrubbing Status -->
+            <div class="shuttle-badge" id="shuttleBadge" title="NLE Transport: J (Rev), K (Stop), L (Fwd), Space (Play)">
+              <span class="shuttle-icon">⏸</span>
+              <span class="shuttle-text" id="shuttleText">1.0x (J-K-L)</span>
+            </div>
           </div>
-          <div class="player-time" id="playerTime">00:00 / 00:00</div>
+
+          <div class="player-controls-right">
+            <!-- Sub-Phase 3.2.A & 3.2.B: Loop Region Active Pill -->
+            <div class="loop-badge" id="loopRegionBadge" style="display: none;" title="Active Audition Loop Region">
+              <span class="loop-icon">🔁</span>
+              <span class="loop-time-text" id="loopTimeText">00:00 – 00:00</span>
+              <button class="btn-clear-loop" id="btnClearLoop" title="Clear Active Loop (Esc)">✕</button>
+            </div>
+
+            <!-- Sub-Phase 3.3.B: Human Listener 3-Band Vocal Clarity EQ -->
+            <div class="eq-controls-group" id="eqControlsGroup">
+              <span class="eq-label">🎧 Clarity EQ:</span>
+              <button class="btn-eq-pill active" id="btnEqFlat" data-preset="flat" title="Flat EQ (Unfiltered Bypass)">Flat</button>
+              <button class="btn-eq-pill" id="btnEqClarifier" data-preset="clarifier" title="Vocal Clarifier (+5dB Formants 2.8kHz, -120Hz Rumble Cut)">🎙️ Clarifier</button>
+              <button class="btn-eq-pill" id="btnEqDehiss" data-preset="dehiss" title="De-Hiss (-6.5kHz Low-pass, -100Hz Low-cut)">🎧 De-Hiss</button>
+            </div>
+
+            <div class="player-time" id="playerTime">00:00 / 00:00</div>
+          </div>
         </div>
       </div>
     </div>
@@ -1345,6 +1381,13 @@
     <div class="notif-drawer-list" id="notifDrawerList">
       <div class="notif-empty">No notifications yet.</div>
     </div>
+  </div>
+
+  <!-- Sub-Phase 3.2.B: Word-Level A-B Micro-Looping Floating HUD Banner -->
+  <div class="syllable-loop-banner" id="syllableLoopBanner" style="display: none;">
+    <span class="syllable-loop-icon">🔁</span>
+    <span class="syllable-loop-text" id="syllableLoopText">Looping Syllable (0.75x)</span>
+    <button class="btn-exit-syllable" id="btnExitSyllable" title="Exit Syllable Loop (Esc)">✕ Exit</button>
   </div>
 
   <!-- Interactive Timeline Ribbon Hover Tooltip -->

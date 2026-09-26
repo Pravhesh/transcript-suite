@@ -965,24 +965,224 @@ main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 4px;
+  margin-top: 6px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.btn-player {
-  background-color: var(--bg-surface);
+.player-controls-left, .player-controls-right {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Sub-Phase 3.2.A: Waveform Zoom Controls */
+.zoom-controls {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-surface);
   border: 1px solid var(--border-dim);
-  color: var(--text-primary);
-  padding: 6px 14px;
   border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s, border-color 0.2s;
+  overflow: hidden;
 }
 
-.btn-player:hover {
-  background-color: var(--bg-surface-hover);
-  border-color: var(--accent-pine);
+.btn-zoom {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-zoom:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.zoom-pill {
+  font-size: 10px;
+  font-weight: 700;
+  font-family: ui-monospace, monospace;
+  color: var(--text-muted);
+  padding: 0 4px;
+  min-width: 26px;
+  text-align: center;
+  border-left: 1px solid var(--border-dim);
+  border-right: 1px solid var(--border-dim);
+}
+
+/* Sub-Phase 3.3.A: NLE Shuttle Status Badge */
+.shuttle-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-dim);
+  color: var(--text-secondary);
+  user-select: none;
+  font-family: ui-monospace, monospace;
+  transition: all 0.15s ease;
+}
+
+.shuttle-badge.shuttle-active {
+  background: rgba(14, 165, 233, 0.15);
+  border-color: rgba(14, 165, 233, 0.5);
+  color: #38bdf8;
+}
+
+.shuttle-badge.shuttle-reverse {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #fbbf24;
+}
+
+/* Sub-Phase 3.2.A & 3.2.B: Loop Region Badge */
+.loop-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #6ee7b7;
+  font-family: ui-monospace, monospace;
+}
+
+.btn-clear-loop {
+  background: transparent;
+  border: none;
+  color: #6ee7b7;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 2px;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.btn-clear-loop:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.waveform-selection-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  background: rgba(16, 185, 129, 0.18);
+  border-left: 2px solid #10b981;
+  border-right: 2px solid #10b981;
+  pointer-events: none;
+  display: none;
+  z-index: 10;
+}
+
+/* Sub-Phase 3.3.B: Clarity EQ Controls Group */
+.eq-controls-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-dim);
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+
+.eq-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-right: 2px;
+  padding-left: 4px;
+}
+
+.btn-eq-pill {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-eq-pill:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-eq-pill.active {
+  background: var(--accent-pine, #3d8b63);
+  border-color: #5ec793;
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 0 6px rgba(94, 199, 147, 0.35);
+}
+
+/* Sub-Phase 3.2.B: Transcript Words & Floating Syllable Loop HUD Banner */
+.transcript-word {
+  display: inline-block;
+  border-radius: 3px;
+  padding: 0 1px;
+  transition: background-color 0.12s ease, color 0.12s ease;
+  cursor: text;
+}
+
+.transcript-word:hover {
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+  cursor: pointer;
+}
+
+.syllable-loop-banner {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1050;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid #10b981;
+  border-radius: 30px;
+  padding: 8px 18px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6ee7b7;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), 0 0 12px rgba(16, 185, 129, 0.4);
+  backdrop-filter: blur(12px);
+}
+
+.btn-exit-syllable {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-exit-syllable:hover {
+  background: #ef4444;
+  color: #ffffff;
 }
 
 .player-time {

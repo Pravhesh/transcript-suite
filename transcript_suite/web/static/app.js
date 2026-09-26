@@ -138,6 +138,39 @@ const btnToggleSpectrogram = document.getElementById("btnToggleSpectrogram");
 const timelineTooltip = document.getElementById("timelineTooltip");
 let activeSoloSpeaker = null;
 
+// Navigation, Looping, Shuttle & EQ Elements (Sub-Phases 3.2 & 3.3)
+const zoomControls = document.getElementById("zoomControls");
+const btnZoomOut = document.getElementById("btnZoomOut");
+const btnZoomIn = document.getElementById("btnZoomIn");
+const btnZoomFit = document.getElementById("btnZoomFit");
+const zoomPill = document.getElementById("zoomPill");
+
+const shuttleBadge = document.getElementById("shuttleBadge");
+const shuttleText = document.getElementById("shuttleText");
+
+const loopRegionBadge = document.getElementById("loopRegionBadge");
+const loopTimeText = document.getElementById("loopTimeText");
+const btnClearLoop = document.getElementById("btnClearLoop");
+
+const selectionOverlayOrig = document.getElementById("selectionOverlayOrig");
+const selectionOverlayModel = document.getElementById("selectionOverlayModel");
+
+const eqControlsGroup = document.getElementById("eqControlsGroup");
+const btnEqFlat = document.getElementById("btnEqFlat");
+const btnEqClarifier = document.getElementById("btnEqClarifier");
+const btnEqDehiss = document.getElementById("btnEqDehiss");
+
+const syllableLoopBanner = document.getElementById("syllableLoopBanner");
+const syllableLoopText = document.getElementById("syllableLoopText");
+const btnExitSyllable = document.getElementById("btnExitSyllable");
+
+let currentZoomPx = 0;
+let activeLoopRegion = null;
+let shuttleState = { direction: 0, speedMultiplier: 1.0, ticker: null };
+let audioCtx = null;
+let eqChain = { lowCut: null, presence: null, highCut: null, currentPreset: 'flat', connectedMedia: new Set() };
+let isNavigationInitialized = false;
+
 // Transcript Workspace & Left Sidebar Elements
 const speakerSidebar = document.getElementById("speakerSidebar");
 const speakerCountBadge = document.getElementById("speakerCountBadge");
@@ -870,6 +903,12 @@ function initAudioPlayer(taskId) {
 
   // Timeupdate, playhead sync, and drift correction
   wavesurferOrig.on('timeupdate', (currentTime) => {
+    // Sub-Phase 3.2.A & 3.2.B: Loop region wrap constraint
+    if (activeLoopRegion && currentTime >= activeLoopRegion.end - 0.05) {
+      seekAudioTo(activeLoopRegion.start);
+      return;
+    }
+
     const totalDuration = wavesurferOrig.getDuration();
     updatePlaybackTime(currentTime, totalDuration);
     syncActiveSegment(currentTime);
@@ -888,6 +927,7 @@ function initAudioPlayer(taskId) {
 
   // Play / Pause event handlers
   wavesurferOrig.on('play', () => {
+    initWebAudioEQ();
     btnPlayPause.innerText = "⏸ Pause";
     if (btnFloatingPlayPause) btnFloatingPlayPause.innerText = "⏸";
     if (wavesurferModel) {
@@ -908,6 +948,7 @@ function initAudioPlayer(taskId) {
   });
 
   wavesurferModel.on('play', () => {
+    initWebAudioEQ();
     if (wavesurferOrig) {
       const t = wavesurferModel.getCurrentTime();
       if (Math.abs(wavesurferOrig.getCurrentTime() - t) > 0.06 && !isSeekingSync) {
@@ -925,6 +966,8 @@ function initAudioPlayer(taskId) {
 
   wavesurferOrig.on('ready', () => {
     updateMixLevels();
+    initWebAudioEQ();
+    initNavigationAndTransport();
     const duration = wavesurferOrig.getDuration();
     if (currentSegments && currentSegments.length > 0) {
       renderConfidenceHeatmap(currentSegments, duration);
@@ -935,6 +978,7 @@ function initAudioPlayer(taskId) {
 
   loadSpectrogram(taskId);
   updateTimelinePlayheads(0, 1);
+  initNavigationAndTransport();
 
   const wfContainer = document.getElementById("waveformOrig");
   if (wfContainer && window.ResizeObserver) {
@@ -1446,6 +1490,442 @@ if (btnToggleSpectrogram && spectrogramWrapper) {
   });
 }
 
+// --- 6.C Waveform Navigation & Micro-Interactions (Sub-Phase 3.2: Zoom, Drag-Region, Syllable Loop) ---
+
+function setWaveformZoom(pxPerSec) {
+  currentZoomPx = Math.max(0, Math.min(250, pxPerSec));
+  if (wavesurferOrig) {
+    wavesurferOrig.zoom(currentZoomPx);
+  }
+  if (wavesurferModel) {
+    wavesurferModel.zoom(currentZoomPx);
+  }
+
+  if (zoomPill) {
+    zoomPill.textContent = currentZoomPx === 0 ? "Fit" : `${currentZoomPx}px/s`;
+  }
+
+  const dur = (wavesurferOrig && wavesurferOrig.getDuration() > 0)
+    ? wavesurferOrig.getDuration()
+    : (currentSegments && currentSegments.length > 0 ? Math.max(...currentSegments.map(s => s.end || 0)) : 0);
+
+  if (dur > 0 && currentZoomPx > 0) {
+    const totalW = Math.round(dur * currentZoomPx);
+    if (confidenceHeatmap) confidenceHeatmap.style.width = `${totalW}px`;
+    if (speakerGantt) speakerGantt.style.width = `${totalW}px`;
+    if (spectrogramCanvas) spectrogramCanvas.style.width = `${totalW}px`;
+  } else {
+    if (confidenceHeatmap) confidenceHeatmap.style.width = "100%";
+    if (speakerGantt) speakerGantt.style.width = "100%";
+    if (spectrogramCanvas) spectrogramCanvas.style.width = "100%";
+  }
+  updateSelectionOverlayUI();
+}
+
+function initZoomControls() {
+  if (btnZoomIn) {
+    btnZoomIn.addEventListener("click", () => {
+      setWaveformZoom(currentZoomPx === 0 ? 30 : Math.min(250, currentZoomPx + 25));
+    });
+  }
+  if (btnZoomOut) {
+    btnZoomOut.addEventListener("click", () => {
+      setWaveformZoom(Math.max(0, currentZoomPx - 25));
+    });
+  }
+  if (btnZoomFit) {
+    btnZoomFit.addEventListener("click", () => {
+      setWaveformZoom(0);
+    });
+  }
+
+  const wfContainers = [document.getElementById("waveformOrig"), document.getElementById("waveformModel")];
+  wfContainers.forEach(container => {
+    if (!container) return;
+    container.addEventListener("wheel", (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 15 : -15;
+        const nextZoom = currentZoomPx === 0 && delta > 0 ? 30 : currentZoomPx + delta;
+        setWaveformZoom(Math.max(0, Math.min(250, nextZoom)));
+      }
+    }, { passive: false });
+  });
+
+  const origWrapper = document.getElementById("waveformOrig");
+  const modelWrapper = document.getElementById("waveformModel");
+  const wrappers = [
+    origWrapper,
+    modelWrapper,
+    document.getElementById("heatmapRibbonWrapper"),
+    document.getElementById("ganttRibbonWrapper"),
+    document.getElementById("spectrogramWrapper")
+  ].filter(Boolean);
+
+  let isSyncingScroll = false;
+  wrappers.forEach(w => {
+    w.addEventListener("scroll", () => {
+      if (isSyncingScroll) return;
+      isSyncingScroll = true;
+      const left = w.scrollLeft;
+      wrappers.forEach(other => {
+        if (other !== w) other.scrollLeft = left;
+      });
+      setTimeout(() => { isSyncingScroll = false; }, 30);
+    });
+  });
+}
+
+function setActiveLoop(start, end, isSyllable = false) {
+  if (end <= start) return;
+  const originalSpeed = parseFloat(playbackSpeed ? playbackSpeed.value : "1.0");
+  activeLoopRegion = {
+    start: Math.max(0, start),
+    end: end,
+    isSyllable: isSyllable,
+    originalSpeed: originalSpeed
+  };
+
+  if (loopRegionBadge) {
+    loopRegionBadge.style.display = "inline-flex";
+    if (loopTimeText) {
+      loopTimeText.textContent = `${formatSeconds(activeLoopRegion.start)} – ${formatSeconds(activeLoopRegion.end)} (${(activeLoopRegion.end - activeLoopRegion.start).toFixed(1)}s)`;
+    }
+  }
+
+  updateSelectionOverlayUI();
+  seekAudioTo(activeLoopRegion.start);
+  if (wavesurferOrig && !wavesurferOrig.isPlaying()) {
+    btnPlayPause.click();
+  }
+}
+
+function clearActiveLoop() {
+  if (!activeLoopRegion) return;
+  if (activeLoopRegion.isSyllable && playbackSpeed) {
+    playbackSpeed.value = (activeLoopRegion.originalSpeed || 1.0).toString();
+    playbackSpeed.dispatchEvent(new Event("change"));
+  }
+  activeLoopRegion = null;
+  if (loopRegionBadge) loopRegionBadge.style.display = "none";
+  if (syllableLoopBanner) syllableLoopBanner.style.display = "none";
+  updateSelectionOverlayUI();
+}
+
+function updateSelectionOverlayUI() {
+  const overlays = [selectionOverlayOrig, selectionOverlayModel].filter(Boolean);
+  if (!activeLoopRegion || !wavesurferOrig) {
+    overlays.forEach(o => { o.style.display = "none"; });
+    return;
+  }
+  const dur = wavesurferOrig.getDuration();
+  if (dur <= 0) return;
+  const leftPct = (activeLoopRegion.start / dur) * 100;
+  const widthPct = Math.max(0.2, ((activeLoopRegion.end - activeLoopRegion.start) / dur) * 100);
+
+  overlays.forEach(o => {
+    o.style.display = "block";
+    o.style.left = `${leftPct}%`;
+    o.style.width = `${widthPct}%`;
+  });
+}
+
+function initWaveformDragSelection() {
+  const wfBox = document.getElementById("waveformOrig");
+  if (!wfBox) return;
+
+  let dragStartPos = null;
+  let isDragging = false;
+
+  wfBox.addEventListener("mousedown", (e) => {
+    if (e.button !== 0 || !wavesurferOrig) return;
+    const rect = wfBox.getBoundingClientRect();
+    dragStartPos = e.clientX - rect.left;
+    isDragging = false;
+
+    const onMouseMove = (moveEvt) => {
+      const currentX = moveEvt.clientX - rect.left;
+      if (Math.abs(currentX - dragStartPos) > 6) {
+        isDragging = true;
+        const dur = wavesurferOrig.getDuration();
+        if (dur > 0) {
+          const x1 = Math.max(0, Math.min(dragStartPos, currentX));
+          const x2 = Math.min(rect.width, Math.max(dragStartPos, currentX));
+          const s = (x1 / rect.width) * dur;
+          const end = (x2 / rect.width) * dur;
+          const leftPct = (s / dur) * 100;
+          const widthPct = ((end - s) / dur) * 100;
+          [selectionOverlayOrig, selectionOverlayModel].filter(Boolean).forEach(o => {
+            o.style.display = "block";
+            o.style.left = `${leftPct}%`;
+            o.style.width = `${widthPct}%`;
+          });
+        }
+      }
+    };
+
+    const onMouseUp = (upEvt) => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      if (isDragging) {
+        const upX = upEvt.clientX - rect.left;
+        const dur = wavesurferOrig.getDuration();
+        if (dur > 0) {
+          const t1 = (Math.min(dragStartPos, upX) / rect.width) * dur;
+          const t2 = (Math.max(dragStartPos, upX) / rect.width) * dur;
+          if (t2 - t1 >= 0.2) {
+            setActiveLoop(t1, t2, false);
+          }
+        }
+      }
+    };
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  });
+
+  if (btnClearLoop) {
+    btnClearLoop.addEventListener("click", (e) => {
+      e.stopPropagation();
+      clearActiveLoop();
+    });
+  }
+
+  if (btnExitSyllable) {
+    btnExitSyllable.addEventListener("click", (e) => {
+      e.stopPropagation();
+      clearActiveLoop();
+    });
+  }
+}
+
+// --- 6.D Professional Transport & Listener Conditioning (Sub-Phase 3.3: NLE J-K-L Shuttle, Vocal Clarity EQ) ---
+
+function handleShuttleKey(action) {
+  if (!wavesurferOrig) return;
+
+  if (action === "K") {
+    if (shuttleState.ticker) {
+      clearInterval(shuttleState.ticker);
+      shuttleState.ticker = null;
+    }
+    if (wavesurferOrig.isPlaying()) wavesurferOrig.pause();
+    if (wavesurferModel && wavesurferModel.isPlaying()) wavesurferModel.pause();
+    shuttleState.direction = 0;
+    shuttleState.speedMultiplier = 1.0;
+    wavesurferOrig.setPlaybackRate(1.0);
+    if (wavesurferModel) wavesurferModel.setPlaybackRate(1.0);
+    updateShuttleUI();
+    return;
+  }
+
+  if (action === "L") {
+    if (shuttleState.ticker) {
+      clearInterval(shuttleState.ticker);
+      shuttleState.ticker = null;
+    }
+    if (shuttleState.direction === 1) {
+      if (shuttleState.speedMultiplier === 1.0) shuttleState.speedMultiplier = 2.0;
+      else if (shuttleState.speedMultiplier === 2.0) shuttleState.speedMultiplier = 4.0;
+      else if (shuttleState.speedMultiplier === 4.0) shuttleState.speedMultiplier = 8.0;
+      else shuttleState.speedMultiplier = 1.0;
+    } else {
+      shuttleState.direction = 1;
+      shuttleState.speedMultiplier = 1.0;
+    }
+
+    wavesurferOrig.setPlaybackRate(shuttleState.speedMultiplier);
+    if (wavesurferModel) wavesurferModel.setPlaybackRate(shuttleState.speedMultiplier);
+    if (!wavesurferOrig.isPlaying()) {
+      wavesurferOrig.play();
+      if (wavesurferModel) wavesurferModel.play();
+    }
+    updateShuttleUI();
+    return;
+  }
+
+  if (action === "J") {
+    if (wavesurferOrig.isPlaying()) wavesurferOrig.pause();
+    if (wavesurferModel && wavesurferModel.isPlaying()) wavesurferModel.pause();
+
+    if (shuttleState.direction === -1) {
+      if (shuttleState.speedMultiplier === 1.0) shuttleState.speedMultiplier = 2.0;
+      else if (shuttleState.speedMultiplier === 2.0) shuttleState.speedMultiplier = 4.0;
+      else if (shuttleState.speedMultiplier === 4.0) shuttleState.speedMultiplier = 8.0;
+      else shuttleState.speedMultiplier = 1.0;
+    } else {
+      shuttleState.direction = -1;
+      shuttleState.speedMultiplier = 1.0;
+    }
+
+    if (shuttleState.ticker) clearInterval(shuttleState.ticker);
+    let lastTick = performance.now();
+    shuttleState.ticker = setInterval(() => {
+      const now = performance.now();
+      const dt = (now - lastTick) / 1000.0;
+      lastTick = now;
+      if (!wavesurferOrig) return;
+      const curr = wavesurferOrig.getCurrentTime();
+      const step = dt * shuttleState.speedMultiplier;
+      const targetTime = Math.max(0, curr - step);
+
+      isSeekingSync = true;
+      wavesurferOrig.setTime(targetTime);
+      if (wavesurferModel) wavesurferModel.setTime(targetTime);
+      updateTimelinePlayheads(targetTime, wavesurferOrig.getDuration());
+      setTimeout(() => { isSeekingSync = false; }, 30);
+
+      if (targetTime <= 0) {
+        handleShuttleKey("K");
+      }
+    }, 33);
+
+    updateShuttleUI();
+    return;
+  }
+}
+
+function updateShuttleUI() {
+  if (!shuttleBadge || !shuttleText) return;
+  shuttleBadge.classList.remove("shuttle-active", "shuttle-reverse");
+
+  const iconEl = shuttleBadge.querySelector(".shuttle-icon");
+  if (shuttleState.direction === 0) {
+    shuttleText.textContent = "1.0x (J-K-L)";
+    if (iconEl) iconEl.textContent = "⏸";
+  } else if (shuttleState.direction === 1) {
+    shuttleText.textContent = `${shuttleState.speedMultiplier}x Fwd`;
+    if (iconEl) iconEl.textContent = "▶▶";
+    shuttleBadge.classList.add("shuttle-active");
+  } else if (shuttleState.direction === -1) {
+    shuttleText.textContent = `${shuttleState.speedMultiplier}x Rev`;
+    if (iconEl) iconEl.textContent = "◀◀";
+    shuttleBadge.classList.add("shuttle-reverse");
+  }
+}
+
+function initNLEShuttleShortcuts() {
+  window.addEventListener("keydown", (e) => {
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.isContentEditable)) {
+      return;
+    }
+
+    if (e.key === "Escape") {
+      clearActiveLoop();
+      return;
+    }
+
+    if (e.code === "Space") {
+      e.preventDefault();
+      if (btnPlayPause) btnPlayPause.click();
+      return;
+    }
+
+    const key = e.key.toUpperCase();
+    if (key === "J" || key === "K" || key === "L") {
+      e.preventDefault();
+      handleShuttleKey(key);
+    }
+  });
+}
+
+function initWebAudioEQ() {
+  try {
+    if (!audioCtx) {
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtxClass) return;
+      audioCtx = new AudioCtxClass();
+    }
+    if (audioCtx.state === "suspended") {
+      audioCtx.resume().catch(() => {});
+    }
+
+    if (!eqChain.lowCut) {
+      eqChain.lowCut = audioCtx.createBiquadFilter();
+      eqChain.lowCut.type = "highpass";
+
+      eqChain.presence = audioCtx.createBiquadFilter();
+      eqChain.presence.type = "peaking";
+
+      eqChain.highCut = audioCtx.createBiquadFilter();
+      eqChain.highCut.type = "lowpass";
+
+      eqChain.lowCut.connect(eqChain.presence);
+      eqChain.presence.connect(eqChain.highCut);
+      eqChain.highCut.connect(audioCtx.destination);
+
+      setEQPreset("flat");
+    }
+
+    const mediaOrig = wavesurferOrig ? wavesurferOrig.getMediaElement() : null;
+    const mediaModel = wavesurferModel ? wavesurferModel.getMediaElement() : null;
+
+    [mediaOrig, mediaModel].forEach(media => {
+      if (media && !eqChain.connectedMedia.has(media)) {
+        try {
+          const src = audioCtx.createMediaElementSource(media);
+          src.connect(eqChain.lowCut);
+          eqChain.connectedMedia.add(media);
+        } catch (err) {
+          // May already be connected or restricted by browser
+        }
+      }
+    });
+  } catch (err) {
+    console.warn("WebAudio EQ initialization notice:", err);
+  }
+}
+
+function setEQPreset(preset) {
+  eqChain.currentPreset = preset;
+  if (!eqChain.lowCut) return;
+
+  const now = audioCtx ? audioCtx.currentTime : 0;
+
+  if (preset === "flat") {
+    eqChain.lowCut.frequency.setValueAtTime(10, now);
+    eqChain.presence.gain.setValueAtTime(0, now);
+    eqChain.presence.frequency.setValueAtTime(2800, now);
+    eqChain.highCut.frequency.setValueAtTime(22000, now);
+  } else if (preset === "clarifier") {
+    eqChain.lowCut.frequency.setValueAtTime(120, now);
+    eqChain.presence.frequency.setValueAtTime(2800, now);
+    eqChain.presence.Q.setValueAtTime(1.0, now);
+    eqChain.presence.gain.setValueAtTime(5.0, now);
+    eqChain.highCut.frequency.setValueAtTime(14000, now);
+  } else if (preset === "dehiss") {
+    eqChain.lowCut.frequency.setValueAtTime(100, now);
+    eqChain.presence.frequency.setValueAtTime(2500, now);
+    eqChain.presence.gain.setValueAtTime(1.5, now);
+    eqChain.highCut.frequency.setValueAtTime(6500, now);
+  }
+
+  [btnEqFlat, btnEqClarifier, btnEqDehiss].forEach(btn => {
+    if (btn) btn.classList.toggle("active", btn.dataset.preset === preset);
+  });
+}
+
+function initEQControls() {
+  const eqBtns = [btnEqFlat, btnEqClarifier, btnEqDehiss];
+  eqBtns.forEach(btn => {
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      initWebAudioEQ();
+      setEQPreset(btn.dataset.preset);
+    });
+  });
+}
+
+function initNavigationAndTransport() {
+  if (isNavigationInitialized) return;
+  isNavigationInitialized = true;
+  initZoomControls();
+  initWaveformDragSelection();
+  initNLEShuttleShortcuts();
+  initEQControls();
+}
+
 // --- 7. Floating Audio Player Dock Synchronization ---
 function initFloatingPlayer() {
   if (!btnFloatingPlayPause) return;
@@ -1761,6 +2241,15 @@ function renderTranscriptFeed() {
     // Delete chunk button
     const deleteBtn = `<button class="btn-delete-segment" data-index="${index}" title="Delete this chunk from transcript">🗑️</button>`;
 
+    // Render words with spans for Alt + Click syllable micro-looping (Feature 3.2.B)
+    const rawWords = (seg.text || "").trim().split(/\s+/);
+    const wordDur = rawWords.length > 0 ? (seg.end - seg.start) / rawWords.length : 0;
+    const wordsHtml = rawWords.map((w, wIdx) => {
+      const wStart = seg.start + (wIdx * wordDur);
+      const wEnd = Math.min(seg.end, wStart + Math.max(0.45, wordDur));
+      return `<span class="transcript-word" data-word="${escapeHtml(w)}" data-start="${wStart.toFixed(3)}" data-end="${wEnd.toFixed(3)}" title="Alt + Click to loop syllable at 0.75x">${escapeHtml(w)}</span>`;
+    }).join(" ");
+
     block.innerHTML = `
       <div class="segment-header">
         <span class="speaker-badge ${spkClass}">${displayName}</span>
@@ -1772,9 +2261,38 @@ function renderTranscriptFeed() {
         ${auditionBtn}
         ${deleteBtn}
       </div>
-      <div class="segment-text" contenteditable="true" spellcheck="false" data-index="${index}">${seg.text}</div>
+      <div class="segment-text" contenteditable="true" spellcheck="false" data-index="${index}">${wordsHtml}</div>
       ${councilDrawerHtml}
     `;
+
+    // Alt + Click on word for syllable micro-looping (Feature 3.2.B)
+    const textContainer = block.querySelector(".segment-text");
+    if (textContainer) {
+      textContainer.addEventListener("click", (e) => {
+        const wordSpan = e.target.closest(".transcript-word");
+        if (wordSpan && e.altKey) {
+          e.preventDefault();
+          e.stopPropagation();
+          const wordText = wordSpan.dataset.word;
+          const wStart = parseFloat(wordSpan.dataset.start);
+          const wEnd = parseFloat(wordSpan.dataset.end);
+
+          setActiveLoop(wStart, wEnd, true);
+
+          if (playbackSpeed) {
+            playbackSpeed.value = "0.75";
+            playbackSpeed.dispatchEvent(new Event("change"));
+          }
+
+          if (syllableLoopBanner) {
+            syllableLoopBanner.style.display = "flex";
+            if (syllableLoopText) {
+              syllableLoopText.textContent = `🔁 Syllable Loop: "${wordText}" (0.75x)`;
+            }
+          }
+        }
+      });
+    }
 
     // Toggle Council Drawer
     const cToggle = block.querySelector(".btn-council-toggle");
@@ -4519,6 +5037,7 @@ initPyAnnoteVerifier();
 initSupervisorControls();
 initJournalControls();
 initSettingsTab();
+initNavigationAndTransport();
 startTelemetryPolling();
 fetchTelemetryData();
 

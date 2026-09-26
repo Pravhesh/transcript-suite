@@ -1534,6 +1534,67 @@ async def get_chunk_audio_stream(task_id: str, seg_index: int):
     return FileResponse(chunk_cache_file, media_type="audio/wav")
 
 
+@app.get("/api/audio/{task_id}/slice")
+async def get_audio_slice(
+    task_id: str,
+    start: float = Query(0.0, ge=0.0, description="Start timestamp in seconds"),
+    end: float = Query(..., gt=0.0, description="End timestamp in seconds"),
+    processed: bool = Query(False, description="Use processed 16kHz audio if available"),
+    speed: float = Query(1.0, ge=0.25, le=4.0, description="Optional playback rate time-stretching (e.g. 0.75x)")
+):
+    """
+    Extracts and streams a sub-second precision audio slice [start, end] for
+    word/syllable auditioning (Feature 3.2.B) and region loop testing (Feature 3.2.A).
+    Supports optional time-stretch playback (e.g. 0.75x speed).
+    """
+    if task_id not in TASKS:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if end <= start:
+        raise HTTPException(status_code=400, detail="End timestamp must be strictly greater than start timestamp")
+
+    task = TASKS[task_id]
+    source_audio = (task.get("processed_audio") or task.get("file_path")) if processed else (task.get("file_path") or task.get("processed_audio"))
+    if not source_audio or not Path(source_audio).exists():
+        raise HTTPException(status_code=404, detail="Audio file not found on disk")
+
+    cache_dir = Path(task.get("chunks_dir") or config.upload_dir) / "slices"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    slice_filename = f"slice_{start:.3f}_{end:.3f}_spd{speed:.2f}.wav"
+    slice_path = cache_dir / slice_filename
+
+    if not slice_path.exists():
+        import soundfile as sf
+        import torch
+        import torchaudio
+        try:
+            with sf.SoundFile(source_audio) as f:
+                sr = f.samplerate
+                total_frames = len(f)
+                start_frame = int(start * sr)
+                start_frame = min(start_frame, max(0, total_frames - 1))
+                num_frames = int((end - start) * sr)
+                num_frames = max(1, min(num_frames, total_frames - start_frame))
+                f.seek(start_frame)
+                data = f.read(num_frames, dtype="float32")
+
+            if abs(speed - 1.0) > 0.02:
+                tensor_data = torch.from_numpy(data)
+                if tensor_data.ndim == 1:
+                    tensor_data = tensor_data.unsqueeze(0)
+                else:
+                    tensor_data = tensor_data.transpose(0, 1)
+                stretched = torchaudio.transforms.Resample(orig_freq=max(100, int(sr * speed)), new_freq=sr)(tensor_data)
+                out_data = stretched.transpose(0, 1).numpy()
+                sf.write(str(slice_path), out_data, sr, subtype="PCM_16")
+            else:
+                sf.write(str(slice_path), data, sr, subtype="PCM_16")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to slice audio: {e}")
+
+    return FileResponse(slice_path, media_type="audio/wav")
+
+
 @app.get("/api/audio/{task_id}/spectrogram")
 async def get_audio_spectrogram(
     task_id: str,
