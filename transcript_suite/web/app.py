@@ -27,6 +27,7 @@ from ..asr.model_manager import model_manager
 from contextlib import asynccontextmanager
 from ..diarization.pyannote import verify_pyannote_access, auto_verify_on_startup
 from ..export import TranscriptExporter
+from ..audio.spectrogram import generate_spectrogram_image
 
 
 @asynccontextmanager
@@ -1531,6 +1532,41 @@ async def get_chunk_audio_stream(task_id: str, seg_index: int):
             raise HTTPException(status_code=500, detail=f"Failed to slice audio chunk: {e}")
 
     return FileResponse(chunk_cache_file, media_type="audio/wav")
+
+
+@app.get("/api/audio/{task_id}/spectrogram")
+async def get_audio_spectrogram(
+    task_id: str,
+    processed: bool = False,
+    width: int = Query(1200, ge=100, le=4000),
+    height: int = Query(96, ge=32, le=512)
+):
+    """
+    Generates or retrieves cached FFT Mel-Spectrogram Waterfall PNG (Feature 3.1.B).
+    Reveals speech formants (300 Hz - 3.5 kHz) vs background noise / sibilants.
+    """
+    if task_id not in TASKS:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    task = TASKS[task_id]
+    target_path = None
+    if processed:
+        target_path = task.get("processed_file_path")
+    if not target_path or not Path(target_path).exists():
+        target_path = task.get("orig_file_path") or task.get("file_path")
+
+    if not target_path or not Path(target_path).exists():
+        raise HTTPException(status_code=404, detail="Audio file on disk missing")
+
+    try:
+        png_bytes = generate_spectrogram_image(
+            audio_path_or_tensor=target_path,
+            width=width,
+            height=height
+        )
+        return Response(content=png_bytes, media_type="image/png")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate spectrogram: {e}")
 
 
 @app.post("/api/export")

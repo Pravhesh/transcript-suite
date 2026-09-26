@@ -116,6 +116,28 @@ const btnFwd5 = document.getElementById("btnFwd5");
 const playbackSpeed = document.getElementById("playbackSpeed");
 const playerTime = document.getElementById("playerTime");
 
+// Visual Telemetry Elements (Sub-Phase 3.1: Heatmap, Gantt, Spectrogram)
+const trackHeatmapRow = document.getElementById("trackHeatmapRow");
+const heatmapRibbonWrapper = document.getElementById("heatmapRibbonWrapper");
+const confidenceHeatmap = document.getElementById("confidenceHeatmap");
+const heatmapPlayhead = document.getElementById("heatmapPlayhead");
+
+const trackGanttRow = document.getElementById("trackGanttRow");
+const ganttRibbonWrapper = document.getElementById("ganttRibbonWrapper");
+const speakerGantt = document.getElementById("speakerGantt");
+const ganttPlayhead = document.getElementById("ganttPlayhead");
+const ganttSoloBar = document.getElementById("ganttSoloBar");
+const btnGanttSoloAll = document.getElementById("btnGanttSoloAll");
+
+const trackSpectrogramRow = document.getElementById("trackSpectrogramRow");
+const spectrogramWrapper = document.getElementById("spectrogramWrapper");
+const spectrogramCanvas = document.getElementById("spectrogramCanvas");
+const spectrogramPlayhead = document.getElementById("spectrogramPlayhead");
+const btnToggleSpectrogram = document.getElementById("btnToggleSpectrogram");
+
+const timelineTooltip = document.getElementById("timelineTooltip");
+let activeSoloSpeaker = null;
+
 // Transcript Workspace & Left Sidebar Elements
 const speakerSidebar = document.getElementById("speakerSidebar");
 const speakerCountBadge = document.getElementById("speakerCountBadge");
@@ -711,6 +733,11 @@ async function pollTaskStatus(taskId) {
           if (tabTranscriptBadge) tabTranscriptBadge.innerText = currentSegments.length;
           renderSpeakerSidebar();
           renderTranscriptFeed();
+          if (wavesurferOrig && wavesurferOrig.getDuration() > 0) {
+            const dur = wavesurferOrig.getDuration();
+            renderConfidenceHeatmap(currentSegments, dur);
+            renderSpeakerGantt(currentSegments, dur);
+          }
         }
       }
 
@@ -755,6 +782,12 @@ function onTranscriptionSuccess(data) {
   renderSpeakerSidebar();
   renderTranscriptFeed();
   playerCard.style.display = "block";
+  loadSpectrogram(data.id);
+  if (wavesurferOrig && wavesurferOrig.getDuration() > 0) {
+    const dur = wavesurferOrig.getDuration();
+    renderConfidenceHeatmap(currentSegments, dur);
+    renderSpeakerGantt(currentSegments, dur);
+  }
   // Seamlessly transition user to the Transcript & Editor tab
   switchTab("paneTranscript");
 }
@@ -816,6 +849,8 @@ function initAudioPlayer(taskId) {
 
   // Lockstep seeking synchronization
   wavesurferOrig.on('seeking', (time) => {
+    const totalDuration = wavesurferOrig.getDuration();
+    updateTimelinePlayheads(time, totalDuration);
     if (!isSeekingSync && wavesurferModel) {
       isSeekingSync = true;
       wavesurferModel.setTime(time);
@@ -824,6 +859,8 @@ function initAudioPlayer(taskId) {
   });
 
   wavesurferModel.on('seeking', (time) => {
+    const totalDuration = wavesurferOrig ? wavesurferOrig.getDuration() : wavesurferModel.getDuration();
+    updateTimelinePlayheads(time, totalDuration);
     if (!isSeekingSync && wavesurferOrig) {
       isSeekingSync = true;
       wavesurferOrig.setTime(time);
@@ -837,6 +874,7 @@ function initAudioPlayer(taskId) {
     updatePlaybackTime(currentTime, totalDuration);
     syncActiveSegment(currentTime);
     updateFloatingPlayerTime(currentTime, totalDuration);
+    updateTimelinePlayheads(currentTime, totalDuration);
 
     if (wavesurferModel && wavesurferOrig.isPlaying() && !isSeekingSync) {
       const diff = Math.abs(currentTime - wavesurferModel.getCurrentTime());
@@ -885,8 +923,18 @@ function initAudioPlayer(taskId) {
     if (wavesurferOrig && wavesurferOrig.isPlaying()) wavesurferOrig.pause();
   });
 
-  wavesurferOrig.on('ready', () => updateMixLevels());
+  wavesurferOrig.on('ready', () => {
+    updateMixLevels();
+    const duration = wavesurferOrig.getDuration();
+    if (currentSegments && currentSegments.length > 0) {
+      renderConfidenceHeatmap(currentSegments, duration);
+      renderSpeakerGantt(currentSegments, duration);
+    }
+  });
   wavesurferModel.on('ready', () => updateMixLevels());
+
+  loadSpectrogram(taskId);
+  updateTimelinePlayheads(0, 1);
 
   const wfContainer = document.getElementById("waveformOrig");
   if (wfContainer && window.ResizeObserver) {
@@ -1050,6 +1098,354 @@ function updatePlaybackTime(curr, total) {
   }
 }
 
+// --- 6.B Dual-Track Visual Telemetry (Sub-Phase 3.1: Heatmap, Gantt, Spectrogram) ---
+
+const SPEAKER_PALETTE = [
+  { bg: 'rgba(59, 130, 246, 0.85)', border: '#3b82f6', text: '#ffffff' },   // Blue
+  { bg: 'rgba(16, 185, 129, 0.85)', border: '#10b981', text: '#ffffff' },   // Emerald
+  { bg: 'rgba(245, 158, 11, 0.85)', border: '#f59e0b', text: '#ffffff' },   // Amber
+  { bg: 'rgba(168, 85, 247, 0.85)', border: '#a855f7', text: '#ffffff' },   // Purple
+  { bg: 'rgba(236, 72, 153, 0.85)', border: '#ec4899', text: '#ffffff' },   // Pink
+  { bg: 'rgba(14, 165, 233, 0.85)', border: '#0ea5e9', text: '#ffffff' },   // Sky
+  { bg: 'rgba(249, 115, 22, 0.85)', border: '#f97316', text: '#ffffff' },   // Orange
+  { bg: 'rgba(132, 204, 22, 0.85)', border: '#84cc16', text: '#ffffff' }    // Lime
+];
+
+function getSpeakerColor(speaker, index = 0) {
+  const match = speaker ? speaker.match(/\d+/) : null;
+  const num = match ? parseInt(match[0], 10) : index;
+  return SPEAKER_PALETTE[Math.abs(num) % SPEAKER_PALETTE.length];
+}
+
+function seekAudioTo(targetTime) {
+  if (!wavesurferOrig) return;
+  const dur = wavesurferOrig.getDuration();
+  const clamped = Math.max(0, Math.min(dur || targetTime, targetTime));
+  isSeekingSync = true;
+  wavesurferOrig.setTime(clamped);
+  if (wavesurferModel) {
+    wavesurferModel.setTime(clamped);
+  }
+  updateTimelinePlayheads(clamped, dur);
+  syncActiveSegment(clamped, true);
+  setTimeout(() => { isSeekingSync = false; }, 60);
+}
+
+function updateTimelinePlayheads(currentTime, duration) {
+  if (!duration || duration <= 0) return;
+  const pct = Math.max(0, Math.min(100, (currentTime / duration) * 100));
+  const pctStr = `${pct}%`;
+  if (heatmapPlayhead) heatmapPlayhead.style.left = pctStr;
+  if (ganttPlayhead) ganttPlayhead.style.left = pctStr;
+  if (spectrogramPlayhead) spectrogramPlayhead.style.left = pctStr;
+}
+
+function renderConfidenceHeatmap(segments, duration) {
+  if (!confidenceHeatmap) return;
+  confidenceHeatmap.innerHTML = "";
+
+  const effectiveDuration = (duration && duration > 0)
+    ? duration
+    : (segments && segments.length > 0 ? Math.max(...segments.map(s => s.end || 0)) : 0);
+
+  if (!segments || segments.length === 0 || effectiveDuration <= 0) return;
+
+  segments.forEach((seg, index) => {
+    const start = Math.max(0, seg.start);
+    const end = Math.min(effectiveDuration, seg.end);
+    if (end <= start) return;
+
+    const leftPercent = (start / effectiveDuration) * 100;
+    const widthPercent = Math.max(0.15, ((end - start) / effectiveDuration) * 100);
+
+    const isBreaker = !!(seg.loop_circuit_breaker_tripped || seg.telemetry?.loop_circuit_breaker_tripped || seg.council?.loop_circuit_breaker_tripped);
+    let score = 1.0;
+    if (seg.consensus_score !== undefined && seg.consensus_score !== null) {
+      score = Number(seg.consensus_score);
+    } else if (seg.council && seg.council.consensus_score !== undefined && seg.council.consensus_score !== null) {
+      score = Number(seg.council.consensus_score);
+    } else if (seg.needs_review) {
+      score = 0.55;
+    }
+
+    let colorClass = "heatmap-green";
+    if (isBreaker) {
+      colorClass = "heatmap-tripped";
+    } else if (score >= 0.85) {
+      colorClass = "heatmap-green";
+    } else if (score >= 0.65) {
+      colorClass = "heatmap-yellow";
+    } else {
+      colorClass = "heatmap-red";
+    }
+
+    const block = document.createElement("div");
+    block.className = `heatmap-block ${colorClass}`;
+    block.dataset.index = index;
+    block.dataset.start = start;
+    block.dataset.end = end;
+    block.dataset.score = score.toFixed(2);
+    block.style.left = `${leftPercent}%`;
+    block.style.width = `${widthPercent}%`;
+
+    block.addEventListener("mousemove", (e) => {
+      if (!timelineTooltip) return;
+      timelineTooltip.style.display = "flex";
+      timelineTooltip.style.left = `${e.clientX}px`;
+      timelineTooltip.style.top = `${e.clientY - 12}px`;
+
+      const pct = Math.round(score * 100);
+      const agreementLabel = score >= 0.85 ? "Unanimous" : (score >= 0.65 ? "Majority" : "Disputed");
+      const breakerNotice = isBreaker ? `<div class="tooltip-score" style="color: #f472b6; font-weight: 700;">⚡ Hallucination Breaker Tripped!</div>` : '';
+      const snrInfo = seg.snr_db !== undefined ? `<div class="tooltip-snr">Segment SNR: ${Number(seg.snr_db).toFixed(1)} dB</div>` : '';
+
+      timelineTooltip.innerHTML = `
+        <div class="tooltip-time">⏱ [${formatSeconds(start)} – ${formatSeconds(end)}]</div>
+        <div class="tooltip-score">Consensus: ${pct}% (${agreementLabel})</div>
+        ${breakerNotice}
+        ${snrInfo}
+        <div class="tooltip-text">"${escapeHtml(seg.text || '')}"</div>
+        <div class="tooltip-snr" style="font-size: 9px; margin-top: 2px; color: #94a3b8;">Click to seek audio</div>
+      `;
+    });
+
+    block.addEventListener("mouseleave", () => {
+      if (timelineTooltip) timelineTooltip.style.display = "none";
+    });
+
+    block.addEventListener("click", (e) => {
+      e.stopPropagation();
+      seekAudioTo(start);
+      syncActiveSegment(start, true);
+    });
+
+    confidenceHeatmap.appendChild(block);
+  });
+}
+
+function renderSpeakerGantt(segments, duration) {
+  if (!speakerGantt) return;
+  speakerGantt.innerHTML = "";
+
+  const effectiveDuration = (duration && duration > 0)
+    ? duration
+    : (segments && segments.length > 0 ? Math.max(...segments.map(s => s.end || 0)) : 0);
+
+  if (!segments || segments.length === 0 || effectiveDuration <= 0) return;
+
+  const distinctSpeakers = Array.from(new Set(segments.map(s => s.speaker || "Speaker 0"))).sort();
+
+  if (ganttSoloBar) {
+    ganttSoloBar.innerHTML = "";
+
+    const btnAll = document.createElement("button");
+    btnAll.className = `btn-gantt-solo ${activeSoloSpeaker === null ? 'active' : ''}`;
+    btnAll.dataset.speaker = "ALL";
+    btnAll.textContent = "🎙️ All";
+    btnAll.addEventListener("click", () => setSoloSpeaker(null));
+    ganttSoloBar.appendChild(btnAll);
+
+    distinctSpeakers.forEach((spk, idx) => {
+      const col = getSpeakerColor(spk, idx);
+      const btn = document.createElement("button");
+      btn.className = `btn-gantt-solo ${activeSoloSpeaker === spk ? 'active' : ''}`;
+      btn.dataset.speaker = spk;
+      const alias = speakerAliases[spk] || spk;
+      btn.innerHTML = `<span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:${col.border}; margin-right:4px;"></span>${escapeHtml(alias)}`;
+      btn.addEventListener("click", () => setSoloSpeaker(spk));
+      ganttSoloBar.appendChild(btn);
+    });
+  }
+
+  segments.forEach((seg, index) => {
+    const start = Math.max(0, seg.start);
+    const end = Math.min(effectiveDuration, seg.end);
+    if (end <= start) return;
+
+    const spk = seg.speaker || "Speaker 0";
+    const spkIdx = distinctSpeakers.indexOf(spk);
+    const col = getSpeakerColor(spk, spkIdx >= 0 ? spkIdx : 0);
+
+    const leftPercent = (start / effectiveDuration) * 100;
+    const widthPercent = Math.max(0.2, ((end - start) / effectiveDuration) * 100);
+
+    const block = document.createElement("div");
+    block.className = `gantt-block ${activeSoloSpeaker && activeSoloSpeaker !== spk ? 'dimmed' : ''}`;
+    block.dataset.speaker = spk;
+    block.dataset.index = index;
+    block.dataset.start = start;
+    block.dataset.end = end;
+    block.style.left = `${leftPercent}%`;
+    block.style.width = `${widthPercent}%`;
+    block.style.backgroundColor = col.bg;
+    block.style.borderColor = col.border;
+    block.style.color = col.text;
+
+    const durationSec = end - start;
+    const alias = speakerAliases[spk] || spk;
+    if (durationSec > 2.0) {
+      block.textContent = alias;
+    }
+
+    block.addEventListener("mousemove", (e) => {
+      if (!timelineTooltip) return;
+      timelineTooltip.style.display = "flex";
+      timelineTooltip.style.left = `${e.clientX}px`;
+      timelineTooltip.style.top = `${e.clientY - 12}px`;
+      timelineTooltip.innerHTML = `
+        <div class="tooltip-time" style="color: ${col.border};">🎙️ ${escapeHtml(alias)} [${formatSeconds(start)} – ${formatSeconds(end)}]</div>
+        <div class="tooltip-text">"${escapeHtml(seg.text || '')}"</div>
+        <div class="tooltip-snr" style="font-size: 9px; margin-top: 2px; color: #94a3b8;">Click to seek audio</div>
+      `;
+    });
+
+    block.addEventListener("mouseleave", () => {
+      if (timelineTooltip) timelineTooltip.style.display = "none";
+    });
+
+    block.addEventListener("click", (e) => {
+      e.stopPropagation();
+      seekAudioTo(start);
+      syncActiveSegment(start, true);
+    });
+
+    speakerGantt.appendChild(block);
+  });
+}
+
+function updateGanttSoloUI() {
+  if (ganttSoloBar) {
+    const soloBtns = ganttSoloBar.querySelectorAll(".btn-gantt-solo");
+    soloBtns.forEach(btn => {
+      const targetSpk = btn.dataset.speaker;
+      if (activeSoloSpeaker === null) {
+        btn.classList.toggle("active", targetSpk === "ALL");
+      } else {
+        btn.classList.toggle("active", targetSpk === activeSoloSpeaker);
+      }
+    });
+  }
+
+  if (speakerGantt) {
+    const blocks = speakerGantt.querySelectorAll(".gantt-block");
+    blocks.forEach(b => {
+      if (!activeSoloSpeaker) {
+        b.classList.remove("dimmed");
+      } else {
+        b.classList.toggle("dimmed", b.dataset.speaker !== activeSoloSpeaker);
+      }
+    });
+  }
+}
+
+function setSoloSpeaker(spk) {
+  if (spk === "ALL" || spk === null) {
+    activeSoloSpeaker = null;
+    activeSpeakerFilter = "ALL";
+  } else {
+    activeSoloSpeaker = (activeSoloSpeaker === spk) ? null : spk;
+    activeSpeakerFilter = activeSoloSpeaker ? activeSoloSpeaker : "ALL";
+  }
+  updateGanttSoloUI();
+  if (pillFilterAll) pillFilterAll.classList.toggle("active", activeSpeakerFilter === "ALL");
+  if (speakerListCompact) {
+    speakerListCompact.querySelectorAll(".speaker-card-compact").forEach(c => {
+      c.classList.toggle("active", c.dataset.speaker === activeSpeakerFilter);
+    });
+  }
+  renderTranscriptFeed();
+}
+
+function loadSpectrogram(taskId) {
+  if (!spectrogramCanvas || !taskId) return;
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.src = `/api/audio/${taskId}/spectrogram?processed=false&width=1200&height=96&_t=${Date.now()}`;
+  img.onload = () => {
+    spectrogramCanvas.width = img.naturalWidth || 1200;
+    spectrogramCanvas.height = img.naturalHeight || 96;
+    const ctx = spectrogramCanvas.getContext("2d");
+    if (ctx) {
+      ctx.clearRect(0, 0, spectrogramCanvas.width, spectrogramCanvas.height);
+      ctx.drawImage(img, 0, 0, spectrogramCanvas.width, spectrogramCanvas.height);
+    }
+  };
+  img.onerror = () => {
+    console.warn("Could not load spectrogram for task", taskId);
+  };
+}
+
+// Visual Telemetry Ribbon Event Listeners
+if (heatmapRibbonWrapper) {
+  heatmapRibbonWrapper.addEventListener("click", (e) => {
+    if (e.target.classList.contains("heatmap-block")) return;
+    if (!wavesurferOrig) return;
+    const dur = wavesurferOrig.getDuration();
+    if (dur <= 0) return;
+    const rect = heatmapRibbonWrapper.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    seekAudioTo(ratio * dur);
+  });
+}
+
+if (ganttRibbonWrapper) {
+  ganttRibbonWrapper.addEventListener("click", (e) => {
+    if (e.target.classList.contains("gantt-block")) return;
+    if (!wavesurferOrig) return;
+    const dur = wavesurferOrig.getDuration();
+    if (dur <= 0) return;
+    const rect = ganttRibbonWrapper.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    seekAudioTo(ratio * dur);
+  });
+}
+
+if (spectrogramWrapper) {
+  spectrogramWrapper.addEventListener("click", (e) => {
+    if (!wavesurferOrig) return;
+    const dur = wavesurferOrig.getDuration();
+    if (dur <= 0) return;
+    const rect = spectrogramWrapper.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    seekAudioTo(ratio * dur);
+  });
+
+  if (timelineTooltip) {
+    spectrogramWrapper.addEventListener("mousemove", (e) => {
+      if (!wavesurferOrig) return;
+      const dur = wavesurferOrig.getDuration();
+      if (dur <= 0) return;
+      const rect = spectrogramWrapper.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const t = ratio * dur;
+      const yRatio = 1 - Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+      const freqHz = Math.round(yRatio * 8000);
+      const freqLabel = freqHz < 1000 ? `${freqHz} Hz` : `${(freqHz / 1000).toFixed(1)} kHz`;
+
+      timelineTooltip.style.display = "flex";
+      timelineTooltip.style.left = `${e.clientX}px`;
+      timelineTooltip.style.top = `${e.clientY - 12}px`;
+      timelineTooltip.innerHTML = `
+        <div class="tooltip-time">⏱ ${formatSeconds(t)}</div>
+        <div class="tooltip-snr">Frequency: ~${freqLabel} (Formant Band)</div>
+        <div class="tooltip-snr" style="font-size: 9px; margin-top: 2px; color: #94a3b8;">Click to seek audio</div>
+      `;
+    });
+
+    spectrogramWrapper.addEventListener("mouseleave", () => {
+      timelineTooltip.style.display = "none";
+    });
+  }
+}
+
+if (btnToggleSpectrogram && spectrogramWrapper) {
+  btnToggleSpectrogram.addEventListener("click", () => {
+    const isExpanded = spectrogramWrapper.classList.toggle("expanded");
+    btnToggleSpectrogram.textContent = isExpanded ? "⤡" : "⤢";
+    btnToggleSpectrogram.title = isExpanded ? "Collapse Spectrogram" : "Expand Spectrogram";
+  });
+}
+
 // --- 7. Floating Audio Player Dock Synchronization ---
 function initFloatingPlayer() {
   if (!btnFloatingPlayPause) return;
@@ -1123,6 +1519,8 @@ function renderSpeakerSidebar() {
   // Wire filter pill clicks
   const setFilter = (filt) => {
     activeSpeakerFilter = filt;
+    activeSoloSpeaker = (filt === "ALL" || filt === "REVIEW" || filt === "DISPUTED") ? null : filt;
+    updateGanttSoloUI();
     pillFilterAll.classList.toggle("active", filt === "ALL");
     pillFilterReview.classList.toggle("active", filt === "REVIEW");
     pillFilterDisputed.classList.toggle("active", filt === "DISPUTED");
@@ -1164,7 +1562,9 @@ function renderSpeakerSidebar() {
     card.addEventListener("click", (e) => {
       if (e.target.classList.contains("btn-inline-rename")) return;
       activeSpeakerFilter = (activeSpeakerFilter === spk) ? "ALL" : spk;
+      activeSoloSpeaker = (activeSpeakerFilter === "ALL") ? null : activeSpeakerFilter;
       pillFilterAll.classList.toggle("active", activeSpeakerFilter === "ALL");
+      updateGanttSoloUI();
       renderSpeakerSidebar();
       renderTranscriptFeed();
     });
@@ -1178,6 +1578,9 @@ function renderSpeakerSidebar() {
         speakerAliases[spk] = newName.trim();
         renderSpeakerSidebar();
         renderTranscriptFeed();
+        if (wavesurferOrig && wavesurferOrig.getDuration() > 0) {
+          renderSpeakerGantt(currentSegments, wavesurferOrig.getDuration());
+        }
       }
     });
 

@@ -356,6 +356,61 @@
           <div id="waveformModel" class="waveform-box"></div>
         </div>
 
+        <!-- Sub-Phase 3.1.A: Waveform Acoustic Confidence Heatmap -->
+        <div class="track-row track-telemetry" id="trackHeatmapRow">
+          <div class="track-channel-strip track-channel-strip-sm">
+            <div class="track-name">
+              <span class="track-dot dot-heatmap"></span>
+              <span class="track-title-text">Acoustic Consensus Heatmap</span>
+            </div>
+            <div class="heatmap-legend">
+              <span class="legend-chip legend-green">≥85% Unanimous</span>
+              <span class="legend-chip legend-yellow">65-84% Majority</span>
+              <span class="legend-chip legend-red">&lt;65% Disputed</span>
+              <span class="legend-chip legend-pink">⚡ Breaker</span>
+            </div>
+          </div>
+          <div class="timeline-ribbon-wrapper" id="heatmapRibbonWrapper">
+            <div class="timeline-ribbon" id="confidenceHeatmap"></div>
+            <div class="timeline-playhead" id="heatmapPlayhead"></div>
+          </div>
+        </div>
+
+        <!-- Sub-Phase 3.1.C: Multi-Speaker Timeline Gantt Ribbon -->
+        <div class="track-row track-telemetry" id="trackGanttRow">
+          <div class="track-channel-strip track-channel-strip-sm">
+            <div class="track-name">
+              <span class="track-dot dot-gantt"></span>
+              <span class="track-title-text">Speaker Timeline Gantt</span>
+            </div>
+            <div class="gantt-solo-bar" id="ganttSoloBar">
+              <button class="btn-gantt-solo active" data-speaker="ALL" id="btnGanttSoloAll">🎙️ All</button>
+            </div>
+          </div>
+          <div class="timeline-ribbon-wrapper" id="ganttRibbonWrapper">
+            <div class="timeline-ribbon" id="speakerGantt"></div>
+            <div class="timeline-playhead" id="ganttPlayhead"></div>
+          </div>
+        </div>
+
+        <!-- Sub-Phase 3.1.B: FFT Spectrogram Waterfall Display -->
+        <div class="track-row track-telemetry" id="trackSpectrogramRow">
+          <div class="track-channel-strip track-channel-strip-sm">
+            <div class="track-name">
+              <span class="track-dot dot-spectrogram"></span>
+              <span class="track-title-text">FFT Spectrogram Waterfall</span>
+            </div>
+            <div class="spectrogram-controls">
+              <span class="spectrogram-freq-axis">0 – 8 kHz Formants</span>
+              <button class="btn-strip btn-toggle-vis" id="btnToggleSpectrogram" title="Toggle Spectrogram Height">⤢</button>
+            </div>
+          </div>
+          <div class="timeline-ribbon-wrapper spectrogram-wrapper" id="spectrogramWrapper">
+            <canvas id="spectrogramCanvas" class="spectrogram-canvas" height="64"></canvas>
+            <div class="timeline-playhead" id="spectrogramPlayhead"></div>
+          </div>
+        </div>
+
         <div class="player-controls">
           <div style="display: flex; gap: 8px; align-items: center;">
             <button class="btn-player" id="btnPlayPause">▶ Play Both</button>
@@ -1291,6 +1346,9 @@
       <div class="notif-empty">No notifications yet.</div>
     </div>
   </div>
+
+  <!-- Interactive Timeline Ribbon Hover Tooltip -->
+  <div class="timeline-tooltip" id="timelineTooltip" style="display: none;"></div>
 
   <script src="/static/app.js?v=2.2"></script>
 </body>
